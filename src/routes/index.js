@@ -30,8 +30,6 @@ _mounts.main = (app, middleware, controllers) => {
 	const loginRegisterMiddleware = [middleware.redirectToAccountIfLoggedIn];
 
 	setupPageRoute(app, '/login', loginRegisterMiddleware, controllers.login);
-	setupPageRoute(app, '/register', loginRegisterMiddleware, controllers.register);
-	setupPageRoute(app, '/register/complete', [], controllers.registerInterstitial);
 	setupPageRoute(app, '/compose', [], controllers.composer.get);
 	setupPageRoute(app, '/confirm/:code', [], controllers.confirmEmail);
 	setupPageRoute(app, '/outgoing', [], controllers.outgoing);

@@ -6,7 +6,6 @@ const validator = require('validator');
 const meta = require('../meta');
 const user = require('../user');
 const plugins = require('../plugins');
-const privilegesHelpers = require('../privileges/helpers');
 const helpers = require('./helpers');
 
 const Controllers = module.exports;
@@ -98,7 +97,6 @@ Controllers.reset = async function (req, res) {
 Controllers.login = async function (req, res) {
 	const data = { loginFormEntry: [] };
 	const loginStrategies = require('../routes/authentication').getLoginStrategies();
-	const registrationType = meta.config.registrationType || 'normal';
 	const allowLoginWith = (meta.config.allowLoginWith || 'username-email');
 
 	let errorText;
@@ -117,7 +115,6 @@ Controllers.login = async function (req, res) {
 
 	data.alternate_logins = loginStrategies.length > 0;
 	data.authentication = loginStrategies;
-	data.allowRegistration = registrationType === 'normal';
 	data.allowLoginWith = `[[login:${allowLoginWith}]]`;
 	data.breadcrumbs = helpers.buildBreadcrumbs([{
 		text: '[[global:login]]',
@@ -126,13 +123,7 @@ Controllers.login = async function (req, res) {
 	data.title = '[[pages:login]]';
 	data.allowPasswordReset = !meta.config['password:disableEdit'];
 
-	const loginPrivileges = await privilegesHelpers.getGroupPrivileges(0, ['groups:local:login']);
-	const hasLoginPrivilege = !!loginPrivileges.find(privilege => privilege.privileges['groups:local:login']);
-	data.allowLocalLogin = hasLoginPrivilege || parseInt(req.query.local, 10) === 1;
-
-	if (!data.allowLocalLogin && !data.allowRegistration && data.alternate_logins && data.authentication.length === 1) {
-		return helpers.redirect(res, { external: data.authentication[0].url });
-	}
+	data.allowLocalLogin = false;
 
 	// Re-auth challenge, pre-fill username
 	if (req.loggedIn) {
@@ -141,87 +132,6 @@ Controllers.login = async function (req, res) {
 		data.alternate_logins = false;
 	}
 	res.render('login', data);
-};
-
-Controllers.register = async function (req, res, next) {
-	const registrationType = meta.config.registrationType || 'normal';
-
-	if (registrationType === 'disabled') {
-		return setImmediate(next);
-	}
-
-	let errorText;
-	const returnTo = (req.headers['x-return-to'] || '').replace(nconf.get('base_url') + nconf.get('relative_path'), '');
-	if (req.query.error === 'csrf-invalid') {
-		errorText = '[[error:csrf-invalid]]';
-	}
-	try {
-		if (registrationType === 'invite-only' || registrationType === 'admin-invite-only') {
-			try {
-				await user.verifyInvitation(req.query);
-			} catch (e) {
-				return res.render('400', {
-					error: e.message,
-				});
-			}
-		}
-
-		if (returnTo) {
-			req.session.returnTo = returnTo;
-		}
-
-		const loginStrategies = require('../routes/authentication').getLoginStrategies();
-		res.render('register', {
-			'register_window:spansize': loginStrategies.length ? 'col-md-6' : 'col-md-12',
-			alternate_logins: !!loginStrategies.length,
-			authentication: loginStrategies,
-
-			minimumUsernameLength: meta.config.minimumUsernameLength,
-			maximumUsernameLength: meta.config.maximumUsernameLength,
-			minimumPasswordLength: meta.config.minimumPasswordLength,
-			minimumPasswordStrength: meta.config.minimumPasswordStrength,
-			breadcrumbs: helpers.buildBreadcrumbs([{
-				text: '[[register:register]]',
-			}]),
-			regFormEntry: [],
-			error: req.flash('error')[0] || errorText,
-			title: '[[pages:register]]',
-		});
-	} catch (err) {
-		next(err);
-	}
-};
-
-// GET /register/complete
-Controllers.registerInterstitial = async function (req, res, next) {
-	if (!req.session.hasOwnProperty('registration')) {
-		return res.redirect(`${nconf.get('relative_path')}/register`);
-	}
-	try {
-		const data = await user.interstitials.get(req, req.session.registration);
-
-		if (!data.interstitials.length) {
-			// No interstitials, redirect to home
-			const returnTo = req.session.returnTo || req.session.registration.returnTo;
-			delete req.session.registration;
-			return helpers.redirect(res, returnTo || '/');
-		}
-
-		const errors = req.flash('errors');
-		const renders = data.interstitials.map(
-			interstitial => req.app.renderAsync(interstitial.template, { ...interstitial.data || {}, errors })
-		);
-		const sections = await Promise.all(renders);
-
-		res.render('registerComplete', {
-			title: '[[pages:registration-complete]]',
-			register: data.userData.register,
-			sections,
-			errors,
-		});
-	} catch (err) {
-		next(err);
-	}
 };
 
 Controllers.confirmEmail = async (req, res) => {
@@ -237,11 +147,6 @@ Controllers.confirmEmail = async (req, res) => {
 	}
 	try {
 		await user.email.confirmByCode(req.params.code, req.session.id);
-		if (req.session.registration) {
-			// After confirmation, no need to send user back to email change form
-			delete req.session.registration.updateEmail;
-		}
-
 		renderPage();
 	} catch (e) {
 		if (e.message === '[[error:invalid-data]]' || e.message === '[[error:confirm-email-expired]]') {

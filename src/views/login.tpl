@@ -53,12 +53,6 @@
 							<p class="mb-0">{error}</p>
 						</div>
 
-						<hr/>
-
-						{{{ if allowRegistration }}}
-						<span class="text-sm">[[login:dont-have-account]]</span>
-						<a class="btn btn-outline-light text-body" href="{config.relative_path}/register">[[register:register]]</a>
-						{{{ end }}}
 					</form>
 				</div>
 			</div>

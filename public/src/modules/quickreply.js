@@ -74,6 +74,9 @@ define('quickreply', [
 				content: replyMsg,
 				...opts.body,
 			};
+			if (!replyData.tid && !replyData.title) {
+				replyData.title = replyMsg.split('\n')[0].substring(0, 255);
+			}
 
 			const replyLen = replyMsg.length;
 			if (replyLen < parseInt(config.minimumPostLength, 10)) {

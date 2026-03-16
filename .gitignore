@@ -73,3 +73,6 @@ test.sh
 
 .docker/**
 !**/.gitkeep
+# Local environment config
+.env.local
+.env.dev

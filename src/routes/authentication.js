@@ -115,24 +115,12 @@ Auth.reloadRoutes = async function (params) {
 
 			next(req.query.state !== req.session.ssoState ? new Error('[[error:csrf-invalid]]') : null);
 		}, (req, res, next) => {
-			// Trigger registration interstitial checks
-			req.session.registration = req.session.registration || {};
-			// save returnTo for later usage in /register/complete
-			// passport seems to remove `req.session.returnTo` after it redirects
-			req.session.registration.returnTo = req.session.next || req.session.returnTo;
-
 			passport.authenticate(strategy.name, (err, user, info) => {
 				if (err) {
-					if (req.session && req.session.registration) {
-						delete req.session.registration;
-					}
 					return next(err);
 				}
 
 				if (!user) {
-					if (req.session && req.session.registration) {
-						delete req.session.registration;
-					}
 					if (info && info.message) {
 						return helpers.redirect(res, `/?register=${encodeURIComponent(info.message)}`);
 					}
@@ -164,9 +152,6 @@ Auth.reloadRoutes = async function (params) {
 		Auth.middleware.applyBlacklist,
 	];
 
-	router.post('/register', middlewares, controllers.authentication.register);
-	router.post('/register/complete', middlewares, controllers.authentication.registerComplete);
-	router.post('/register/abort', middlewares, controllers.authentication.registerAbort);
 	router.post('/login', Auth.middleware.applyCSRF, Auth.middleware.applyBlacklist, controllers.authentication.login);
 	router.post('/logout', Auth.middleware.applyCSRF, controllers.authentication.logout);
 };

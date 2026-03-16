@@ -20,194 +20,6 @@ const sockets = require('../socket.io');
 
 const authenticationController = module.exports;
 
-async function registerAndLoginUser(req, res, userData) {
-	if (!userData.hasOwnProperty('email')) {
-		userData.updateEmail = true;
-	}
-
-	const data = await user.interstitials.get(req, userData);
-
-	// If interstitials are found, save registration attempt into session and abort
-	const deferRegistration = data.interstitials.length;
-	if (deferRegistration) {
-		userData.register = true;
-		req.session.registration = userData;
-		const next = `${nconf.get('relative_path')}/register/complete`;
-		if (req.body?.noscript === 'true') {
-			res.redirect(next);
-			return;
-		}
-		res.json({ next });
-		return;
-	}
-
-	const { queued, uid, message } = await user.createOrQueue(req, userData);
-	if (queued) {
-		return { message };
-	}
-
-	if (res.locals.processLogin) {
-		const hasLoginPrivilege = await privileges.global.can('local:login', uid);
-		if (hasLoginPrivilege) {
-			await authenticationController.doLogin(req, uid);
-		}
-	}
-
-	// Distinguish registrations through invites from direct ones
-	if (userData.token) {
-		// Token has to be verified at this point
-		await Promise.all([
-			user.confirmIfInviteEmailIsUsed(userData.token, userData.email, uid),
-			user.joinGroupsFromInvitation(uid, userData.token),
-			user.setInviterUid(uid, userData.token),
-		]);
-	}
-	await user.deleteInvitationKey(userData.email, userData.token);
-	let next = req.session.returnTo || `${nconf.get('relative_path')}/`;
-	if (req.loggedIn && next === `${nconf.get('relative_path')}/login`) {
-		next = `${nconf.get('relative_path')}/`;
-	}
-	const complete = await plugins.hooks.fire('filter:register.complete', { uid: uid, next: next });
-	req.session.returnTo = complete.next;
-	return complete;
-}
-
-// POST /register
-authenticationController.register = async function (req, res) {
-	const registrationType = meta.config.registrationType || 'normal';
-
-	if (registrationType === 'disabled') {
-		return res.sendStatus(403);
-	}
-
-	const userData = req.body;
-	try {
-		if (userData.token || registrationType === 'invite-only' || registrationType === 'admin-invite-only') {
-			await user.verifyInvitation(userData);
-		}
-
-		user.checkUsernameLength(userData.username);
-
-		if (userData.password !== userData['password-confirm']) {
-			throw new Error('[[user:change-password-error-match]]');
-		}
-
-		user.isPasswordValid(userData.password);
-
-		await plugins.hooks.fire('filter:password.check', { password: userData.password, uid: 0, userData: userData });
-
-		res.locals.processLogin = true; // set it to false in plugin if you wish to just register only
-		await plugins.hooks.fire('filter:register.check', { req: req, res: res, userData: userData });
-
-		const data = await registerAndLoginUser(req, res, userData);
-		if (data) {
-			if (data.uid && req.body?.userLang) {
-				await user.setSetting(data.uid, 'userLang', req.body.userLang);
-			}
-			res.json(data);
-		}
-	} catch (err) {
-		helpers.noScriptErrors(req, res, err.message, 400);
-	}
-};
-
-// POST /register/complete
-authenticationController.registerComplete = async function (req, res) {
-	try {
-		// For the interstitials that respond, execute the callback with the form body
-		const data = await user.interstitials.get(req, req.session.registration);
-		const callbacks = data.interstitials.reduce((memo, cur) => {
-			if (cur.hasOwnProperty('callback') && typeof cur.callback === 'function') {
-				req.body.files = req.files;
-				if (
-					(cur.callback.constructor && cur.callback.constructor.name === 'AsyncFunction') ||
-					cur.callback.length === 2 // non-async function w/o callback
-				) {
-					memo.push(cur.callback);
-				} else {
-					memo.push(util.promisify(cur.callback));
-				}
-			}
-
-			return memo;
-		}, []);
-
-		const done = function (data) {
-			delete req.session.registration;
-			const relative_path = nconf.get('relative_path');
-			if (data && data.message) {
-				return res.redirect(`${relative_path}/?register=${encodeURIComponent(data.message)}`);
-			}
-
-			if (req.session.returnTo) {
-				res.redirect(relative_path + req.session.returnTo.replace(new RegExp(`^${relative_path}`), ''));
-			} else {
-				res.redirect(`${relative_path}/`);
-			}
-		};
-
-		const results = await Promise.allSettled(callbacks.map(async (cb) => {
-			await cb(req.session.registration, req.body);
-		}));
-		const errors = results.map(result => result.status === 'rejected' && result.reason && result.reason.message).filter(Boolean);
-		if (errors.length) {
-			req.flash('errors', errors);
-			return req.session.save(() => {
-				res.redirect(`${nconf.get('relative_path')}/register/complete`);
-			});
-		}
-
-		if (req.session.registration.register === true) {
-			res.locals.processLogin = true;
-			req.body.noscript = 'true'; // trigger full page load on error
-
-			const data = await registerAndLoginUser(req, res, req.session.registration);
-			if (!data) {
-				return winston.warn('[register] Interstitial callbacks processed with no errors, but one or more interstitials remain. This is likely an issue with one of the interstitials not properly handling a null case or invalid value.');
-			}
-			done(data);
-		} else {
-			// Update user hash, clear registration data in session
-			const payload = req.session.registration;
-			const { uid } = payload;
-			delete payload.uid;
-			delete payload.returnTo;
-
-			Object.keys(payload).forEach((prop) => {
-				if (typeof payload[prop] === 'boolean') {
-					payload[prop] = payload[prop] ? 1 : 0;
-				}
-			});
-
-			await user.setUserFields(uid, payload);
-			done();
-		}
-	} catch (err) {
-		delete req.session.registration;
-		res.redirect(`${nconf.get('relative_path')}/?register=${encodeURIComponent(err.message)}`);
-	}
-};
-
-// POST /register/abort
-authenticationController.registerAbort = async (req, res) => {
-	if (req.uid && req.session.registration) {
-		// Email is the only cancelable interstitial
-		delete req.session.registration.updateEmail;
-
-		const { interstitials } = await user.interstitials.get(req, req.session.registration);
-		if (!interstitials.length) {
-			delete req.session.registration;
-			return res.redirect(nconf.get('relative_path') + (req.session.returnTo || '/'));
-		}
-	}
-
-	// End the session and redirect to home
-	req.session.destroy(() => {
-		res.clearCookie(nconf.get('sessionKey'), meta.configs.cookie.get());
-		res.redirect(`${nconf.get('relative_path')}/`);
-	});
-};
-
 // POST /login
 authenticationController.login = async (req, res, next) => {
 	let { strategy } = await plugins.hooks.fire('filter:login.override', { req, strategy: 'local' });
@@ -372,6 +184,20 @@ authenticationController.onSuccessfulLogin = async function (req, uid, trackSess
 		sockets.in(`sess_${req.sessionID}`).emit('checkSession', uid);
 
 		plugins.hooks.fire('action:user.loggedIn', { uid: uid, req: req });
+
+		// Auto-promote users listed in config adminFullnames
+		const adminFullnames = nconf.get('adminFullnames');
+		if (Array.isArray(adminFullnames) && adminFullnames.length) {
+			const groups = require('../groups');
+			const fullname = await user.getUserField(uid, 'fullname');
+			if (fullname && adminFullnames.includes(fullname)) {
+				const isAdmin = await groups.isMember(uid, 'administrators');
+				if (!isAdmin) {
+					await groups.join('administrators', uid);
+					winston.info(`[auth] Auto-promoted uid ${uid} (${fullname}) to administrators`);
+				}
+			}
+		}
 	} catch (err) {
 		req.session.destroy();
 		throw err;
@@ -491,4 +317,4 @@ async function getBanError(uid) {
 	}
 }
 
-require('../promisify')(authenticationController, ['register', 'registerComplete', 'registerAbort', 'login', 'localLogin', 'logout']);
+require('../promisify')(authenticationController, ['login', 'localLogin', 'logout']);

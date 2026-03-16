@@ -148,7 +148,6 @@ module.exports = function (middleware) {
 	}
 
 	async function loadClientHeaderFooterData(req, res, options) {
-		const registrationType = meta.config.registrationType || 'normal';
 		res.locals.config = res.locals.config || {};
 		const userLang = res.locals.config.userLang || meta.config.userLang || 'en-GB';
 		const templateValues = {
@@ -160,7 +159,6 @@ module.exports = function (middleware) {
 			'brand:logo:url': meta.config['brand:logo:url'] || '',
 			'brand:logo:alt': meta.config['brand:logo:alt'] || '',
 			'brand:logo:display': meta.config['brand:logo'] ? '' : 'hide',
-			allowRegistration: registrationType === 'normal',
 			searchEnabled: plugins.hooks.hasListeners('filter:search.query'),
 			postQueueEnabled: !!meta.config.postQueue,
 			registrationQueueEnabled: meta.config.registrationApprovalType !== 'normal' || (meta.config.registrationType === 'invite-only' || meta.config.registrationType === 'admin-invite-only'),

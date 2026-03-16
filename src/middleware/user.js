@@ -277,37 +277,8 @@ module.exports = function (middleware) {
 		next();
 	};
 
-	middleware.registrationComplete = async function registrationComplete(req, res, next) {
-		/**
-		 * Redirect the user to complete registration if:
-		 *   * user's session contains registration data
-		 *   * email is required and they have no confirmed email (pending doesn't count, but admins are OK)
-		 */
-		const path = req.path.startsWith('/api/') ? req.path.replace('/api', '') : req.path;
-
-		if (meta.config.requireEmailAddress && await requiresEmailConfirmation(req)) {
-			req.session.registration = {
-				...req.session.registration,
-				uid: req.uid,
-				updateEmail: true,
-			};
-		}
-
-		if (!req.session.hasOwnProperty('registration')) {
-			return setImmediate(next);
-		}
-
-		const { allowed } = await plugins.hooks.fire('filter:middleware.registrationComplete', {
-			allowed: ['/register/complete', '/confirm/'],
-		});
-		if (allowed.includes(path) || allowed.some(p => path.startsWith(p))) {
-			return setImmediate(next);
-		}
-
-		// Append user data if present
-		req.session.registration.uid = req.session.registration.uid || req.uid;
-
-		controllers.helpers.redirect(res, '/register/complete');
+	middleware.registrationComplete = function registrationComplete(req, res, next) {
+		return setImmediate(next);
 	};
 
 	async function requiresEmailConfirmation(req) {
