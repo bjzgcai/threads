@@ -1,0 +1,7 @@
+{
+  "name": "nodebb-plugin-sso-dingtalk",
+  "version": "1.0.0",
+  "description": "DingTalk (钉钉) SSO authentication plugin for NodeBB",
+  "main": "library.js",
+  "license": "MIT"
+}

@@ -76,3 +76,4 @@ test.sh
 # Local environment config
 .env.local
 .env.dev
+.env.prod

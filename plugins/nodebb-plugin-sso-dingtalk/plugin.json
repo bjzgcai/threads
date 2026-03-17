@@ -1,0 +1,11 @@
+{
+  "id": "nodebb-plugin-sso-dingtalk",
+  "library": "./library.js",
+  "hooks": [
+    { "hook": "static:app.load", "method": "init" },
+    { "hook": "filter:auth.init", "method": "getStrategy" },
+    { "hook": "filter:login.override", "method": "loginOverride" },
+    { "hook": "filter:register.interstitial", "method": "addInterstitial" },
+    { "hook": "static:user.delete", "method": "deleteUserData" }
+  ]
+}
