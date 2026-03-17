@@ -14,8 +14,8 @@ const DINGTALK_AUTH_URL = 'https://login.dingtalk.com/oauth2/auth';
 const DINGTALK_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/userAccessToken';
 const DINGTALK_USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me';
 
-const CLIENT_ID = process.env.DINGTALK_CLIENT_ID || 'dingucihpgomszeyk99t';
-const CLIENT_SECRET = process.env.DINGTALK_CLIENT_SECRET || 'iZAA0E-qVjJgGGYWovR7nbNVfeM9HMHSJqTKTNlj_1XhdHFZXxSlmjd8xNSCx270';
+const CLIENT_ID = process.env.DINGTALK_CLIENT_ID;
+const CLIENT_SECRET = process.env.DINGTALK_CLIENT_SECRET;
 const DB_KEY = 'dingtalk:openid2uid';
 
 // --- HTTP helpers ---
@@ -153,6 +153,11 @@ DingTalkPlugin.init = async function (params) {
 };
 
 DingTalkPlugin.getStrategy = async function (strategies) {
+	if (!CLIENT_ID || !CLIENT_SECRET) {
+		winston.error('[sso-dingtalk] Missing required env vars: DINGTALK_CLIENT_ID / DINGTALK_CLIENT_SECRET');
+		return strategies;
+	}
+
 	const callbackURL = `${nconf.get('url')}/auth/dingtalk/callback`;
 
 	passport.use(new DingTalkStrategy(
@@ -213,6 +218,12 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 				if (profile.avatarUrl) {
 					await user.setUserField(newUid, 'uploadedpicture', profile.avatarUrl);
 					await user.setUserField(newUid, 'picture', profile.avatarUrl);
+				}
+
+				// Auto-confirm the email provided by DingTalk SSO
+				if (userData.email) {
+					await user.setUserField(newUid, 'email:confirmed', 1);
+					await db.sortedSetRemove('users:notvalidated', newUid);
 				}
 
 				done(null, { uid: newUid });
