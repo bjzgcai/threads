@@ -4,6 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+### dev mode
+```bash
+npm run dev
+```
+
 ### Running NodeBB
 ```bash
 ./nodebb start          # Start in production mode (via loader.js process manager)
