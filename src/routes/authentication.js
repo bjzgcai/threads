@@ -1,6 +1,7 @@
 'use strict';
 
 const async = require('async');
+const util = require('util');
 const passport = require('passport');
 const passportLocal = require('passport-local').Strategy;
 const BearerStrategy = require('passport-http-bearer').Strategy;
