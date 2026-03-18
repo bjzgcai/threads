@@ -2,6 +2,8 @@
 
 const util = require('util');
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 const passport = require.main.require('passport');
 const nconf = require.main.require('nconf');
 const winston = require.main.require('winston');
@@ -14,9 +16,45 @@ const DINGTALK_AUTH_URL = 'https://login.dingtalk.com/oauth2/auth';
 const DINGTALK_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/userAccessToken';
 const DINGTALK_USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me';
 
+loadDotEnvIfNeeded();
+
 const CLIENT_ID = process.env.DINGTALK_CLIENT_ID;
 const CLIENT_SECRET = process.env.DINGTALK_CLIENT_SECRET;
 const DB_KEY = 'dingtalk:openid2uid';
+
+function loadDotEnvIfNeeded() {
+	if (process.env.DINGTALK_CLIENT_ID && process.env.DINGTALK_CLIENT_SECRET) {
+		return;
+	}
+
+	try {
+		const envPath = path.resolve(__dirname, '..', '..', '.env');
+		if (!fs.existsSync(envPath)) {
+			return;
+		}
+		const raw = fs.readFileSync(envPath, 'utf-8');
+		raw.split(/\r?\n/).forEach((line) => {
+			const trimmed = line.trim();
+			if (!trimmed || trimmed.startsWith('#')) {
+				return;
+			}
+			const idx = trimmed.indexOf('=');
+			if (idx === -1) {
+				return;
+			}
+			const key = trimmed.slice(0, idx).trim();
+			let value = trimmed.slice(idx + 1).trim();
+			if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+				value = value.slice(1, -1);
+			}
+			if (!process.env[key]) {
+				process.env[key] = value;
+			}
+		});
+	} catch (err) {
+		winston.warn(`[sso-dingtalk] Failed to load .env: ${err.message}`);
+	}
+}
 
 // --- HTTP helpers ---
 
@@ -153,11 +191,6 @@ DingTalkPlugin.init = async function (params) {
 };
 
 DingTalkPlugin.getStrategy = async function (strategies) {
-	if (!CLIENT_ID || !CLIENT_SECRET) {
-		winston.error('[sso-dingtalk] Missing required env vars: DINGTALK_CLIENT_ID / DINGTALK_CLIENT_SECRET');
-		return strategies;
-	}
-
 	const callbackURL = `${nconf.get('url')}/auth/dingtalk/callback`;
 
 	passport.use(new DingTalkStrategy(
@@ -169,6 +202,9 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 		},
 		async (req, accessToken, profile, done) => {
 			try {
+				if (!CLIENT_ID || !CLIENT_SECRET) {
+					return done(new Error('DingTalk app credentials not configured'));
+				}
 				// profile fields: openId, unionId, nick, avatarUrl, mobile, email
 				// Use unionId as the stable unique identifier (consistent across all DingTalk apps)
 				// Fall back to openId only if unionId is not available
@@ -251,6 +287,10 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 		successUrl: '/',
 		failureUrl: '/login',
 	});
+
+	if (!CLIENT_ID || !CLIENT_SECRET) {
+		winston.error('[sso-dingtalk] Missing required env vars: DINGTALK_CLIENT_ID / DINGTALK_CLIENT_SECRET');
+	}
 
 	return strategies;
 };

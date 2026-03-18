@@ -65,15 +65,14 @@ coverage
 *.log
 test/files/normalise.jpg.png
 test/files/normalise-resized.jpg
-package-lock.json
-/package.json
 *.mongodb
 link-plugins.sh
 test.sh
-
+.npm-cache/
 .docker/**
 !**/.gitkeep
 # Local environment config
 .env.local
 .env.dev
 .env.prod
+.env

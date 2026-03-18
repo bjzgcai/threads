@@ -46,27 +46,31 @@ define('forum/login', ['hooks', 'translator', 'jquery-form'], function (hooks, t
 			}
 
 			hooks.fire('action:app.login');
-			formEl.ajaxSubmit({
+			const formData = new FormData(formEl[0]);
+			fetch(formEl.attr('action') || window.location.href, {
+				method: formEl.attr('method') || 'POST',
+				body: formData,
 				headers: {
 					'x-csrf-token': config.csrf_token,
 				},
-				beforeSend: function () {
-					app.flags._login = true;
-				},
-				success: function (data) {
+			}).then(async (response) => {
+				if (response.ok) {
+					const data = await response.json();
 					hooks.fire('action:app.loggedIn', data);
-					const pathname = utils.urlToLocation(data.next).pathname;
-					const params = utils.params({ url: data.next });
-					params.loggedin = true;
-					delete params.register; // clear register message incase it exists
-					const qs = $.param(params);
-
-					window.location.href = pathname + '?' + qs;
-				},
-				error: function (data) {
-					let message = data.responseText;
-					const errInfo = data.responseJSON;
-					if (data.status === 403 && data.responseText === 'Forbidden') {
+					const next = data.next;
+					const params = new URLSearchParams(next.split('?')[1] || '');
+					if (!params.has('loggedin')) {
+						params.set('loggedin', 'true');
+					}
+					// clear register message incase it exists
+					params.delete('register');
+					const qs = params.toString();
+					const newUrl = `${next.split('?')[0]}${qs ? `?${qs}` : ''}`;
+					window.location.replace(newUrl);
+				} else {
+					const errInfo = await response.json().catch(() => ({}));
+					let message = response.statusText;
+					if (response.status === 403 && response.statusText === 'Forbidden') {
 						window.location.href = config.relative_path + '/login?error=csrf-invalid';
 					} else if (errInfo && errInfo.hasOwnProperty('banned_until')) {
 						message = errInfo.banned_until ?
@@ -76,12 +80,16 @@ define('forum/login', ['hooks', 'translator', 'jquery-form'], function (hooks, t
 					errorEl.find('p').translateText(message);
 					errorEl.removeClass('hidden');
 					submitEl.removeClass('disabled');
-
 					// Select the entire password if that field has focus
 					if ($('#password:focus').length) {
 						$('#password').select();
 					}
-				},
+				}
+			}).catch((error) => {
+				console.error('Error:', error);
+				errorEl.find('p').translateText('[[error:invalid-username-or-password]]');
+				errorEl.removeClass('hidden');
+				submitEl.removeClass('disabled');
 			});
 		});
 

@@ -11,6 +11,9 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', function (event) {
+	if (event.request.url.includes('/socket.io/')) {
+		return;
+	}
 	// This is the code that ignores post requests
 	// https://github.com/NodeBB/NodeBB/issues/9151
 	// https://github.com/w3c/ServiceWorker/issues/1141

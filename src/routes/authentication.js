@@ -131,17 +131,18 @@ Auth.reloadRoutes = async function (params) {
 				res.locals.strategy = strategy;
 				next();
 			})(req, res, next);
-		}, Auth.middleware.validateAuth, (req, res, next) => {
-			async.waterfall([
-				async.apply(req.login.bind(req), res.locals.user, { keepSessionInfo: true }),
-				async.apply(controllers.authentication.onSuccessfulLogin, req, res.locals.user.uid),
-			], (err) => {
-				if (err) {
-					return next(err);
-				}
-
+		}, Auth.middleware.validateAuth, async (req, res, next) => {
+			try {
+				// 登录用户
+				const loginAsync = util.promisify(req.login).bind(req);
+				await loginAsync(res.locals.user, { keepSessionInfo: true });
+				// 处理登录成功后的逻辑
+				await controllers.authentication.onSuccessfulLogin(req, res.locals.user.uid);
+				// 重定向到成功页面
 				helpers.redirect(res, strategy.successUrl || '/');
-			});
+			} catch (err) {
+				next(err);
+			}
 		});
 	});
 

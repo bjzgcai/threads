@@ -59,24 +59,25 @@
 			{{{ end }}}
 
 			{{{ if alternate_logins }}}
-			<div class="col-12 col-md-5 col-lg-3 px-md-0">
-				<div class="alt-login-block d-flex flex-column gap-2">
-					<label>[[login:alternative-logins]]</label>
-					<ul class="alt-logins list-unstyled">
+			<div class="col-12 col-md-7 col-lg-5 px-md-0">
+				<div class="alt-login-block card border-0 shadow-sm">
+					<div class="card-body p-4 p-md-5 d-flex flex-column gap-3">
+					<ul class="alt-logins list-unstyled mb-0">
 						{{{ each authentication }}}
 						<li class="{./name} mb-2">
-							<a class="btn btn-outline-light d-flex align-items-center" rel="nofollow noopener noreferrer" target="_top" href="{config.relative_path}{./url}">
+							<a class="btn btn-primary btn-lg w-100 d-flex align-items-center justify-content-center" rel="nofollow noopener noreferrer" target="_top" href="{config.relative_path}{./url}">
 								{{{ if ./icons.svg }}}
 								{./icons.svg}
 								{{{ else }}}
-								<i class="flex-shrink-0 {./icons.normal}" style="color:{./color};"></i>
+								<i class="d-none flex-shrink-0 {./icons.normal}"></i>
 								{{{ end }}}
 								{{{ if ./labels.login }}}
-								<div class="flex-grow-1 text-body text-sm">{./labels.login}</div>
+								<div class="text-center">钉钉</div>
 								{{{ end }}}
 							</a></li>
 						{{{ end }}}
 					</ul>
+					</div>
 				</div>
 			</div>
 			{{{ end }}}

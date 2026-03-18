@@ -1,35 +1,35 @@
 [
     {
-        "name": "Announcements",
-        "description": "Announcements regarding our community",
-        "descriptionParsed": "<p>Announcements regarding our community</p>\n",
+        "name": "公告",
+        "description": "社区公告与通知",
+        "descriptionParsed": "<p>社区公告与通知</p>\n",
         "bgColor": "#fda34b",
         "color": "#ffffff",
         "icon" : "fa-bullhorn",
         "order": 1
     },
     {
-        "name": "General Discussion",
-        "description": "A place to talk about whatever you want",
-        "descriptionParsed": "<p>A place to talk about whatever you want</p>\n",
+        "name": "综合讨论",
+        "description": "畅所欲言，分享想法与经验",
+        "descriptionParsed": "<p>畅所欲言，分享想法与经验</p>\n",
         "bgColor": "#59b3d0",
         "color": "#ffffff",
         "icon" : "fa-comments-o",
         "order": 2
     },
     {
-        "name": "Blogs",
-        "description": "Blog posts from individual members",
-        "descriptionParsed": "<p>Blog posts from individual members</p>\n",
+        "name": "博客",
+        "description": "成员个人博客与随笔",
+        "descriptionParsed": "<p>成员个人博客与随笔</p>\n",
         "bgColor": "#86ba4b",
         "color": "#ffffff",
         "icon" : "fa-newspaper-o",
         "order": 4
     },
     {
-        "name": "Comments & Feedback",
-        "description": "Got a question? Ask away!",
-        "descriptionParsed": "<p>Got a question? Ask away!</p>\n",
+        "name": "建议与反馈",
+        "description": "有问题或建议？欢迎提出！",
+        "descriptionParsed": "<p>有问题或建议？欢迎提出！</p>\n",
         "bgColor": "#e95c5a",
         "color": "#ffffff",
         "icon" : "fa-question",
