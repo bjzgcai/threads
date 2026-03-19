@@ -1,7 +1,6 @@
 'use strict';
 
 const async = require('async');
-const util = require('util');
 const passport = require('passport');
 const passportLocal = require('passport-local').Strategy;
 const BearerStrategy = require('passport-http-bearer').Strategy;
@@ -135,8 +134,14 @@ Auth.reloadRoutes = async function (params) {
 		}, Auth.middleware.validateAuth, async (req, res, next) => {
 			try {
 				// 登录用户
-				const loginAsync = util.promisify(req.login).bind(req);
-				await loginAsync(res.locals.user, { keepSessionInfo: true });
+				await new Promise((resolve, reject) => {
+					req.login(res.locals.user, { keepSessionInfo: true }, (err) => {
+						if (err) {
+							return reject(err);
+						}
+						resolve();
+					});
+				});
 				// 处理登录成功后的逻辑
 				await controllers.authentication.onSuccessfulLogin(req, res.locals.user.uid);
 				// 重定向到成功页面

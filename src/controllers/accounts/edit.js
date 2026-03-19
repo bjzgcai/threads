@@ -48,6 +48,12 @@ editController.get = async function (req, res, next) {
 		userData.sso = associations;
 	}
 
+	const dingtalkSSOFlag = await user.getUserField(res.locals.uid, 'dingtalk:sso');
+	const hasDingTalkAssociation = Array.isArray(userData.sso) && userData.sso.some(item =>
+		['name', 'url', 'deauthUrl', 'component'].some(key => String((item && item[key]) || '').toLowerCase().includes('dingtalk'))
+	);
+	userData.disableCredentialEdit = String(dingtalkSSOFlag || '') === '1' || hasDingTalkAssociation;
+
 	if (!allowMultipleBadges) {
 		userData.groupTitle = groupTitleArray[0];
 	}
@@ -102,13 +108,18 @@ editController.email = async function (req, res, next) {
 
 async function renderRoute(name, req, res) {
 	const { userData } = res.locals;
-	const [isAdmin, { username, userslug }, hasPassword] = await Promise.all([
+	const [isAdmin, { username, userslug }, hasPassword, dingtalkSSOFlag] = await Promise.all([
 		privileges.admin.can('admin:users', req.uid),
 		user.getUserFields(res.locals.uid, ['username', 'userslug']),
 		user.hasPassword(res.locals.uid),
+		user.getUserField(res.locals.uid, 'dingtalk:sso'),
 	]);
+	const isDingTalkSSO = String(dingtalkSSOFlag || '') === '1';
 
 	if (meta.config[`${name}:disableEdit`] && !isAdmin) {
+		return helpers.notAllowed(req, res);
+	}
+	if (isDingTalkSSO && (name === 'password' || name === 'email') && !isAdmin) {
 		return helpers.notAllowed(req, res);
 	}
 

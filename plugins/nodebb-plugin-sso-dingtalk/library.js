@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const util = require('util');
 const https = require('https');
@@ -15,6 +15,7 @@ const authenticationController = require.main.require('./src/controllers/authent
 const DINGTALK_AUTH_URL = 'https://login.dingtalk.com/oauth2/auth';
 const DINGTALK_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/userAccessToken';
 const DINGTALK_USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me';
+const DINGTALK_SCOPE = 'openid contact:user';
 
 loadDotEnvIfNeeded();
 
@@ -140,12 +141,12 @@ DingTalkStrategy.prototype.authenticate = function (req, options) {
 	const authCode = req.query.authCode || req.query.code;
 
 	if (!authCode) {
-		// Initiate authorization — redirect to DingTalk login page
+		// Initiate authorization 鈥?redirect to DingTalk login page
 		const params = new URLSearchParams({
 			response_type: 'code',
 			client_id: opts.clientId,
 			redirect_uri: opts.callbackURL,
-			scope: opts.scope || 'openid',
+			scope: opts.scope || DINGTALK_SCOPE,
 			prompt: 'consent',
 		});
 		if (opts.state) {
@@ -198,7 +199,7 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 			clientId: CLIENT_ID,
 			clientSecret: CLIENT_SECRET,
 			callbackURL: callbackURL,
-			scope: 'openid',
+			scope: DINGTALK_SCOPE,
 		},
 		async (req, accessToken, profile, done) => {
 			try {
@@ -218,7 +219,8 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 				uid = uid ? parseInt(uid, 10) : null;
 
 				if (uid && uid > 0) {
-					// Existing user — update picture if available
+					await user.setUserField(uid, 'dingtalk:sso', 1);
+					// Existing user 鈥?update picture if available
 					if (profile.avatarUrl) {
 						await user.setUserField(uid, 'uploadedpicture', profile.avatarUrl);
 						await user.setUserField(uid, 'picture', profile.avatarUrl);
@@ -230,15 +232,16 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 				if (req.user && req.user.uid && parseInt(req.user.uid, 10) > 0) {
 					uid = parseInt(req.user.uid, 10);
 					await db.setObjectField(DB_KEY, dingtalkId, uid);
+					await user.setUserField(uid, 'dingtalk:sso', 1);
 					return done(null, { uid });
 				}
 
-				// New user — build registration data and create account
+				// New user 鈥?build registration data and create account
 				const username = cleanUsername(profile.nick || `dingtalk_${dingtalkId.slice(-6)}`);
 				const userData = {
 					username: username,
 					fullname: profile.nick || '',
-					email: profile.email || '',
+					email: getProfileEmail(profile),
 					picture: profile.avatarUrl || '',
 					joindate: Date.now(),
 				};
@@ -250,6 +253,7 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 
 				const newUid = await createUser(userData);
 				await db.setObjectField(DB_KEY, dingtalkId, newUid);
+				await user.setUserField(newUid, 'dingtalk:sso', 1);
 
 				if (profile.avatarUrl) {
 					await user.setUserField(newUid, 'uploadedpicture', profile.avatarUrl);
@@ -281,7 +285,7 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 			login: '[[login:dingtalk]]',
 		},
 		color: '#00B0B0',
-		scope: 'openid',
+		scope: DINGTALK_SCOPE,
 		prompt: 'consent',
 		checkState: true,
 		successUrl: '/',
@@ -296,7 +300,7 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 };
 
 DingTalkPlugin.loginOverride = async function (data) {
-	// Not overriding local login — pass through
+	// Not overriding local login 鈥?pass through
 	return data;
 };
 
@@ -339,3 +343,21 @@ function cleanUsername(name) {
 	// NodeBB usernames: letters, numbers, spaces, hyphens, underscores, dots, @
 	return name.replace(/[^\w\s\-@.]/gu, '').trim().slice(0, 30) || 'dingtalk_user';
 }
+
+function getProfileEmail(profile) {
+	if (!profile) {
+		return '';
+	}
+
+	const candidates = [profile.email, profile.orgEmail, profile.workEmail];
+	for (const value of candidates) {
+		if (typeof value === 'string' && value.trim()) {
+			return value.trim();
+		}
+	}
+
+	return '';
+}
+
+
+
