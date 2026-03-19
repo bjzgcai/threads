@@ -36,7 +36,8 @@ editController.get = async function (req, res, next) {
 	userData.maximumSignatureLength = meta.config.maximumSignatureLength;
 	userData.maximumAboutMeLength = meta.config.maximumAboutMeLength;
 	userData.allowMultipleBadges = meta.config.allowMultipleBadges === 1;
-	userData.allowAccountDelete = meta.config.allowAccountDelete === 1;
+	// Hide delete-account action in account edit for all users.
+	userData.allowAccountDelete = false;
 	userData.allowAboutMe = !isSelf || !!meta.config['reputation:disabled'] || reputation >= meta.config['min:rep:aboutme'];
 	userData.allowSignature = canUseSignature && (!isSelf || !!meta.config['reputation:disabled'] || reputation >= meta.config['min:rep:signature']);
 	userData.defaultAvatar = user.getDefaultAvatar();

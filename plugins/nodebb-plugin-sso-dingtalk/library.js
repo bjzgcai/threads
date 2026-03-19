@@ -220,6 +220,7 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 
 				if (uid && uid > 0) {
 					await user.setUserField(uid, 'dingtalk:sso', 1);
+					await syncEmailIfMissing(uid, profile);
 					// Existing user 鈥?update picture if available
 					if (profile.avatarUrl) {
 						await user.setUserField(uid, 'uploadedpicture', profile.avatarUrl);
@@ -233,6 +234,7 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 					uid = parseInt(req.user.uid, 10);
 					await db.setObjectField(DB_KEY, dingtalkId, uid);
 					await user.setUserField(uid, 'dingtalk:sso', 1);
+					await syncEmailIfMissing(uid, profile);
 					return done(null, { uid });
 				}
 
@@ -357,6 +359,20 @@ function getProfileEmail(profile) {
 	}
 
 	return '';
+}
+
+async function syncEmailIfMissing(uid, profile) {
+	const email = getProfileEmail(profile);
+	if (!email) {
+		return;
+	}
+	const currentEmail = await user.getUserField(uid, 'email');
+	if (currentEmail) {
+		return;
+	}
+	await user.setUserField(uid, 'email', email);
+	await user.setUserField(uid, 'email:confirmed', 1);
+	await db.sortedSetRemove('users:notvalidated', uid);
 }
 
 
