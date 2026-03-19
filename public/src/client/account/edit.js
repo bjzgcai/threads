@@ -56,16 +56,18 @@ define('forum/account/edit', [
 		// Inject a readonly email field when template does not include it.
 		if (!$('#readonly-email').length) {
 			const emailValue = ajaxify.data.email ? ajaxify.data.email : '-';
-			const emailBlock = `
-				<div class="mb-3">
-					<label class="form-label fw-bold" for="readonly-email">[[user:email]]</label>
-					<input class="form-control" type="text" id="readonly-email" value="${escapeHtml(emailValue)}" readonly disabled>
-				</div>
-			`;
-			const fullnameBlock = $('#fullname').closest('.mb-3');
-			if (fullnameBlock.length) {
-				fullnameBlock.after(emailBlock);
-			}
+			translator.translate('[[user:email]]', (translatedEmailLabel) => {
+				const emailBlock = `
+					<div class="mb-3">
+						<label class="form-label fw-bold" for="readonly-email">${escapeHtml(translatedEmailLabel)}</label>
+						<input class="form-control" type="text" id="readonly-email" value="${escapeHtml(emailValue)}" readonly disabled>
+					</div>
+				`;
+				const fullnameBlock = $('#fullname').closest('.mb-3');
+				if (fullnameBlock.length) {
+					fullnameBlock.after(emailBlock);
+				}
+			});
 		}
 	}
 
