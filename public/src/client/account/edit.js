@@ -14,6 +14,7 @@ define('forum/account/edit', [
 
 	AccountEdit.init = function () {
 		header.init();
+		applyAccountEditGuards();
 
 		$('#submitBtn').on('click', updateProfile);
 
@@ -40,6 +41,42 @@ define('forum/account/edit', [
 			});
 		}
 	};
+
+	function applyAccountEditGuards() {
+		const isDingTalkAccount = !!ajaxify.data.disableCredentialEdit;
+		if (!isDingTalkAccount) {
+			return;
+		}
+
+		// Hide dangerous/desired-disabled actions even if theme templates are outdated.
+		$('#deleteAccountBtn').closest('.d-flex').remove();
+		$(`a[href="${config.relative_path}/user/${ajaxify.data.userslug}/edit/email"]`).closest('li').remove();
+		$(`a[href="${config.relative_path}/user/${ajaxify.data.userslug}/edit/password"]`).closest('li').remove();
+
+		// Inject a readonly email field when template does not include it.
+		if (!$('#readonly-email').length) {
+			const emailValue = ajaxify.data.email ? ajaxify.data.email : '-';
+			const emailBlock = `
+				<div class="mb-3">
+					<label class="form-label fw-bold" for="readonly-email">[[user:email]]</label>
+					<input class="form-control" type="text" id="readonly-email" value="${escapeHtml(emailValue)}" readonly disabled>
+				</div>
+			`;
+			const fullnameBlock = $('#fullname').closest('.mb-3');
+			if (fullnameBlock.length) {
+				fullnameBlock.after(emailBlock);
+			}
+		}
+	}
+
+	function escapeHtml(value) {
+		return String(value)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+	}
 
 	function updateProfile() {
 		function getGroupSelection() {
