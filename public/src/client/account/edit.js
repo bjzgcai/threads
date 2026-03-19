@@ -53,6 +53,29 @@ define('forum/account/edit', [
 		$(`a[href="${config.relative_path}/user/${ajaxify.data.userslug}/edit/email"]`).closest('li').remove();
 		$(`a[href="${config.relative_path}/user/${ajaxify.data.userslug}/edit/password"]`).closest('li').remove();
 
+		// Rename "fullname" -> "姓名" and make it read-only.
+		const fullnameLabel = $('label[for="fullname"]');
+		const fullnameInput = $('#fullname');
+		if (fullnameLabel.length) {
+			fullnameLabel.text('姓名');
+		}
+		if (fullnameInput.length) {
+			fullnameInput.attr('readonly', true).attr('disabled', true);
+		}
+
+		// Add quick-edit icon near @username in header, jump to username edit page.
+		const usernameDisableEdit = !!ajaxify.data['username:disableEdit'];
+		const usernameEl = $('.account .username.fw-bold').first();
+		if (!usernameDisableEdit && usernameEl.length && !$('#quick-edit-username').length) {
+			const usernameEditUrl = `${config.relative_path}/user/${ajaxify.data.userslug}/edit/username`;
+			const quickEditHtml = `
+				<a id="quick-edit-username" class="text-decoration-none text-secondary ms-1" href="${usernameEditUrl}" title="编辑花名" aria-label="编辑花名">
+					<i class="fa fa-pencil"></i>
+				</a>
+			`;
+			usernameEl.after(quickEditHtml);
+		}
+
 		// Inject a readonly email field when template does not include it.
 		if (!$('#readonly-email').length) {
 			const emailValue = ajaxify.data.email ? ajaxify.data.email : '-';

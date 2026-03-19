@@ -77,3 +77,6 @@ test.sh
 .env.dev
 .env.prod
 .env
+
+# Local extracted/import source files
+temp_wuxia/

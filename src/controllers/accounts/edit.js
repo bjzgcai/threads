@@ -1,5 +1,8 @@
 'use strict';
 
+const path = require('path');
+const fs = require('fs').promises;
+
 const user = require('../../user');
 const meta = require('../../meta');
 const helpers = require('../helpers');
@@ -10,6 +13,8 @@ const file = require('../../file');
 const accountHelpers = require('./helpers');
 
 const editController = module.exports;
+const wuxiaNicknamePath = path.join(__dirname, '../../data/wuxia-nicknames.json');
+let wuxiaNicknameCache = null;
 
 editController.get = async function (req, res, next) {
 	const { userData } = res.locals;
@@ -125,6 +130,10 @@ async function renderRoute(name, req, res) {
 	}
 
 	userData.hasPassword = hasPassword;
+	userData.disableCredentialEdit = isDingTalkSSO;
+	if (name === 'username' && isDingTalkSSO) {
+		userData.wuxiaNicknames = await getWuxiaNicknames();
+	}
 	if (name === 'password') {
 		userData.minimumPasswordLength = meta.config.minimumPasswordLength;
 		userData.minimumPasswordStrength = meta.config.minimumPasswordStrength;
@@ -146,6 +155,31 @@ async function renderRoute(name, req, res) {
 	]);
 
 	res.render(`account/edit/${name}`, userData);
+}
+
+async function getWuxiaNicknames() {
+	if (wuxiaNicknameCache) {
+		return wuxiaNicknameCache;
+	}
+
+	try {
+		const raw = await fs.readFile(wuxiaNicknamePath, 'utf8');
+		const parsed = JSON.parse(raw);
+		const novels = Array.isArray(parsed.novels) ? parsed.novels : [];
+		wuxiaNicknameCache = novels
+			.filter(item => item && item.novel && Array.isArray(item.characters))
+			.map(item => ({
+				group: String(item.group || ''),
+				novel: String(item.novel || ''),
+				characters: item.characters
+					.map(name => String(name || '').trim())
+					.filter(Boolean),
+			}));
+		return wuxiaNicknameCache;
+	} catch (err) {
+		wuxiaNicknameCache = [];
+		return wuxiaNicknameCache;
+	}
 }
 
 editController.uploadPicture = async function (req, res, next) {

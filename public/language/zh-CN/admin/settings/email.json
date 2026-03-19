@@ -23,7 +23,7 @@
 	"smtp-transport.security-encrypted": "加密的",
 	"smtp-transport.security-starttls": "StartTLS",
 	"smtp-transport.security-none": "无",
-	"smtp-transport.username": "用户名",
+	"smtp-transport.username": "花名",
 	"smtp-transport.username-help": "<b>对于Gmail服务，</b>请在这里输入完整的电子邮箱地址，尤其是如果您使用的是 Google Apps 托管的域名。",
 	"smtp-transport.password": "密码",
 	"smtp-transport.pool": "启用池式连接",

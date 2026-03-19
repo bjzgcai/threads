@@ -21,6 +21,8 @@ const sockets = require('../socket.io');
 const utils = require('../utils');
 
 const usersAPI = module.exports;
+const wuxiaNicknamePath = path.join(__dirname, '../data/wuxia-nicknames.json');
+let wuxiaNicknameSetCache = null;
 
 const hasAdminPrivilege = async (uid, privilege) => {
 	const ok = await privileges.admin.can(`admin:${privilege}`, uid);
@@ -70,6 +72,9 @@ usersAPI.update = async function (caller, data) {
 	const isChangingEmailOrUsername = data.hasOwnProperty('email') || data.hasOwnProperty('username');
 	if (isChangingEmailOrUsername) {
 		await isPrivilegedOrSelfAndPasswordMatch(caller, data);
+	}
+	if (data.hasOwnProperty('username')) {
+		await enforceDingTalkWuxiaNickname(data.uid, data.username);
 	}
 
 	if (!canEdit) {
@@ -504,12 +509,14 @@ async function isPrivilegedOrSelfAndPasswordMatch(caller, data) {
 	if (!canEdit) {
 		throw new Error('[[error:no-privileges]]');
 	}
-	const [hasPassword, passwordMatch] = await Promise.all([
+	const [hasPassword, passwordMatch, isDingTalkSSO] = await Promise.all([
 		user.hasPassword(data.uid),
 		data.password ? user.isPasswordCorrect(data.uid, data.password, caller.ip) : false,
+		user.getUserField(data.uid, 'dingtalk:sso'),
 	]);
+	const skipPasswordCheck = String(isDingTalkSSO || '') === '1';
 
-	if (isSelf && hasPassword && !passwordMatch) {
+	if (isSelf && hasPassword && !skipPasswordCheck && !passwordMatch) {
 		throw new Error('[[error:invalid-password]]');
 	}
 }
@@ -567,6 +574,44 @@ async function processDeletion({ uid, method, password, caller }) {
 		username: userData.username,
 		email: userData.email,
 	});
+}
+
+async function enforceDingTalkWuxiaNickname(uid, username) {
+	const isDingTalkSSO = await user.getUserField(uid, 'dingtalk:sso');
+	if (String(isDingTalkSSO || '') !== '1') {
+		return;
+	}
+	const nextUsername = String(username || '').trim();
+	if (!nextUsername) {
+		return;
+	}
+
+	const allowedNames = await getAllowedWuxiaNicknames();
+	if (!allowedNames.size || !allowedNames.has(nextUsername)) {
+		throw new Error('钉钉账号的花名必须从武侠人物列表中选择');
+	}
+}
+
+async function getAllowedWuxiaNicknames() {
+	if (wuxiaNicknameSetCache) {
+		return wuxiaNicknameSetCache;
+	}
+
+	try {
+		const raw = await fs.readFile(wuxiaNicknamePath, 'utf8');
+		const parsed = JSON.parse(raw);
+		const names = Array.isArray(parsed.allowedNames) ? parsed.allowedNames : [];
+		wuxiaNicknameSetCache = new Set(
+			names
+				.map(name => String(name || '').trim())
+				.filter(Boolean)
+		);
+	} catch (err) {
+		winston.warn(`[users/api] failed to read wuxia nickname list: ${err.message}`);
+		wuxiaNicknameSetCache = new Set();
+	}
+
+	return wuxiaNicknameSetCache;
 }
 
 async function canDeleteUids(uids) {

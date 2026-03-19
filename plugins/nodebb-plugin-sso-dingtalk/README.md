@@ -94,7 +94,7 @@ node app.js
 ## 用户数据映射
 
 - **unionId/openId** → 用于关联钉钉账号和 NodeBB 账号
-- **nick** → NodeBB 用户名
+- **nick** → NodeBB 花名
 - **avatarUrl** → 用户头像
 - **email** → 邮箱（如果钉钉提供）
 - **mobile** → 手机号（如果钉钉提供）
