@@ -57,6 +57,31 @@ function loadDotEnvIfNeeded() {
 	}
 }
 
+async function syncAvatarForExistingUser(uid, profile) {
+	if (!profile.avatarUrl) {
+		return;
+	}
+
+	const userData = await user.getUserFields(uid, ['uploadedpicture', 'picture']);
+	const hasCustomUploadedAvatar = Boolean(
+		userData.uploadedpicture &&
+		userData.uploadedpicture.startsWith(`${nconf.get('relative_path')}/assets/uploads/`)
+	);
+
+	if (hasCustomUploadedAvatar) {
+		winston.verbose(`[sso-dingtalk] Preserve custom uploaded avatar for uid ${uid}`);
+		return;
+	}
+
+	if (!userData.picture) {
+		await user.setUserField(uid, 'picture', profile.avatarUrl);
+	}
+
+	if (!userData.uploadedpicture) {
+		await user.setUserField(uid, 'uploadedpicture', profile.avatarUrl);
+	}
+}
+
 // --- HTTP helpers ---
 
 function postJson(url, body) {
@@ -220,12 +245,8 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 
 				if (uid && uid > 0) {
 					await user.setUserField(uid, 'dingtalk:sso', 1);
-					await syncEmailIfMissing(uid, profile);
-					// Existing user 鈥?update picture if available
-					if (profile.avatarUrl) {
-						await user.setUserField(uid, 'uploadedpicture', profile.avatarUrl);
-						await user.setUserField(uid, 'picture', profile.avatarUrl);
-					}
+					await syncEmailPreservingExisting(uid, profile);
+					await syncAvatarForExistingUser(uid, profile);
 					return done(null, { uid });
 				}
 
@@ -234,7 +255,7 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 					uid = parseInt(req.user.uid, 10);
 					await db.setObjectField(DB_KEY, dingtalkId, uid);
 					await user.setUserField(uid, 'dingtalk:sso', 1);
-					await syncEmailIfMissing(uid, profile);
+					await syncEmailPreservingExisting(uid, profile);
 					return done(null, { uid });
 				}
 
@@ -361,16 +382,42 @@ function getProfileEmail(profile) {
 	return '';
 }
 
-async function syncEmailIfMissing(uid, profile) {
-	const email = getProfileEmail(profile);
-	if (!email) {
+function logProfileEmailFields(profile) {
+	if (!profile || typeof profile !== 'object') {
+		winston.verbose('[sso-dingtalk] profile email fields: profile is empty');
 		return;
 	}
-	const currentEmail = await user.getUserField(uid, 'email');
+
+	const emailFieldCandidates = Object.keys(profile).filter(key => /email/i.test(key));
+	const snapshot = emailFieldCandidates.reduce((memo, key) => {
+		const value = profile[key];
+		memo[key] = typeof value === 'string' ? value : (value == null ? value : '[non-string]');
+		return memo;
+	}, {});
+
+	winston.verbose(`[sso-dingtalk] profile email fields: ${JSON.stringify(snapshot)}`);
+}
+
+async function syncEmailPreservingExisting(uid, profile) {
+	logProfileEmailFields(profile);
+
+	const [currentEmail, profileEmail] = await Promise.all([
+		user.getUserField(uid, 'email'),
+		Promise.resolve(getProfileEmail(profile)),
+	]);
+
 	if (currentEmail) {
+		if (!profileEmail) {
+			winston.verbose(`[sso-dingtalk] Preserving existing email for uid ${uid}: DingTalk returned empty email`);
+		}
 		return;
 	}
-	await user.setUserField(uid, 'email', email);
+
+	if (!profileEmail) {
+		return;
+	}
+
+	await user.setUserField(uid, 'email', profileEmail);
 	await user.setUserField(uid, 'email:confirmed', 1);
 	await db.sortedSetRemove('users:notvalidated', uid);
 }

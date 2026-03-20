@@ -42,15 +42,15 @@ define('pictureCropper', ['alerts'], function (alerts) {
 			}).modal('show');
 
 			// Set cropper image max-height based on viewport
-			const cropBoxHeight = parseInt($(window).height() / 2, 10);
+			const cropBoxHeight = parseInt($(window).height() * 0.65, 10);
 			const img = document.getElementById('cropped-image');
 			$(img).css('max-height', cropBoxHeight);
 			const Cropper = (await import(/* webpackChunkName: "cropperjs" */ 'cropperjs')).default;
 
 			let cropperTool = new Cropper(img, {
 				aspectRatio: data.aspectRatio,
-				autoCropArea: 1,
-				viewMode: 1,
+				autoCropArea: 0.8,
+				viewMode: 0,
 				checkCrossOrigin: true,
 				cropmove: function () {
 					if (data.restrictImageDimension) {
@@ -83,6 +83,11 @@ define('pictureCropper', ['alerts'], function (alerts) {
 					cropperModal.find('.rotate').on('click', function () {
 						const degrees = this.getAttribute('data-degrees');
 						cropperTool.rotate(degrees);
+					});
+
+					cropperModal.find('.zoom').on('click', function () {
+						const ratio = parseFloat(this.getAttribute('data-ratio'));
+						cropperTool.zoom(ratio);
 					});
 
 					cropperModal.find('.flip').on('click', function () {
@@ -132,8 +137,8 @@ define('pictureCropper', ['alerts'], function (alerts) {
 						cropperTool.destroy();
 						const Cropper = (await import(/* webpackChunkName: "cropperjs" */ 'cropperjs')).default;
 						cropperTool = new Cropper(img, {
-							viewMode: 1,
-							autoCropArea: 1,
+							viewMode: 0,
+							autoCropArea: 0.8,
 							ready: function () {
 								cropperModal.find('.crop-btn').trigger('click');
 							},

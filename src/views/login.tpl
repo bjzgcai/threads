@@ -5,7 +5,13 @@
 </div>
 <div class="row login flex-fill">
 	<div class="d-flex flex-column gap-2 {{{ if widgets.sidebar.length }}}col-lg-9 col-sm-12{{{ else }}}col-lg-12{{{ end }}}">
-		<h2 class="tracking-tight fw-semibold text-center">[[global:login]]</h2>
+		<div class="text-center mb-1">
+			<img src="{config.relative_path}/assets/images/zgc.png" alt="诸葛菜园" style="max-width: 340px; width: 100%; height: auto;">
+		</div>
+		<div class="text-center mb-1">
+			<p class="text-secondary mb-1" style="font-size: 1.1rem;">欢迎来到诸葛菜园，请</p>
+			<h2 class="tracking-tight fw-semibold text-center mb-4" style="margin-top: 3.0rem;">[[global:login]]</h2>
+		</div>
 		<div class="row justify-content-center gap-5">
 			{{{ if allowLocalLogin }}}
 			<div class="col-12 col-md-5 col-lg-3 px-md-0">
@@ -61,7 +67,7 @@
 			{{{ if alternate_logins }}}
 			<div class="col-12 col-md-7 col-lg-5 px-md-0">
 				<div class="alt-login-block card border-0 shadow-sm">
-					<div class="card-body p-4 p-md-5 d-flex flex-column gap-3">
+					<div class="card-body p-4 p-md-5 d-flex flex-column gap-2">
 					<ul class="alt-logins list-unstyled mb-0">
 						{{{ each authentication }}}
 						<li class="{./name} mb-2">

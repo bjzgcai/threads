@@ -15,6 +15,7 @@ define('forum/account/edit', [
 	AccountEdit.init = function () {
 		header.init();
 		applyAccountEditGuards();
+		initWuxiaNicknamePicker();
 
 		$('#submitBtn').on('click', updateProfile);
 
@@ -47,11 +48,13 @@ define('forum/account/edit', [
 		if (!isDingTalkAccount) {
 			return;
 		}
+		const emailEditDisabled = !!ajaxify.data['email:disableEdit'];
+		const emailEditUrl = `${config.relative_path}/user/${ajaxify.data.userslug}/edit/email`;
 
 		// Hide dangerous/desired-disabled actions even if theme templates are outdated.
 		$('#deleteAccountBtn').closest('.d-flex').remove();
-		$(`a[href="${config.relative_path}/user/${ajaxify.data.userslug}/edit/email"]`).closest('li').remove();
 		$(`a[href="${config.relative_path}/user/${ajaxify.data.userslug}/edit/password"]`).closest('li').remove();
+		$(`a[href="${emailEditUrl}"]`).closest('li').remove();
 
 		// Rename "fullname" -> "姓名" and make it read-only.
 		const fullnameLabel = $('label[for="fullname"]');
@@ -92,6 +95,81 @@ define('forum/account/edit', [
 				}
 			});
 		}
+
+		// Put edit entry next to the email field, no separate menu item.
+		if (!emailEditDisabled) {
+			const readonlyEmail = $('#readonly-email');
+			if (readonlyEmail.length) {
+				const emailLabel = $('label[for="readonly-email"]');
+				if (emailLabel.length && !$('#inline-edit-email').length) {
+					emailLabel.append(' <a id="inline-edit-email" href="#" class="text-decoration-none text-primary small">更改邮箱</a>');
+					$('#inline-edit-email').on('click', function (ev) {
+						ev.preventDefault();
+						changeEmail.init({
+							uid: ajaxify.data.uid,
+							email: ajaxify.data.email,
+							onSuccess: function (newEmail) {
+								alerts.success('[[user:email-updated]]');
+								const nextEmail = String(newEmail || '').trim() || '-';
+								ajaxify.data.email = nextEmail === '-' ? '' : nextEmail;
+								$('#readonly-email').val(nextEmail);
+							},
+						});
+					});
+				}
+			}
+		}
+	}
+
+	function initWuxiaNicknamePicker() {
+		const novelSelect = $('#wuxiaNovelSelect');
+		const characterSelect = $('#wuxiaCharacterSelect');
+		const usernameInput = $('#inputNewUsername');
+		const novels = Array.isArray(ajaxify.data.wuxiaNicknames) ? ajaxify.data.wuxiaNicknames : [];
+		const takenNames = new Set(Array.isArray(ajaxify.data.takenWuxiaNicknames) ? ajaxify.data.takenWuxiaNicknames : []);
+
+		if (!novelSelect.length || !characterSelect.length || !usernameInput.length || !novels.length) {
+			return;
+		}
+
+		function renderCharacters(novelIndex) {
+			const novel = novels[novelIndex];
+			const characters = novel && Array.isArray(novel.characters) ? novel.characters : [];
+			const sortedCharacters = characters.slice().sort((a, b) => {
+				const aTaken = takenNames.has(a);
+				const bTaken = takenNames.has(b);
+				if (aTaken === bTaken) {
+					return String(a).localeCompare(String(b), 'zh-CN');
+				}
+				return aTaken ? 1 : -1;
+			});
+
+			characterSelect.empty();
+			if (!sortedCharacters.length) {
+				characterSelect.append('<option value="">请先选择小说</option>');
+				characterSelect.prop('disabled', true);
+				return;
+			}
+
+			characterSelect.append('<option value="">请选择人物花名</option>');
+			sortedCharacters.forEach((name) => {
+				const isTaken = takenNames.has(name);
+				const label = isTaken ? `${escapeHtml(name)}（已被使用）` : escapeHtml(name);
+				characterSelect.append(`<option value="${escapeHtml(name)}" ${isTaken ? 'disabled' : ''}>${label}</option>`);
+			});
+			characterSelect.prop('disabled', false);
+		}
+
+		novelSelect.on('change', function () {
+			renderCharacters($(this).val());
+		});
+
+		characterSelect.on('change', function () {
+			const selectedName = $(this).val();
+			if (selectedName) {
+				usernameInput.val(selectedName);
+			}
+		});
 	}
 
 	function escapeHtml(value) {

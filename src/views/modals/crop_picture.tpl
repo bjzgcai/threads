@@ -1,5 +1,5 @@
 <div id="crop-picture-modal" class="modal" tabindex="-1" role="dialog" aria-labelledby="crop-picture" aria-hidden="true">
-	<div class="modal-dialog">
+	<div class="modal-dialog modal-lg modal-dialog-centered">
 		<div class="modal-content">
 			<div class="modal-header">
 				<h3 id="crop-picture">[[user:crop-picture]]</h3>
@@ -17,6 +17,10 @@
 
 				<hr />
 
+				<div class="btn-group">
+					<button class="btn btn-primary zoom" data-ratio="0.1"><i class="fa fa-search-plus"></i></button>
+					<button class="btn btn-primary zoom" data-ratio="-0.1"><i class="fa fa-search-minus"></i></button>
+				</div>
 				<div class="btn-group">
 					<button class="btn btn-primary rotate" data-degrees="-45"><i class="fa fa-rotate-left"></i></button>
 					<button class="btn btn-primary rotate" data-degrees="45"><i class="fa fa-rotate-right"></i></button>

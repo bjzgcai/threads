@@ -8,7 +8,6 @@ define('admin/modules/change-email', [
 	ChangeEmail.init = function (params) {
 		const modal = bootbox.dialog({
 			message: `
-				<label class="form-label">[[admin/manage/users:new-email]]</label>
 				<input id="newEmail" class="form-control" type="text" value="${utils.escapeHTML(params.email || '')}">
 			`,
 			title: '[[admin/manage/users:change-email]]',

@@ -132,6 +132,35 @@ module.exports = async function (app, middleware) {
 	router.all('(/+api|/+api/*?)', middleware.prepareAPI);
 	router.all(`(/+api/admin|/+api/admin/*?${mounts.admin !== 'admin' ? `|/+api/${mounts.admin}|/+api/${mounts.admin}/*?` : ''})`, middleware.authenticateRequest, middleware.ensureLoggedIn, middleware.admin.checkPrivileges);
 	router.all(`(/+admin|/+admin/*?${mounts.admin !== 'admin' ? `|/+${mounts.admin}|/+${mounts.admin}/*?` : ''})`, middleware.ensureLoggedIn, middleware.applyCSRF, middleware.admin.checkPrivileges);
+	router.use((req, res, next) => {
+		if (req.loggedIn) {
+			return next();
+		}
+
+		const publicPatterns = [
+			/^\/login\/?$/,
+			/^\/auth(?:\/|$)/,
+			/^\/api(?:\/|$)/,
+			/^\/assets(?:\/|$)/,
+			/^\/uploads(?:\/|$)/,
+			/^\/plugins(?:\/|$)/,
+			/^\/apple-touch-icon$/,
+			/^\/manifest\.webmanifest$/,
+			/^\/favicon\.ico$/,
+			/^\/robots\.txt$/,
+			/^\/ping$/,
+			/^\/sping$/,
+			/^\/reset(?:\/|$)/,
+			/^\/confirm(?:\/|$)/,
+			/^\/email\/unsubscribe(?:\/|$)/,
+		];
+
+		if (publicPatterns.some(pattern => pattern.test(req.path))) {
+			return next();
+		}
+
+		controllerHelpers.redirect(res, `${nconf.get('relative_path')}/login`);
+	});
 
 	app.use(middleware.stripLeadingSlashes);
 

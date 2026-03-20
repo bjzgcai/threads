@@ -1,8 +1,5 @@
 'use strict';
 
-const path = require('path');
-const fs = require('fs').promises;
-
 const validator = require('validator');
 const winston = require('winston');
 
@@ -21,8 +18,6 @@ const sockets = require('../socket.io');
 const utils = require('../utils');
 
 const usersAPI = module.exports;
-const wuxiaNicknamePath = path.join(__dirname, '../data/wuxia-nicknames.json');
-let wuxiaNicknameSetCache = null;
 
 const hasAdminPrivilege = async (uid, privilege) => {
 	const ok = await privileges.admin.can(`admin:${privilege}`, uid);
@@ -73,10 +68,6 @@ usersAPI.update = async function (caller, data) {
 	if (isChangingEmailOrUsername) {
 		await isPrivilegedOrSelfAndPasswordMatch(caller, data);
 	}
-	if (data.hasOwnProperty('username')) {
-		await enforceDingTalkWuxiaNickname(data.uid, data.username);
-	}
-
 	if (!canEdit) {
 		throw new Error('[[error:no-privileges]]');
 	}
@@ -434,13 +425,14 @@ usersAPI.getInviteGroups = async (caller, { uid }) => {
 };
 
 usersAPI.addEmail = async (caller, { email, skipConfirmation, uid }) => {
-	const isSelf = parseInt(caller.uid, 10) === parseInt(uid, 10);
 	const canEdit = await privileges.users.canEdit(caller.uid, uid);
-	if (skipConfirmation && canEdit && !isSelf) {
+	if (skipConfirmation && canEdit) {
+		email = String(email || '').trim();
 		if (!email.length) {
 			await user.email.remove(uid);
 		} else {
-			if (!await user.email.available(email)) {
+			const ownerUid = parseInt(await user.getUidByEmail(email), 10) || 0;
+			if (ownerUid && ownerUid !== parseInt(uid, 10)) {
 				throw new Error('[[error:email-taken]]');
 			}
 			await user.setUserField(uid, 'email', email);
@@ -574,44 +566,6 @@ async function processDeletion({ uid, method, password, caller }) {
 		username: userData.username,
 		email: userData.email,
 	});
-}
-
-async function enforceDingTalkWuxiaNickname(uid, username) {
-	const isDingTalkSSO = await user.getUserField(uid, 'dingtalk:sso');
-	if (String(isDingTalkSSO || '') !== '1') {
-		return;
-	}
-	const nextUsername = String(username || '').trim();
-	if (!nextUsername) {
-		return;
-	}
-
-	const allowedNames = await getAllowedWuxiaNicknames();
-	if (!allowedNames.size || !allowedNames.has(nextUsername)) {
-		throw new Error('钉钉账号的花名必须从武侠人物列表中选择');
-	}
-}
-
-async function getAllowedWuxiaNicknames() {
-	if (wuxiaNicknameSetCache) {
-		return wuxiaNicknameSetCache;
-	}
-
-	try {
-		const raw = await fs.readFile(wuxiaNicknamePath, 'utf8');
-		const parsed = JSON.parse(raw);
-		const names = Array.isArray(parsed.allowedNames) ? parsed.allowedNames : [];
-		wuxiaNicknameSetCache = new Set(
-			names
-				.map(name => String(name || '').trim())
-				.filter(Boolean)
-		);
-	} catch (err) {
-		winston.warn(`[users/api] failed to read wuxia nickname list: ${err.message}`);
-		wuxiaNicknameSetCache = new Set();
-	}
-
-	return wuxiaNicknameSetCache;
 }
 
 async function canDeleteUids(uids) {

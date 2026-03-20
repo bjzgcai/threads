@@ -104,12 +104,7 @@ editController.username = async function (req, res, next) {
 };
 
 editController.email = async function (req, res, next) {
-	const targetUid = await user.getUidByUserslug(req.params.userslug);
-	if (!targetUid || req.uid !== parseInt(targetUid, 10)) {
-		return next();
-	}
-
-	helpers.redirect(res, `/user/${req.params.userslug}/edit`);
+	await renderRoute('email', req, res, next);
 };
 
 async function renderRoute(name, req, res) {
@@ -125,14 +120,17 @@ async function renderRoute(name, req, res) {
 	if (meta.config[`${name}:disableEdit`] && !isAdmin) {
 		return helpers.notAllowed(req, res);
 	}
-	if (isDingTalkSSO && (name === 'password' || name === 'email') && !isAdmin) {
+	if (isDingTalkSSO && name === 'password' && !isAdmin) {
 		return helpers.notAllowed(req, res);
 	}
 
 	userData.hasPassword = hasPassword;
 	userData.disableCredentialEdit = isDingTalkSSO;
 	if (name === 'username' && isDingTalkSSO) {
-		userData.wuxiaNicknames = await getWuxiaNicknames();
+		const wuxiaNicknames = await getWuxiaNicknames();
+		userData.wuxiaNicknames = wuxiaNicknames;
+		userData.hasWuxiaNicknames = wuxiaNicknames.length > 0;
+		userData.takenWuxiaNicknames = await getTakenWuxiaNicknames(wuxiaNicknames, res.locals.uid);
 	}
 	if (name === 'password') {
 		userData.minimumPasswordLength = meta.config.minimumPasswordLength;
@@ -180,6 +178,26 @@ async function getWuxiaNicknames() {
 		wuxiaNicknameCache = [];
 		return wuxiaNicknameCache;
 	}
+}
+
+async function getTakenWuxiaNicknames(wuxiaNicknames, currentUid) {
+	const allowedNames = wuxiaNicknames
+		.flatMap(item => Array.isArray(item.characters) ? item.characters : [])
+		.map(name => String(name || '').trim())
+		.filter(Boolean);
+
+	if (!allowedNames.length) {
+		return [];
+	}
+
+	const currentUsername = await user.getUserField(currentUid, 'username');
+	const lookupNames = Array.from(new Set(allowedNames));
+	const matchedUids = await user.getUidsByUsernames(lookupNames);
+
+	return lookupNames.filter((name, index) => {
+		const uid = parseInt(matchedUids[index], 10);
+		return uid > 0 && uid !== parseInt(currentUid, 10) && name !== currentUsername;
+	});
 }
 
 editController.uploadPicture = async function (req, res, next) {
