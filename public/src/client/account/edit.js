@@ -43,82 +43,99 @@ define('forum/account/edit', [
 		}
 	};
 
-	function applyAccountEditGuards() {
+function applyAccountEditGuards() {
 		const isDingTalkAccount = !!ajaxify.data.disableCredentialEdit;
-		if (!isDingTalkAccount) {
-			return;
-		}
 		const emailEditDisabled = !!ajaxify.data['email:disableEdit'];
 		const emailEditUrl = `${config.relative_path}/user/${ajaxify.data.userslug}/edit/email`;
 
 		// Hide dangerous/desired-disabled actions even if theme templates are outdated.
 		$('#deleteAccountBtn').closest('.d-flex').remove();
-		$(`a[href="${config.relative_path}/user/${ajaxify.data.userslug}/edit/password"]`).closest('li').remove();
-		$(`a[href="${emailEditUrl}"]`).closest('li').remove();
-
-		// Rename "fullname" -> "姓名" and make it read-only.
-		const fullnameLabel = $('label[for="fullname"]');
-		const fullnameInput = $('#fullname');
-		if (fullnameLabel.length) {
-			fullnameLabel.text('姓名');
+		if (isDingTalkAccount) {
+			$(`a[href="${config.relative_path}/user/${ajaxify.data.userslug}/edit/password"]`).closest('li').remove();
 		}
-		if (fullnameInput.length) {
-			fullnameInput.attr('readonly', true).attr('disabled', true);
+		if (emailEditDisabled) {
+			$(`a[href="${emailEditUrl}"]`).closest('li').remove();
 		}
 
-		// Add quick-edit icon near @username in header, jump to username edit page.
-		const usernameDisableEdit = !!ajaxify.data['username:disableEdit'];
-		const usernameEl = $('.account .username.fw-bold').first();
-		if (!usernameDisableEdit && usernameEl.length && !$('#quick-edit-username').length) {
-			const usernameEditUrl = `${config.relative_path}/user/${ajaxify.data.userslug}/edit/username`;
-			const quickEditHtml = `
-				<a id="quick-edit-username" class="text-decoration-none text-secondary ms-1" href="${usernameEditUrl}" title="编辑花名" aria-label="编辑花名">
-					<i class="fa fa-pencil"></i>
-				</a>
-			`;
-			usernameEl.after(quickEditHtml);
-		}
+		if (isDingTalkAccount) {
+			// Rename "fullname" -> "姓名" and make it read-only.
+			const fullnameLabel = $('label[for="fullname"]');
+			const fullnameInput = $('#fullname');
+			if (fullnameLabel.length) {
+				fullnameLabel.text('姓名');
+			}
+			if (fullnameInput.length) {
+				fullnameInput.attr('readonly', true).attr('disabled', true);
+			}
 
-		// Inject a readonly email field when template does not include it.
-		if (!$('#readonly-email').length) {
-			const emailValue = ajaxify.data.email ? ajaxify.data.email : '-';
-			translator.translate('[[user:email]]', (translatedEmailLabel) => {
-				const emailBlock = `
-					<div class="mb-3">
-						<label class="form-label fw-bold" for="readonly-email">${escapeHtml(translatedEmailLabel)}</label>
-						<input class="form-control" type="text" id="readonly-email" value="${escapeHtml(emailValue)}" readonly disabled>
-					</div>
+			// Add quick-edit icon near @username in header, jump to username edit page.
+			const usernameDisableEdit = !!ajaxify.data['username:disableEdit'];
+			const usernameEl = $('.account .username.fw-bold').first();
+			if (!usernameDisableEdit && usernameEl.length && !$('#quick-edit-username').length) {
+				const usernameEditUrl = `${config.relative_path}/user/${ajaxify.data.userslug}/edit/username`;
+				const quickEditHtml = `
+					<a id="quick-edit-username" class="text-decoration-none text-secondary ms-1" href="${usernameEditUrl}" title="编辑花名" aria-label="编辑花名">
+						<i class="fa fa-pencil"></i>
+					</a>
 				`;
-				const fullnameBlock = $('#fullname').closest('.mb-3');
-				if (fullnameBlock.length) {
-					fullnameBlock.after(emailBlock);
-				}
-			});
-		}
-
-		// Put edit entry next to the email field, no separate menu item.
-		if (!emailEditDisabled) {
-			const readonlyEmail = $('#readonly-email');
-			if (readonlyEmail.length) {
-				const emailLabel = $('label[for="readonly-email"]');
-				if (emailLabel.length && !$('#inline-edit-email').length) {
-					emailLabel.append(' <a id="inline-edit-email" href="#" class="text-decoration-none text-primary small">更改邮箱</a>');
-					$('#inline-edit-email').on('click', function (ev) {
-						ev.preventDefault();
-						changeEmail.init({
-							uid: ajaxify.data.uid,
-							email: ajaxify.data.email,
-							onSuccess: function (newEmail) {
-								alerts.success('[[user:email-updated]]');
-								const nextEmail = String(newEmail || '').trim() || '-';
-								ajaxify.data.email = nextEmail === '-' ? '' : nextEmail;
-								$('#readonly-email').val(nextEmail);
-							},
-						});
-					});
-				}
+				usernameEl.after(quickEditHtml);
 			}
 		}
+
+		ensureEmailField(isDingTalkAccount);
+		bindEmailEdit(emailEditDisabled);
+	}
+
+	function ensureEmailField(isDingTalkAccount) {
+		const existingEmailInput = $('#email');
+		if (existingEmailInput.length) {
+			existingEmailInput.attr('readonly', true).attr('disabled', true);
+			return;
+		}
+
+		if (!isDingTalkAccount || $('#readonly-email').length) {
+			return;
+		}
+
+		const emailValue = ajaxify.data.email ? ajaxify.data.email : '-';
+		translator.translate('[[user:email]]', (translatedEmailLabel) => {
+			const emailBlock = `
+				<div class="mb-3">
+					<label class="form-label fw-bold" for="readonly-email">${escapeHtml(translatedEmailLabel)}</label>
+					<input class="form-control" type="text" id="readonly-email" value="${escapeHtml(emailValue)}" readonly disabled>
+				</div>
+			`;
+			const fullnameBlock = $('#fullname').closest('.mb-3');
+			if (fullnameBlock.length) {
+				fullnameBlock.after(emailBlock);
+			}
+		});
+	}
+
+	function bindEmailEdit(emailEditDisabled) {
+		if (emailEditDisabled) {
+			return;
+		}
+
+		const emailLabel = $('label[for="email"], label[for="readonly-email"]').first();
+		if (!emailLabel.length || $('#inline-edit-email').length) {
+			return;
+		}
+
+		emailLabel.append(' <a id="inline-edit-email" href="#" class="text-decoration-none text-primary small">更改邮箱</a>');
+		$('#inline-edit-email').on('click', function (ev) {
+			ev.preventDefault();
+			changeEmail.init({
+				uid: ajaxify.data.uid,
+				email: ajaxify.data.email,
+				onSuccess: function (newEmail) {
+					alerts.success('[[user:email-updated]]');
+					const nextEmail = String(newEmail || '').trim() || '-';
+					ajaxify.data.email = nextEmail === '-' ? '' : nextEmail;
+					$('#readonly-email, #email').val(nextEmail);
+				},
+			});
+		});
 	}
 
 	function initWuxiaNicknamePicker() {

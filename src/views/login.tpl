@@ -3,6 +3,14 @@
 	{{widgets.header.html}}
 	{{{end}}}
 </div>
+<style>
+	body.user-guest nav[component="sidebar/left"],
+	body.user-guest nav[component="sidebar/right"],
+	body.user-guest [component="bottombar"],
+	body.user-guest .sidebar-toggle-container {
+		display: none !important;
+	}
+</style>
 <div class="row login flex-fill">
 	<div class="d-flex flex-column gap-2 {{{ if widgets.sidebar.length }}}col-lg-9 col-sm-12{{{ else }}}col-lg-12{{{ end }}}">
 		<div class="text-center mb-1">

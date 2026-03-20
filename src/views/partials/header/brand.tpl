@@ -11,7 +11,7 @@
 
 			{{{ if config.showSiteTitle }}}
 			<a component="siteTitle" class="text-truncate align-self-stretch align-items-center d-flex gap-2 text-decoration-none" href="{{{ if title:url }}}{title:url}{{{ else }}}{relative_path}/{{{ end }}}">
-				<img src="{relative_path}/assets/images/favicon-zhuge.png" alt="ZGCAI" style="width: 28px; height: 28px; object-fit: contain;" />
+				<img src="{relative_path}/assets/logo.png" alt="诸葛菜园" style="width: 32px; height: 32px; object-fit: contain; flex-shrink: 0;" />
 				<h1 class="fs-6 fw-bold text-body mb-0">{config.siteTitle}</h1>
 			</a>
 			{{{ end }}}
