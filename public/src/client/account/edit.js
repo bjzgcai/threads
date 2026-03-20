@@ -43,22 +43,18 @@ define('forum/account/edit', [
 		}
 	};
 
-function applyAccountEditGuards() {
+	function applyAccountEditGuards() {
 		const isDingTalkAccount = !!ajaxify.data.disableCredentialEdit;
 		const emailEditDisabled = !!ajaxify.data['email:disableEdit'];
 		const emailEditUrl = `${config.relative_path}/user/${ajaxify.data.userslug}/edit/email`;
 
-		// Hide dangerous/desired-disabled actions even if theme templates are outdated.
 		$('#deleteAccountBtn').closest('.d-flex').remove();
 		if (isDingTalkAccount) {
 			$(`a[href="${config.relative_path}/user/${ajaxify.data.userslug}/edit/password"]`).closest('li').remove();
 		}
-		if (emailEditDisabled) {
-			$(`a[href="${emailEditUrl}"]`).closest('li').remove();
-		}
+		$(`a[href="${emailEditUrl}"]`).closest('li').remove();
 
 		if (isDingTalkAccount) {
-			// Rename "fullname" -> "姓名" and make it read-only.
 			const fullnameLabel = $('label[for="fullname"]');
 			const fullnameInput = $('#fullname');
 			if (fullnameLabel.length) {
@@ -68,7 +64,6 @@ function applyAccountEditGuards() {
 				fullnameInput.attr('readonly', true).attr('disabled', true);
 			}
 
-			// Add quick-edit icon near @username in header, jump to username edit page.
 			const usernameDisableEdit = !!ajaxify.data['username:disableEdit'];
 			const usernameEl = $('.account .username.fw-bold').first();
 			if (!usernameDisableEdit && usernameEl.length && !$('#quick-edit-username').length) {
@@ -82,18 +77,15 @@ function applyAccountEditGuards() {
 			}
 		}
 
-		ensureEmailField(isDingTalkAccount);
+		ensureEmailField();
 		bindEmailEdit(emailEditDisabled);
 	}
 
-	function ensureEmailField(isDingTalkAccount) {
-		const existingEmailInput = $('#email');
-		if (existingEmailInput.length) {
-			existingEmailInput.attr('readonly', true).attr('disabled', true);
-			return;
-		}
-
-		if (!isDingTalkAccount || $('#readonly-email').length) {
+	function ensureEmailField() {
+		const readonlyEmail = $('#readonly-email');
+		if (readonlyEmail.length) {
+			readonlyEmail.val(ajaxify.data.email ? ajaxify.data.email : '-');
+			readonlyEmail.attr('readonly', true).attr('disabled', true);
 			return;
 		}
 
@@ -113,12 +105,13 @@ function applyAccountEditGuards() {
 	}
 
 	function bindEmailEdit(emailEditDisabled) {
+		$('#inline-edit-email').remove();
 		if (emailEditDisabled) {
 			return;
 		}
 
-		const emailLabel = $('label[for="email"], label[for="readonly-email"]').first();
-		if (!emailLabel.length || $('#inline-edit-email').length) {
+		const emailLabel = $('label[for="readonly-email"]').first();
+		if (!emailLabel.length) {
 			return;
 		}
 
@@ -132,7 +125,7 @@ function applyAccountEditGuards() {
 					alerts.success('[[user:email-updated]]');
 					const nextEmail = String(newEmail || '').trim() || '-';
 					ajaxify.data.email = nextEmail === '-' ? '' : nextEmail;
-					$('#readonly-email, #email').val(nextEmail);
+					$('#readonly-email').val(nextEmail);
 				},
 			});
 		});
@@ -206,7 +199,6 @@ function applyAccountEditGuards() {
 		const editForm = $('form[component="profile/edit/form"]');
 		const userData = editForm.serializeObject();
 
-		// stringify multi selects
 		editForm.find('select[multiple]').each((i, el) => {
 			const name = $(el).attr('name');
 			if (userData[name] && !Array.isArray(userData[name])) {
@@ -233,8 +225,6 @@ function applyAccountEditGuards() {
 
 		return false;
 	}
-
-
 
 	function handleAccountDelete() {
 		$('#deleteAccountBtn').on('click', function () {

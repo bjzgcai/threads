@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const fs = require('fs');
 const path = require('path');
@@ -9,6 +9,10 @@ const overrides = [
 	{
 		source: 'src/views/partials/header/brand.tpl',
 		target: 'node_modules/nodebb-theme-harmony/templates/partials/header/brand.tpl',
+	},
+	{
+		source: 'src/views/account/edit.tpl',
+		target: 'node_modules/nodebb-theme-harmony/templates/account/edit.tpl',
 	},
 	{
 		source: 'src/views/account/edit/username.tpl',

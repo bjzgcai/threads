@@ -8,7 +8,6 @@ define('forum/login', ['hooks', 'translator', 'jquery-form'], function (hooks, t
 
 	Login.init = function () {
 		hideGuestSidebars();
-		ensureBrandIcon();
 
 		const errorEl = $('#login-error-notify');
 		const submitEl = $('#login');
@@ -134,25 +133,6 @@ define('forum/login', ['hooks', 'translator', 'jquery-form'], function (hooks, t
 		$('nav[component="sidebar/left"], nav[component="sidebar/right"], [component="bottombar"], .sidebar-toggle-container').hide();
 	}
 
-	function ensureBrandIcon() {
-		const siteTitle = $('[component="siteTitle"]').first();
-		if (!siteTitle.length || siteTitle.find('.zgcy-brand-icon').length) {
-			return;
-		}
-
-		const icon = $('<img />', {
-			class: 'zgcy-brand-icon',
-			src: `${config.relative_path}/assets/logo.png`,
-			alt: '诸葛菜园',
-		}).css({
-			width: '32px',
-			height: '32px',
-			objectFit: 'contain',
-			flexShrink: 0,
-		});
-
-		siteTitle.prepend(icon);
-	}
 
 	return Login;
 });
