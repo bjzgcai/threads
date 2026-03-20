@@ -20,6 +20,16 @@
 	{{{if useCustomCSS}}}
 	<style>{{customCSS}}</style>
 	{{{end}}}
+	{{{ if !loggedIn }}}
+	<style>
+		body.user-guest nav[component="sidebar/left"],
+		body.user-guest nav[component="sidebar/right"],
+		body.user-guest [component="bottombar"],
+		body.user-guest .sidebar-toggle-container {
+			display: none !important;
+		}
+	</style>
+	{{{ end }}}
 </head>
 
 <body class="{bodyClass} skin-{{{if bootswatchSkin}}}{bootswatchSkin}{{{else}}}noskin{{{end}}}">
@@ -39,4 +49,3 @@
 			<div class="container-lg px-md-4 d-flex flex-column gap-3 h-100 mb-5 mb-lg-0" id="content">
 			<!-- IMPORT partials/noscript/warning.tpl -->
 			<!-- IMPORT partials/noscript/message.tpl -->
-

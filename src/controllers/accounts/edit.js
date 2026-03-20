@@ -163,7 +163,9 @@ async function getWuxiaNicknames() {
 	try {
 		const raw = await fs.readFile(wuxiaNicknamePath, 'utf8');
 		const parsed = JSON.parse(raw);
-		const novels = Array.isArray(parsed.novels) ? parsed.novels : [];
+		const novels = Array.isArray(parsed.groups) ?
+			parsed.groups.flatMap(group => Array.isArray(group && group.novels) ? group.novels : []) :
+			(Array.isArray(parsed.novels) ? parsed.novels : []);
 		wuxiaNicknameCache = novels
 			.filter(item => item && item.novel && Array.isArray(item.characters))
 			.map(item => ({

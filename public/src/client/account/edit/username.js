@@ -16,6 +16,7 @@ define('forum/account/edit/username', [
 
 		if (isDingTalkAccount) {
 			$('#inputCurrentPassword').closest('.mb-3').remove();
+			ensureWuxiaPickerMarkup(usernameInput, ajaxify.data.wuxiaNicknames || []);
 			initWuxiaPicker(
 				ajaxify.data.wuxiaNicknames || [],
 				ajaxify.data.takenWuxiaNicknames || [],
@@ -70,6 +71,36 @@ define('forum/account/edit/username', [
 		});
 	};
 
+	function ensureWuxiaPickerMarkup(usernameInput, novelsData) {
+		if ($('#wuxiaNovelSelect').length || !Array.isArray(novelsData) || !novelsData.length) {
+			return;
+		}
+
+		const firstField = usernameInput.closest('.mb-3');
+		if (!firstField.length) {
+			return;
+		}
+
+		const pickerMarkup = [
+			'<div id="wuxia-picker-wrapper">',
+			'<div class="mb-3">',
+			'<label class="form-label fw-semibold text-sm" for="wuxiaNovelSelect">小说</label>',
+			'<select class="form-select" id="wuxiaNovelSelect"><option value="">请选择小说</option></select>',
+			'</div>',
+			'<div class="mb-3">',
+			'<label class="form-label fw-semibold text-sm" for="wuxiaCharacterSearch">人物花名</label>',
+			'<input class="form-control mb-2" type="text" id="wuxiaCharacterSearch" placeholder="搜索或选择人物花名" disabled>',
+			'<div id="wuxiaCharacterResults" class="list-group small border rounded overflow-auto" style="max-height: 280px;">',
+			'<div class="list-group-item text-muted">请先选择小说</div>',
+			'</div>',
+			'<div class="form-text text-muted">如需自定义花名，可直接在上方输入框手动填写；也可以在这里搜索后直接点选人物花名。</div>',
+			'</div>',
+			'</div>',
+		].join('');
+
+		firstField.after($(pickerMarkup));
+	}
+
 	function initWuxiaPicker(novelsData, takenNamesData, usernameInput, onCharacterSelected) {
 		const novelSelect = $('#wuxiaNovelSelect');
 		const characterSearch = $('#wuxiaCharacterSearch');
@@ -83,6 +114,13 @@ define('forum/account/edit/username', [
 
 		if (!novelSelect.length || !characterSearch.length || !characterResults.length || !novels.length) {
 			return;
+		}
+
+		if (!novelSelect.children().length || novelSelect.children().length === 1) {
+			novelSelect.html('<option value="">请选择小说</option>');
+			novels.forEach((item, index) => {
+				novelSelect.append($('<option></option>').attr('value', String(index)).text(`${item.group} / ${item.novel}`));
+			});
 		}
 
 		function sortCharacters(characters) {
