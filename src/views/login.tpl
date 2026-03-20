@@ -10,6 +10,13 @@
 	body.user-guest .sidebar-toggle-container {
 		display: none !important;
 	}
+	
+	/* 缩小登录页面输入框高度 */
+	.login-block .form-control {
+		height: calc(1.5em + 0.5rem + 2px) !important;
+		padding: 0.25rem 0.75rem !important;
+		font-size: 0.95rem !important;
+	}
 </style>
 <div class="row login flex-fill">
 	<div class="d-flex flex-column gap-2 {{{ if widgets.sidebar.length }}}col-lg-9 col-sm-12{{{ else }}}col-lg-12{{{ end }}}">
@@ -17,7 +24,7 @@
 			<img src="{config.relative_path}/assets/images/zgc.png" alt="诸葛菜园" style="max-width: 340px; width: 100%; height: auto;">
 		</div>
 		<div class="text-center mb-1">
-			<p class="text-secondary mb-1" style="font-size: 1.1rem;">欢迎来到诸葛菜园，请</p>
+			<p class="text-secondary mb-1" style="font-size: 1.1rem;">欢迎来到诸葛菜园</p>
 			<h2 class="tracking-tight fw-semibold text-center mb-4" style="margin-top: 3.0rem;">[[global:login]]</h2>
 		</div>
 		<div class="row justify-content-center gap-5">
