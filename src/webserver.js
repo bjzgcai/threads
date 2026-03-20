@@ -231,10 +231,10 @@ function setupHelmet(app) {
 
 
 function setupFavicon(app) {
-	let faviconPath = meta.config['brand:favicon'] || 'favicon.ico';
+	let faviconPath = meta.config['brand:favicon'] || 'images/favicon-zhuge.png';
 	faviconPath = path.join(nconf.get('base_dir'), 'public', faviconPath.replace(/assets\/uploads/, 'uploads'));
 	if (!faviconPath.startsWith(nconf.get('upload_path'))) {
-		faviconPath = path.join(nconf.get('base_dir'), 'public', 'favicon.ico');
+		faviconPath = path.join(nconf.get('base_dir'), 'public', 'images', 'favicon-zhuge.png');
 	}
 	if (file.existsSync(faviconPath)) {
 		app.use(nconf.get('relative_path'), favicon(faviconPath));
