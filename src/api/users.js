@@ -63,6 +63,7 @@ usersAPI.update = async function (caller, data) {
 		user.isAdminOrGlobalMod(caller.uid),
 		privileges.users.canEdit(caller.uid, data.uid),
 	]);
+	const isSelf = parseInt(caller.uid, 10) === parseInt(data.uid, 10);
 
 	const isChangingEmailOrUsername = data.hasOwnProperty('email') || data.hasOwnProperty('username');
 	if (isChangingEmailOrUsername) {
@@ -76,7 +77,7 @@ usersAPI.update = async function (caller, data) {
 		data.username = oldUserData.username;
 	}
 
-	if (!isAdminOrGlobalMod && meta.config['email:disableEdit']) {
+	if ((!isAdminOrGlobalMod && meta.config['email:disableEdit']) || (isSelf && meta.config['email:disableEdit'])) {
 		data.email = oldUserData.email;
 	}
 
@@ -426,6 +427,10 @@ usersAPI.getInviteGroups = async (caller, { uid }) => {
 
 usersAPI.addEmail = async (caller, { email, skipConfirmation, uid }) => {
 	const canEdit = await privileges.users.canEdit(caller.uid, uid);
+	const isSelf = parseInt(caller.uid, 10) === parseInt(uid, 10);
+	if (isSelf && meta.config['email:disableEdit']) {
+		throw new Error('[[error:no-privileges]]');
+	}
 	if (skipConfirmation && canEdit) {
 		email = String(email || '').trim();
 		if (!email.length) {

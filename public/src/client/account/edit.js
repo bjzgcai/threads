@@ -45,7 +45,7 @@ define('forum/account/edit', [
 
 	function applyAccountEditGuards() {
 		const isDingTalkAccount = !!ajaxify.data.disableCredentialEdit;
-		const emailEditDisabled = !!ajaxify.data['email:disableEdit'];
+		const emailEditDisabled = toBoolean(ajaxify.data['email:disableEdit']);
 		const emailEditUrl = `${config.relative_path}/user/${ajaxify.data.userslug}/edit/email`;
 
 		$('#deleteAccountBtn').closest('.d-flex').remove();
@@ -79,6 +79,25 @@ define('forum/account/edit', [
 
 		ensureEmailField();
 		bindEmailEdit(emailEditDisabled);
+	}
+
+	function toBoolean(value) {
+		if (typeof value === 'boolean') {
+			return value;
+		}
+		if (typeof value === 'number') {
+			return value !== 0;
+		}
+		if (typeof value === 'string') {
+			const normalized = value.trim().toLowerCase();
+			if (!normalized || normalized === '0' || normalized === 'false' || normalized === 'off' || normalized === 'no') {
+				return false;
+			}
+			if (normalized === '1' || normalized === 'true' || normalized === 'on' || normalized === 'yes') {
+				return true;
+			}
+		}
+		return !!value;
 	}
 
 	function ensureEmailField() {
