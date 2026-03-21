@@ -17,7 +17,26 @@ define('forum/header', [
 		handleStatusChange();
 		createHeaderTooltips();
 		handleLogout();
+		promptDingTalkDefaultUsernameChange();
 	};
+
+	function promptDingTalkDefaultUsernameChange() {
+		if (!app.user || !app.user.uid || !app.user.username) {
+			return;
+		}
+
+		if (!String(app.user.username).toLowerCase().startsWith('dingtalk_user')) {
+			return;
+		}
+
+		const params = new URLSearchParams(window.location.search || '');
+		if (params.get('loggedin') !== 'true') {
+			return;
+		}
+
+		const editUrl = `${config.relative_path}/user/${app.user.userslug}/edit/username`;
+		alerts.warning(`\u6b22\u8fce\u4f7f\u7528\u8bf8\u845b\u83dc\u56ed\uff0c\u5efa\u8bae\u5c3d\u5feb\u4fee\u6539\u82b1\u540d\uff1a<a href="${editUrl}" class="alert-link">\u53bb\u4fee\u6539</a>`, 10000);
+	}
 
 	function handleStatusChange() {
 		$('[component="header/usercontrol"] [data-status]').off('click').on('click', function (e) {
