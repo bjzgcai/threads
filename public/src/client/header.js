@@ -29,10 +29,11 @@ define('forum/header', [
 			return;
 		}
 
-		const params = new URLSearchParams(window.location.search || '');
-		if (params.get('loggedin') !== 'true') {
+		const promptKey = `dingtalk-username-prompt-shown-${app.user.uid}`;
+		if (sessionStorage.getItem(promptKey) === '1') {
 			return;
 		}
+		sessionStorage.setItem(promptKey, '1');
 
 		const editUrl = `${config.relative_path}/user/${app.user.userslug}/edit/username`;
 		alerts.warning(`\u6b22\u8fce\u4f7f\u7528\u8bf8\u845b\u83dc\u56ed\uff0c\u5efa\u8bae\u5c3d\u5feb\u4fee\u6539\u82b1\u540d\uff1a<a href="${editUrl}" class="alert-link">\u53bb\u4fee\u6539</a>`, 10000);
@@ -86,6 +87,9 @@ define('forum/header', [
 
 	function handleLogout() {
 		$('body').on('click', '[component="user/logout"]', function () {
+			if (app.user && app.user.uid) {
+				sessionStorage.removeItem(`dingtalk-username-prompt-shown-${app.user.uid}`);
+			}
 			require(['logout'], function (logout) {
 				logout();
 			});
