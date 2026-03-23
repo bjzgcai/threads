@@ -216,6 +216,25 @@ DingTalkPlugin.init = async function (params) {
 	winston.verbose('[sso-dingtalk] Plugin initialized');
 };
 
+DingTalkPlugin.customizeComposerFormatting = async function (payload) {
+	if (!payload || !Array.isArray(payload.options)) {
+		return payload;
+	}
+
+	payload.options = payload.options.map((option) => {
+		if (option && option.name === 'picture-o') {
+			return {
+				...option,
+				name: 'picture',
+				title: '[[modules:composer.upload-picture]]',
+			};
+		}
+		return option;
+	});
+
+	return payload;
+};
+
 DingTalkPlugin.getStrategy = async function (strategies) {
 	const callbackURL = `${nconf.get('url')}/auth/dingtalk/callback`;
 

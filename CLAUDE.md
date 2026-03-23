@@ -88,6 +88,8 @@ To avoid "local works, remote broken" regressions, this project enforces the fol
 
 - **Never treat `node_modules` as source of truth.**
 - **Do not submit or rely on manual edits inside `node_modules`.**
+- **Any feature change implemented in `node_modules` is invalid and must be moved to tracked plugin/theme/core code before merge.**
+- **Before finalizing a task, verify there are no required runtime changes that only exist in `node_modules`.**
 - If a dependency template/style must be customized (for example Harmony theme templates), place the modified file in a **tracked path** under this repo first (for example `src/views/...`), then use a sync script to copy it into runtime dependency paths during build/deploy.
 - For current Harmony overrides, use `scripts/sync-theme-overrides.js` before `./nodebb build`.
 
