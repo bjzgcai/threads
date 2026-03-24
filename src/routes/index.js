@@ -15,6 +15,7 @@ const writeRoutes = require('./write');
 const helpers = require('./helpers');
 
 const { setupPageRoute } = helpers;
+const SAFE_MOUNT_REGEX = /^[a-z0-9][a-z0-9-]*$/i;
 
 const _mounts = {
 	user: require('./user'),
@@ -116,11 +117,20 @@ module.exports = async function (app, middleware) {
 		}, {}),
 	});
 	// Guard against plugins sending back missing/extra mounts
-	Object.keys(mounts).forEach((mount) => {
-		if (!remountable.includes(mount)) {
-			delete mounts[mount];
-		} else if (typeof mount !== 'string') {
-			mounts[mount] = mount;
+	Object.keys(mounts).forEach((mountKey) => {
+		if (!remountable.includes(mountKey)) {
+			delete mounts[mountKey];
+			return;
+		}
+
+		const mountTarget = mounts[mountKey];
+		if (mountTarget === false || mountTarget === null || mountTarget === '') {
+			mounts[mountKey] = '';
+			return;
+		}
+
+		if (typeof mountTarget !== 'string' || !SAFE_MOUNT_REGEX.test(mountTarget)) {
+			mounts[mountKey] = mountKey;
 		}
 	});
 	remountable.forEach((mount) => {
@@ -140,7 +150,11 @@ module.exports = async function (app, middleware) {
 		const publicPatterns = [
 			/^\/login\/?$/,
 			/^\/auth(?:\/|$)/,
-			/^\/api(?:\/|$)/,
+			/^\/api\/?$/,
+			/^\/api\/config\/?$/,
+			/^\/api\/login\/?$/,
+			/^\/api\/v3\/ping\/?$/,
+			/^\/api\/v3\/utilities\/login\/?$/,
 			/^\/assets(?:\/|$)/,
 			/^\/uploads(?:\/|$)/,
 			/^\/plugins(?:\/|$)/,
@@ -157,6 +171,10 @@ module.exports = async function (app, middleware) {
 
 		if (publicPatterns.some(pattern => pattern.test(req.path))) {
 			return next();
+		}
+
+		if (req.path.startsWith('/api/')) {
+			return controllerHelpers.notAllowed(req, res);
 		}
 
 		controllerHelpers.redirect(res, `${nconf.get('relative_path')}/login`);

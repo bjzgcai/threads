@@ -2,11 +2,13 @@
 
 const util = require('util');
 const https = require('https');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const passport = require.main.require('passport');
 const nconf = require.main.require('nconf');
 const winston = require.main.require('winston');
+const validator = require.main.require('validator');
 const user = require.main.require('./src/user');
 const db = require.main.require('./src/database');
 const plugins = require.main.require('./src/plugins');
@@ -16,6 +18,7 @@ const DINGTALK_AUTH_URL = 'https://login.dingtalk.com/oauth2/auth';
 const DINGTALK_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/userAccessToken';
 const DINGTALK_USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me';
 const DINGTALK_SCOPE = 'openid contact:user';
+const HTTP_TIMEOUT_MS = 10000;
 
 loadDotEnvIfNeeded();
 
@@ -82,6 +85,20 @@ async function syncAvatarForExistingUser(uid, profile) {
 	}
 }
 
+async function assertAndBindDingtalkId(dingtalkId, uid) {
+	const existingUidRaw = await db.getObjectField(DB_KEY, dingtalkId);
+	const existingUid = existingUidRaw ? parseInt(existingUidRaw, 10) : 0;
+
+	// Never rebind an existing DingTalk identity to a different local user.
+	if (existingUid > 0 && existingUid !== uid) {
+		throw new Error('DingTalk account already linked to another user');
+	}
+
+	if (!existingUid) {
+		await db.setObjectField(DB_KEY, dingtalkId, uid);
+	}
+}
+
 // --- HTTP helpers ---
 
 function postJson(url, body) {
@@ -104,14 +121,17 @@ function postJson(url, body) {
 				try {
 					const json = JSON.parse(data);
 					if (res.statusCode >= 400) {
-						reject(new Error(`DingTalk API error ${res.statusCode}: ${JSON.stringify(json)}`));
+						reject(new Error(`DingTalk API error ${res.statusCode}`));
 					} else {
 						resolve(json);
 					}
 				} catch (e) {
-					reject(new Error(`Invalid JSON from DingTalk: ${data}`));
+					reject(new Error('Invalid JSON from DingTalk'));
 				}
 			});
+		});
+		req.setTimeout(HTTP_TIMEOUT_MS, () => {
+			req.destroy(new Error('DingTalk API request timeout'));
 		});
 		req.on('error', reject);
 		req.write(payload);
@@ -135,14 +155,17 @@ function getJson(url, headers) {
 				try {
 					const json = JSON.parse(data);
 					if (res.statusCode >= 400) {
-						reject(new Error(`DingTalk API error ${res.statusCode}: ${JSON.stringify(json)}`));
+						reject(new Error(`DingTalk API error ${res.statusCode}`));
 					} else {
 						resolve(json);
 					}
 				} catch (e) {
-					reject(new Error(`Invalid JSON from DingTalk: ${data}`));
+					reject(new Error('Invalid JSON from DingTalk'));
 				}
 			});
+		});
+		req.setTimeout(HTTP_TIMEOUT_MS, () => {
+			req.destroy(new Error('DingTalk API request timeout'));
 		});
 		req.on('error', reject);
 		req.end();
@@ -191,7 +214,7 @@ DingTalkStrategy.prototype.authenticate = function (req, options) {
 		.then((tokenData) => {
 			const accessToken = tokenData.accessToken;
 			if (!accessToken) {
-				throw new Error(`No accessToken in response: ${JSON.stringify(tokenData)}`);
+				throw new Error('No accessToken in response');
 			}
 			return getJson(DINGTALK_USERINFO_URL, {
 				'x-acs-dingtalk-access-token': accessToken,
@@ -272,7 +295,7 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 				// If already logged in, link the DingTalk account to the current NodeBB user
 				if (req.user && req.user.uid && parseInt(req.user.uid, 10) > 0) {
 					uid = parseInt(req.user.uid, 10);
-					await db.setObjectField(DB_KEY, dingtalkId, uid);
+					await assertAndBindDingtalkId(dingtalkId, uid);
 					await user.setUserField(uid, 'dingtalk:sso', 1);
 					await syncEmailPreservingExisting(uid, profile);
 					return done(null, { uid });
@@ -294,7 +317,7 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 				}
 
 				const newUid = await createUser(userData);
-				await db.setObjectField(DB_KEY, dingtalkId, newUid);
+				await assertAndBindDingtalkId(dingtalkId, newUid);
 				await user.setUserField(newUid, 'dingtalk:sso', 1);
 
 				if (profile.avatarUrl) {
@@ -377,8 +400,8 @@ async function ensureUniqueUsername(username) {
 	if (!exists) {
 		return username;
 	}
-	// Append random suffix to avoid collision
-	return `${username}_${Math.random().toString(36).slice(2, 6)}`;
+	// Append cryptographically strong random suffix to avoid predictable collisions
+	return `${username}_${crypto.randomBytes(3).toString('hex')}`;
 }
 
 function cleanUsername(name) {
@@ -394,32 +417,17 @@ function getProfileEmail(profile) {
 	const candidates = [profile.email, profile.orgEmail, profile.workEmail];
 	for (const value of candidates) {
 		if (typeof value === 'string' && value.trim()) {
-			return value.trim();
+			const email = value.trim().toLowerCase();
+			if (email.length <= 254 && validator.isEmail(email)) {
+				return email;
+			}
 		}
 	}
 
 	return '';
 }
 
-function logProfileEmailFields(profile) {
-	if (!profile || typeof profile !== 'object') {
-		winston.verbose('[sso-dingtalk] profile email fields: profile is empty');
-		return;
-	}
-
-	const emailFieldCandidates = Object.keys(profile).filter(key => /email/i.test(key));
-	const snapshot = emailFieldCandidates.reduce((memo, key) => {
-		const value = profile[key];
-		memo[key] = typeof value === 'string' ? value : (value == null ? value : '[non-string]');
-		return memo;
-	}, {});
-
-	winston.verbose(`[sso-dingtalk] profile email fields: ${JSON.stringify(snapshot)}`);
-}
-
 async function syncEmailPreservingExisting(uid, profile) {
-	logProfileEmailFields(profile);
-
 	const [currentEmail, profileEmail] = await Promise.all([
 		user.getUserField(uid, 'email'),
 		Promise.resolve(getProfileEmail(profile)),

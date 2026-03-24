@@ -19,6 +19,8 @@ const privileges = require('../privileges');
 const sockets = require('../socket.io');
 
 const authenticationController = module.exports;
+const baseUrl = nconf.get('url');
+const relativePath = nconf.get('relative_path') || '';
 
 // POST /login
 authenticationController.login = async (req, res, next) => {
@@ -103,9 +105,7 @@ function continueLogin(strategy, req, res, next) {
 			await authenticationController.doLogin(req, userData.uid);
 			let destination;
 			if (req.session.returnTo) {
-				destination = req.session.returnTo.startsWith('http') ?
-					req.session.returnTo :
-					nconf.get('relative_path') + req.session.returnTo;
+				destination = resolveSafeReturnTo(req.session.returnTo);
 				delete req.session.returnTo;
 			} else {
 				destination = `${nconf.get('relative_path')}/`;
@@ -114,6 +114,39 @@ function continueLogin(strategy, req, res, next) {
 			(res.locals.redirectAfterLogin || redirectAfterLogin)(req, res, destination);
 		}
 	})(req, res, next);
+}
+
+function resolveSafeReturnTo(returnTo) {
+	const fallback = `${relativePath}/`;
+	if (!returnTo || typeof returnTo !== 'string') {
+		return fallback;
+	}
+
+	const trimmed = returnTo.trim();
+	if (!trimmed) {
+		return fallback;
+	}
+
+	// Block protocol-relative and control-character redirects
+	if (trimmed.startsWith('//') || /[\r\n]/.test(trimmed)) {
+		return fallback;
+	}
+
+	if (/^https?:\/\//i.test(trimmed)) {
+		try {
+			const parsed = new URL(trimmed);
+			const local = new URL(baseUrl);
+			if (parsed.origin !== local.origin) {
+				return fallback;
+			}
+			return `${relativePath}${parsed.pathname}${parsed.search}${parsed.hash}`;
+		} catch (err) {
+			return fallback;
+		}
+	}
+
+	const normalized = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+	return `${relativePath}${normalized}`;
 }
 
 function redirectAfterLogin(req, res, destination) {

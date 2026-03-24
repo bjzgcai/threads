@@ -107,11 +107,14 @@ Controllers.login = async function (req, res) {
 	}
 
 	if (req.headers['x-return-to']) {
-		req.session.returnTo = req.headers['x-return-to'];
+		req.session.returnTo = String(req.headers['x-return-to']);
 	}
 
 	// Occasionally, x-return-to is passed a full url.
-	req.session.returnTo = req.session.returnTo && req.session.returnTo.replace(nconf.get('base_url'), '').replace(nconf.get('relative_path'), '');
+	req.session.returnTo = req.session.returnTo && req.session.returnTo
+		.replace(nconf.get('base_url'), '')
+		.replace(nconf.get('relative_path'), '')
+		.replace(/[\r\n]/g, '');
 
 	data.alternate_logins = loginStrategies.length > 0;
 	data.authentication = loginStrategies;

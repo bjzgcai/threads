@@ -3,9 +3,13 @@
 const plugins = require('../plugins');
 const meta = require('../meta');
 const user = require('../user');
+const topics = require('../topics');
+
+const DANGEROUS_QUERY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 function adminHomePageRoute() {
-	return ((meta.config.homePageRoute === 'custom' ? meta.config.homePageCustom : meta.config.homePageRoute) || 'categories').replace(/^\//, '');
+	const route = ((meta.config.homePageRoute === 'custom' ? meta.config.homePageCustom : meta.config.homePageRoute) || 'categories').replace(/^\//, '');
+	return route === 'categories' ? 'unread' : route;
 }
 
 async function getUserHomeRoute(uid) {
@@ -17,6 +21,32 @@ async function getUserHomeRoute(uid) {
 	}
 
 	return route;
+}
+
+function normalizeHomePathname(pathname) {
+	if (typeof pathname !== 'string') {
+		return 'unread';
+	}
+
+	const cleaned = pathname
+		.replace(/^\/+/, '')
+		.replace(/\/{2,}/g, '/')
+		.trim();
+	if (!cleaned || cleaned.includes('..') || !/^[a-zA-Z0-9/_-]+$/.test(cleaned)) {
+		return 'unread';
+	}
+
+	return cleaned;
+}
+
+function toSafeQueryObject(searchParams) {
+	const safe = Object.create(null);
+	for (const [key, value] of searchParams.entries()) {
+		if (!DANGEROUS_QUERY_KEYS.has(key)) {
+			safe[key] = value;
+		}
+	}
+	return safe;
 }
 
 async function rewrite(req, res, next) {
@@ -35,14 +65,29 @@ async function rewrite(req, res, next) {
 		return next(err);
 	}
 
-	const pathname = parsedUrl.pathname.replace(/^\/+/, '');
+	let pathname = normalizeHomePathname(parsedUrl.pathname);
+	if (pathname === 'unread' && parseInt(req.uid, 10) > 0) {
+		const unreadCount = await topics.getTotalUnread(req.uid, '');
+		if (!unreadCount) {
+			const recentData = await topics.getSortedTopics({
+				uid: req.uid,
+				start: 0,
+				stop: 0,
+				filter: '',
+				term: 'alltime',
+				sort: 'recent',
+				query: req.query,
+			});
+			pathname = recentData.topicCount > 0 ? 'recent' : 'categories';
+		}
+	}
 	const hook = `action:homepage.get:${pathname}`;
 	if (!plugins.hooks.hasListeners(hook)) {
 		req.url = req.path + (!req.path.endsWith('/') ? '/' : '') + pathname;
 	} else {
 		res.locals.homePageRoute = pathname;
 	}
-	req.query = Object.assign(Object.fromEntries(parsedUrl.searchParams), req.query);
+	req.query = Object.assign(toSafeQueryObject(parsedUrl.searchParams), req.query);
 
 	next();
 }
