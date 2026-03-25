@@ -220,10 +220,21 @@ define('forum/account/edit/username', [
 			return;
 		}
 
+		const minimumUsernameLength = parseInt(ajaxify.data.minimumUsernameLength, 10) || 2;
+		const maximumUsernameLength = parseInt(ajaxify.data.maximumUsernameLength, 10) || 16;
 		const hint = $('<div id="username-availability-hint" class="form-text mt-1 text-muted">可输入自定义花名，也可从下方小说人物中选择</div>');
 		usernameInput.after(hint);
 
 		let timer = null;
+
+		function isTooShort(value) {
+			const normalized = String(value || '').trim();
+			return normalized.length < minimumUsernameLength || String(slugify(normalized) || '').length < minimumUsernameLength;
+		}
+
+		function isTooLong(value) {
+			return String(value || '').trim().length > maximumUsernameLength;
+		}
 
 		async function checkAvailability() {
 			const value = String(usernameInput.val() || '').trim();
@@ -236,6 +247,18 @@ define('forum/account/edit/username', [
 			if (value === currentUsername) {
 				hint.removeClass('text-danger text-muted').addClass('text-success').text('当前花名未变化，可直接提交。');
 				submitBtn.removeAttr('disabled');
+				return;
+			}
+
+			if (isTooShort(value)) {
+				hint.removeClass('text-success text-muted').addClass('text-danger').text(`花名太短，至少需要 ${minimumUsernameLength} 个字符`);
+				submitBtn.attr('disabled', 'disabled');
+				return;
+			}
+
+			if (isTooLong(value)) {
+				hint.removeClass('text-success text-muted').addClass('text-danger').text(`花名太长，不能超过 ${maximumUsernameLength} 个字符`);
+				submitBtn.attr('disabled', 'disabled');
 				return;
 			}
 
