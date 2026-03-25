@@ -17,10 +17,14 @@ const authenticationController = require.main.require('./src/controllers/authent
 const DINGTALK_AUTH_URL = 'https://login.dingtalk.com/oauth2/auth';
 const DINGTALK_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/userAccessToken';
 const DINGTALK_USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me';
-const DINGTALK_SCOPE = 'openid contact:user';
 const HTTP_TIMEOUT_MS = 10000;
 
 loadDotEnvIfNeeded();
+
+// 后台开通「邮箱等个人信息」(fieldEmail) 后，仍须在授权 URL 的 scope 中声明委托权限，
+// 否则 userAccessToken 只能拿到最小用户信息（无 email）。参见钉钉百科「浏览器内获取用户委托的访问凭证」。
+// 可通过环境变量 DINGTALK_OAUTH_SCOPE 覆盖（空格分隔，与官方文档一致）。
+const DINGTALK_SCOPE = process.env.DINGTALK_OAUTH_SCOPE || 'openid corpid Contact.User.Read Contact.User.email';
 
 const CLIENT_ID = process.env.DINGTALK_CLIENT_ID;
 const CLIENT_SECRET = process.env.DINGTALK_CLIENT_SECRET;
@@ -261,6 +265,8 @@ DingTalkPlugin.customizeComposerFormatting = async function (payload) {
 DingTalkPlugin.getStrategy = async function (strategies) {
 	const callbackURL = `${nconf.get('url')}/auth/dingtalk/callback`;
 
+	winston.info(`[sso-dingtalk] OAuth authorize scope: ${DINGTALK_SCOPE}`);
+
 	passport.use(new DingTalkStrategy(
 		{
 			clientId: CLIENT_ID,
@@ -286,6 +292,11 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 				uid = uid ? parseInt(uid, 10) : null;
 
 				if (uid && uid > 0) {
+					logDingTalkUserinfoDiagnostics(profile, {
+						flow: 'existing-user',
+						uid,
+						dingtalkIdTail: dingtalkId.slice(-4),
+					});
 					await user.setUserField(uid, 'dingtalk:sso', 1);
 					await syncEmailPreservingExisting(uid, profile);
 					await syncAvatarForExistingUser(uid, profile);
@@ -295,6 +306,11 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 				// If already logged in, link the DingTalk account to the current NodeBB user
 				if (req.user && req.user.uid && parseInt(req.user.uid, 10) > 0) {
 					uid = parseInt(req.user.uid, 10);
+					logDingTalkUserinfoDiagnostics(profile, {
+						flow: 'link-session',
+						uid,
+						dingtalkIdTail: dingtalkId.slice(-4),
+					});
 					await assertAndBindDingtalkId(dingtalkId, uid);
 					await user.setUserField(uid, 'dingtalk:sso', 1);
 					await syncEmailPreservingExisting(uid, profile);
@@ -311,9 +327,17 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 					joindate: Date.now(),
 				};
 
+				logDingTalkUserinfoDiagnostics(profile, {
+					flow: 'new-user',
+					uid: null,
+					dingtalkIdTail: dingtalkId.slice(-4),
+					newUserHasEmailField: Boolean(userData.email),
+				});
+
 				// Remove empty email so NodeBB prompts for it via interstitial if configured
 				if (!userData.email) {
 					delete userData.email;
+					winston.info('[sso-dingtalk] New user: no email from DingTalk userinfo; NodeBB may send verification after user supplies email');
 				}
 
 				const newUid = await createUser(userData);
@@ -427,6 +451,38 @@ function getProfileEmail(profile) {
 	return '';
 }
 
+/**
+ * One-line diagnostics for DingTalk /v1.0/contact/users/me — no raw email values.
+ */
+function logDingTalkUserinfoDiagnostics(profile, meta) {
+	if (!profile || typeof profile !== 'object') {
+		winston.warn('[sso-dingtalk] userinfo diagnostics: profile missing or not an object');
+		return;
+	}
+
+	const keys = Object.keys(profile).sort();
+	const emailCandidateKeys = ['email', 'orgEmail', 'workEmail'];
+	const candidateSummary = emailCandidateKeys.map((key) => {
+		const v = profile[key];
+		if (typeof v !== 'string' || !v.trim()) {
+			return `${key}:empty`;
+		}
+		const t = v.trim().toLowerCase();
+		const ok = t.length <= 254 && validator.isEmail(t);
+		return `${key}:len=${t.length},emailFormatOk=${ok}`;
+	}).join('; ');
+
+	const resolved = Boolean(getProfileEmail(profile));
+
+	winston.info(`[sso-dingtalk] userinfo diagnostics ${JSON.stringify({
+		...meta,
+		profileKeyCount: keys.length,
+		profileKeys: keys,
+		emailCandidates: candidateSummary,
+		resolvedUsableEmail: resolved,
+	})}`);
+}
+
 async function syncEmailPreservingExisting(uid, profile) {
 	const [currentEmail, profileEmail] = await Promise.all([
 		user.getUserField(uid, 'email'),
@@ -441,9 +497,11 @@ async function syncEmailPreservingExisting(uid, profile) {
 	}
 
 	if (!profileEmail) {
+		winston.info(`[sso-dingtalk] uid ${uid} has no stored email and DingTalk userinfo had no usable email; user may need NodeBB email verification flow`);
 		return;
 	}
 
+	winston.info(`[sso-dingtalk] Setting email from DingTalk for uid ${uid} (account had no email)`);
 	await user.setUserField(uid, 'email', profileEmail);
 	await user.setUserField(uid, 'email:confirmed', 1);
 	await db.sortedSetRemove('users:notvalidated', uid);

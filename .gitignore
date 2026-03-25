@@ -80,3 +80,5 @@ test.sh
 
 # Local extracted/import source files
 temp_wuxia/
+package-lock.json
+pnpm-lock.yaml
