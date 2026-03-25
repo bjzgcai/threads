@@ -16,6 +16,7 @@ const authenticationController = require.main.require('./src/controllers/authent
 
 const DINGTALK_AUTH_URL = 'https://login.dingtalk.com/oauth2/auth';
 const DINGTALK_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/userAccessToken';
+const DINGTALK_APP_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/accessToken';
 const DINGTALK_USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me';
 const DINGTALK_USER_SEARCH_URL = 'https://api.dingtalk.com/v1.0/contact/users/search';
 const DINGTALK_USER_DETAIL_URL = 'https://oapi.dingtalk.com/topapi/v2/user/get';
@@ -31,6 +32,11 @@ const DINGTALK_SCOPE = process.env.DINGTALK_OAUTH_SCOPE || 'openid corpid Contac
 const CLIENT_ID = process.env.DINGTALK_CLIENT_ID;
 const CLIENT_SECRET = process.env.DINGTALK_CLIENT_SECRET;
 const DB_KEY = 'dingtalk:openid2uid';
+const APP_TOKEN_REFRESH_SKEW_MS = 60 * 1000;
+let appAccessTokenCache = {
+	token: '',
+	expiresAt: 0,
+};
 
 function loadDotEnvIfNeeded() {
 	if (process.env.DINGTALK_CLIENT_ID && process.env.DINGTALK_CLIENT_SECRET) {
@@ -461,6 +467,29 @@ function getProfileEmail(profile) {
 	return '';
 }
 
+async function getAppAccessToken() {
+	if (appAccessTokenCache.token && Date.now() < appAccessTokenCache.expiresAt) {
+		return appAccessTokenCache.token;
+	}
+
+	const response = await postJson(DINGTALK_APP_TOKEN_URL, {
+		appKey: CLIENT_ID,
+		appSecret: CLIENT_SECRET,
+	});
+
+	const token = String(response && response.accessToken || '').trim();
+	const expiresIn = parseInt(response && response.expireIn, 10) || 7200;
+	if (!token) {
+		throw new Error('DingTalk app accessToken is empty');
+	}
+
+	appAccessTokenCache = {
+		token,
+		expiresAt: Date.now() + Math.max(0, expiresIn * 1000 - APP_TOKEN_REFRESH_SKEW_MS),
+	};
+	return token;
+}
+
 function tail(value, size = 6) {
 	const str = String(value || '');
 	return str.length > size ? str.slice(-size) : str;
@@ -475,9 +504,9 @@ function maskEmail(email) {
 	return `${value.slice(0, 2)}***${value.slice(at)}`;
 }
 
-async function searchDingtalkUserIdsByNick(accessToken, nick) {
-	if (!accessToken || typeof nick !== 'string' || !nick.trim()) {
-		winston.info('[sso-dingtalk][email-flow] skip /contact/users/search: missing accessToken or nick');
+async function searchDingtalkUserIdsByNick(appAccessToken, nick) {
+	if (!appAccessToken || typeof nick !== 'string' || !nick.trim()) {
+		winston.info('[sso-dingtalk][email-flow] skip /contact/users/search: missing appAccessToken or nick');
 		return [];
 	}
 	winston.info(`[sso-dingtalk][email-flow] call /contact/users/search nick="${nick.trim()}"`);
@@ -490,7 +519,7 @@ async function searchDingtalkUserIdsByNick(accessToken, nick) {
 			size: 10,
 			fullMatchField: 1,
 		},
-		{ 'x-acs-dingtalk-access-token': accessToken }
+		{ 'x-acs-dingtalk-access-token': appAccessToken }
 	);
 
 	const totalCount = parseInt(response && response.totalCount, 10) || 0;
@@ -502,15 +531,15 @@ async function searchDingtalkUserIdsByNick(accessToken, nick) {
 	return response.list.map(value => String(value)).filter(Boolean);
 }
 
-async function getDingtalkUserByUserId(accessToken, userId) {
-	if (!accessToken || !userId) {
-		winston.info('[sso-dingtalk][email-flow] skip /v2/user/get: missing accessToken or userId');
+async function getDingtalkUserByUserId(appAccessToken, userId) {
+	if (!appAccessToken || !userId) {
+		winston.info('[sso-dingtalk][email-flow] skip /v2/user/get: missing appAccessToken or userId');
 		return null;
 	}
 	winston.info(`[sso-dingtalk][email-flow] call /v2/user/get userid=${userId}`);
 
 	const response = await postJson(
-		`${DINGTALK_USER_DETAIL_URL}?access_token=${encodeURIComponent(accessToken)}`,
+		`${DINGTALK_USER_DETAIL_URL}?access_token=${encodeURIComponent(appAccessToken)}`,
 		{ userid: userId }
 	);
 
@@ -536,8 +565,15 @@ async function getOrgEmailFromNickAndUnionId(accessToken, profile) {
 	winston.info(`[sso-dingtalk][email-flow] start fallback by nick+unionId nick="${nick}" unionIdTail=${tail(targetUnionId, 4)}`);
 
 	let userIds = [];
+	let appAccessToken = '';
 	try {
-		userIds = await searchDingtalkUserIdsByNick(accessToken, nick);
+		appAccessToken = await getAppAccessToken();
+	} catch (err) {
+		winston.warn(`[sso-dingtalk][email-flow] get app access token failed: ${err.message}`);
+		return '';
+	}
+	try {
+		userIds = await searchDingtalkUserIdsByNick(appAccessToken, nick);
 	} catch (err) {
 		winston.warn(`[sso-dingtalk] /contact/users/search failed: ${err.message}`);
 		return '';
@@ -551,7 +587,7 @@ async function getOrgEmailFromNickAndUnionId(accessToken, profile) {
 
 	for (const userId of userIds) {
 		try {
-			const result = await getDingtalkUserByUserId(accessToken, userId);
+			const result = await getDingtalkUserByUserId(appAccessToken, userId);
 			const candidateUnionId = String(result && result.unionid || '').trim();
 			if (!result || candidateUnionId !== targetUnionId) {
 				winston.info(`[sso-dingtalk][email-flow] userid=${userId} unionId not match candidateTail=${tail(candidateUnionId, 4)} targetTail=${tail(targetUnionId, 4)}`);
