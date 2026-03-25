@@ -304,6 +304,7 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 						uid,
 						dingtalkIdTail: dingtalkId.slice(-4),
 					});
+					winston.info(`[sso-dingtalk][email-flow] existing-user login uid=${uid}, start email sync`);
 					await user.setUserField(uid, 'dingtalk:sso', 1);
 					await syncEmailPreservingExisting(uid, profile, accessToken);
 					await syncAvatarForExistingUser(uid, profile);
@@ -327,6 +328,7 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 				// New user 鈥?build registration data and create account
 				const username = cleanUsername(profile.nick || `dingtalk_${dingtalkId.slice(-6)}`);
 				const resolvedEmail = await resolveProfileEmail(accessToken, profile);
+				winston.info(`[sso-dingtalk][email-flow] new-user resolvedEmail=${maskEmail(resolvedEmail)}`);
 				const userData = {
 					username: username,
 					fullname: profile.nick || '',
@@ -459,10 +461,26 @@ function getProfileEmail(profile) {
 	return '';
 }
 
+function tail(value, size = 6) {
+	const str = String(value || '');
+	return str.length > size ? str.slice(-size) : str;
+}
+
+function maskEmail(email) {
+	const value = String(email || '').trim().toLowerCase();
+	const at = value.indexOf('@');
+	if (at <= 1) {
+		return value ? `***${value.slice(at)}` : '';
+	}
+	return `${value.slice(0, 2)}***${value.slice(at)}`;
+}
+
 async function searchDingtalkUserIdsByNick(accessToken, nick) {
 	if (!accessToken || typeof nick !== 'string' || !nick.trim()) {
+		winston.info('[sso-dingtalk][email-flow] skip /contact/users/search: missing accessToken or nick');
 		return [];
 	}
+	winston.info(`[sso-dingtalk][email-flow] call /contact/users/search nick="${nick.trim()}"`);
 
 	const response = await postJsonWithHeaders(
 		DINGTALK_USER_SEARCH_URL,
@@ -476,6 +494,7 @@ async function searchDingtalkUserIdsByNick(accessToken, nick) {
 	);
 
 	const totalCount = parseInt(response && response.totalCount, 10) || 0;
+	winston.info(`[sso-dingtalk][email-flow] /contact/users/search result totalCount=${totalCount}`);
 	if (!totalCount || !Array.isArray(response.list)) {
 		return [];
 	}
@@ -485,8 +504,10 @@ async function searchDingtalkUserIdsByNick(accessToken, nick) {
 
 async function getDingtalkUserByUserId(accessToken, userId) {
 	if (!accessToken || !userId) {
+		winston.info('[sso-dingtalk][email-flow] skip /v2/user/get: missing accessToken or userId');
 		return null;
 	}
+	winston.info(`[sso-dingtalk][email-flow] call /v2/user/get userid=${userId}`);
 
 	const response = await postJson(
 		`${DINGTALK_USER_DETAIL_URL}?access_token=${encodeURIComponent(accessToken)}`,
@@ -494,6 +515,7 @@ async function getDingtalkUserByUserId(accessToken, userId) {
 	);
 
 	if (!response || String(response.errcode) !== '0' || !response.result) {
+		winston.info(`[sso-dingtalk][email-flow] /v2/user/get miss userid=${userId} errcode=${response && response.errcode}`);
 		return null;
 	}
 
@@ -508,8 +530,10 @@ async function getOrgEmailFromNickAndUnionId(accessToken, profile) {
 	const nick = typeof profile.nick === 'string' ? profile.nick.trim() : '';
 	const targetUnionId = typeof profile.unionId === 'string' ? profile.unionId.trim() : '';
 	if (!nick || !targetUnionId) {
+		winston.info(`[sso-dingtalk][email-flow] skip unionId fallback: nick or unionId missing nick="${nick}" unionIdTail=${tail(targetUnionId, 4)}`);
 		return '';
 	}
+	winston.info(`[sso-dingtalk][email-flow] start fallback by nick+unionId nick="${nick}" unionIdTail=${tail(targetUnionId, 4)}`);
 
 	let userIds = [];
 	try {
@@ -520,37 +544,47 @@ async function getOrgEmailFromNickAndUnionId(accessToken, profile) {
 	}
 
 	if (!userIds.length) {
+		winston.info('[sso-dingtalk][email-flow] fallback stop: no userid found by nick');
 		return '';
 	}
+	winston.info(`[sso-dingtalk][email-flow] fallback candidates useridCount=${userIds.length} userids=${userIds.join(',')}`);
 
 	for (const userId of userIds) {
 		try {
 			const result = await getDingtalkUserByUserId(accessToken, userId);
-			if (!result || String(result.unionid || '').trim() !== targetUnionId) {
+			const candidateUnionId = String(result && result.unionid || '').trim();
+			if (!result || candidateUnionId !== targetUnionId) {
+				winston.info(`[sso-dingtalk][email-flow] userid=${userId} unionId not match candidateTail=${tail(candidateUnionId, 4)} targetTail=${tail(targetUnionId, 4)}`);
 				continue;
 			}
+			winston.info(`[sso-dingtalk][email-flow] userid=${userId} unionId matched`);
 
 			const candidates = [result.org_email, result.email];
 			for (const value of candidates) {
 				const email = String(value || '').trim().toLowerCase();
 				if (email && email.length <= 254 && validator.isEmail(email)) {
+					winston.info(`[sso-dingtalk][email-flow] picked email from user detail userid=${userId} email=${maskEmail(email)}`);
 					return email;
 				}
 			}
+			winston.info(`[sso-dingtalk][email-flow] userid=${userId} has no usable org_email/email`);
 			return '';
 		} catch (err) {
 			winston.warn(`[sso-dingtalk] /v2/user/get failed for userid ${userId}: ${err.message}`);
 		}
 	}
 
+	winston.info('[sso-dingtalk][email-flow] fallback finished: no unionId matched or no usable email');
 	return '';
 }
 
 async function resolveProfileEmail(accessToken, profile) {
 	const direct = getProfileEmail(profile);
 	if (direct) {
+		winston.info(`[sso-dingtalk][email-flow] email resolved directly from /users/me email=${maskEmail(direct)}`);
 		return direct;
 	}
+	winston.info('[sso-dingtalk][email-flow] /users/me had no usable email, entering fallback flow');
 	return await getOrgEmailFromNickAndUnionId(accessToken, profile);
 }
 
@@ -591,11 +625,13 @@ async function syncEmailPreservingExisting(uid, profile, accessToken) {
 		user.getUserField(uid, 'email'),
 		Promise.resolve(resolveProfileEmail(accessToken, profile)),
 	]);
+	winston.info(`[sso-dingtalk][email-flow] sync uid=${uid} currentEmail=${maskEmail(currentEmail)} resolvedEmail=${maskEmail(profileEmail)}`);
 
 	if (currentEmail) {
 		if (!profileEmail) {
 			winston.verbose(`[sso-dingtalk] Preserving existing email for uid ${uid}: DingTalk returned empty email`);
 		}
+		winston.info(`[sso-dingtalk][email-flow] keep existing email for uid ${uid}`);
 		return;
 	}
 
@@ -604,7 +640,7 @@ async function syncEmailPreservingExisting(uid, profile, accessToken) {
 		return;
 	}
 
-	winston.info(`[sso-dingtalk] Setting email from DingTalk for uid ${uid} (account had no email)`);
+	winston.info(`[sso-dingtalk][email-flow] set email for uid ${uid} email=${maskEmail(profileEmail)}`);
 	await user.setUserField(uid, 'email', profileEmail);
 	await user.setUserField(uid, 'email:confirmed', 1);
 	await db.sortedSetRemove('users:notvalidated', uid);
