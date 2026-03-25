@@ -16,6 +16,20 @@ const helpers = require('./helpers');
 
 const { setupPageRoute } = helpers;
 const SAFE_MOUNT_REGEX = /^[a-z0-9][a-z0-9-]*$/i;
+const BEARER_TOKEN_ALLOWED_IPS = new Set(['10.100.11.202']);
+const BEARER_TOKEN_ALLOWED_METHOD = 'POST';
+const BEARER_TOKEN_ALLOWED_PATH = '/api/v3/topics';
+
+function isBearerRequest(req) {
+	const authHeader = req.get('authorization') || '';
+	return /^Bearer\s+\S+/i.test(authHeader);
+}
+
+function getClientIp(req) {
+	const forwarded = (req.get('x-forwarded-for') || '').split(',')[0].trim();
+	const rawIp = forwarded || req.ip || req.socket?.remoteAddress || '';
+	return String(rawIp).replace(/^::ffff:/, '');
+}
 
 const _mounts = {
 	user: require('./user'),
@@ -142,6 +156,20 @@ module.exports = async function (app, middleware) {
 	router.all('(/+api|/+api/*?)', middleware.prepareAPI);
 	router.all(`(/+api/admin|/+api/admin/*?${mounts.admin !== 'admin' ? `|/+api/${mounts.admin}|/+api/${mounts.admin}/*?` : ''})`, middleware.authenticateRequest, middleware.ensureLoggedIn, middleware.admin.checkPrivileges);
 	router.all(`(/+admin|/+admin/*?${mounts.admin !== 'admin' ? `|/+${mounts.admin}|/+${mounts.admin}/*?` : ''})`, middleware.ensureLoggedIn, middleware.applyCSRF, middleware.admin.checkPrivileges);
+	router.use((req, res, next) => {
+		if (!isBearerRequest(req)) {
+			return next();
+		}
+
+		const clientIp = getClientIp(req);
+		const isAllowedIp = BEARER_TOKEN_ALLOWED_IPS.has(clientIp);
+		const isAllowedEndpoint = req.method === BEARER_TOKEN_ALLOWED_METHOD && req.path === BEARER_TOKEN_ALLOWED_PATH;
+		if (!isAllowedIp || !isAllowedEndpoint) {
+			return controllerHelpers.notAllowed(req, res);
+		}
+
+		next();
+	});
 	router.use((req, res, next) => {
 		if (req.loggedIn) {
 			return next();
