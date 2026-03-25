@@ -703,19 +703,14 @@ function logDingTalkUserinfoDiagnostics(profile, meta) {
 }
 
 async function syncEmailPreservingExisting(uid, profile, accessToken) {
-	const [currentEmail, profileEmail] = await Promise.all([
-		user.getUserField(uid, 'email'),
-		Promise.resolve(resolveProfileEmail(accessToken, profile)),
-	]);
-	winston.info(`[sso-dingtalk][email-flow] sync uid=${uid} currentEmail=${maskEmail(currentEmail)} resolvedEmail=${maskEmail(profileEmail)}`);
-
+	const currentEmail = await user.getUserField(uid, 'email');
 	if (currentEmail) {
-		if (!profileEmail) {
-			winston.verbose(`[sso-dingtalk] Preserving existing email for uid ${uid}: DingTalk returned empty email`);
-		}
-		winston.info(`[sso-dingtalk][email-flow] keep existing email for uid ${uid}`);
+		winston.info(`[sso-dingtalk][email-flow] keep existing email for uid ${uid}, skip DingTalk lookup currentEmail=${maskEmail(currentEmail)}`);
 		return;
 	}
+
+	const profileEmail = await resolveProfileEmail(accessToken, profile);
+	winston.info(`[sso-dingtalk][email-flow] sync uid=${uid} currentEmail=${maskEmail(currentEmail)} resolvedEmail=${maskEmail(profileEmail)}`);
 
 	if (!profileEmail) {
 		winston.info(`[sso-dingtalk] uid ${uid} has no stored email and DingTalk userinfo had no usable email; user may need NodeBB email verification flow`);
