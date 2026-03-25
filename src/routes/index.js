@@ -166,6 +166,8 @@ module.exports = async function (app, middleware) {
 		if (req.loggedIn) {
 			return next();
 		}
+		const authHeader = req.get('authorization') || '';
+		const hasBearerToken = /^Bearer\s+\S+/i.test(authHeader);
 
 		const publicPatterns = [
 			/^\/login\/?$/,
@@ -194,6 +196,9 @@ module.exports = async function (app, middleware) {
 		}
 
 		if (req.path.startsWith('/api/')) {
+			if (hasBearerToken) {
+				return next();
+			}
 			return controllerHelpers.notAllowed(req, res);
 		}
 
