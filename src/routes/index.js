@@ -16,7 +16,12 @@ const helpers = require('./helpers');
 
 const { setupPageRoute } = helpers;
 const SAFE_MOUNT_REGEX = /^[a-z0-9][a-z0-9-]*$/i;
-const BEARER_TOKEN_ALLOWED_IPS = new Set(['10.100.11.202']);
+const BEARER_TOKEN_ALLOWED_IPS = new Set(
+	(process.env.NODEBB_BEARER_ALLOWED_IPS || '10.100.11.202,127.0.0.1,::1')
+		.split(',')
+		.map(ip => ip.trim())
+		.filter(Boolean)
+);
 const BEARER_TOKEN_ALLOWED_METHOD = 'POST';
 const BEARER_TOKEN_ALLOWED_PATH = '/api/v3/topics';
 
@@ -27,7 +32,8 @@ function isBearerRequest(req) {
 
 function getClientIp(req) {
 	const forwarded = (req.get('x-forwarded-for') || '').split(',')[0].trim();
-	const rawIp = forwarded || req.ip || req.socket?.remoteAddress || '';
+	const realIp = (req.get('x-real-ip') || '').trim();
+	const rawIp = forwarded || realIp || req.ip || req.socket?.remoteAddress || '';
 	return String(rawIp).replace(/^::ffff:/, '');
 }
 
@@ -165,6 +171,7 @@ module.exports = async function (app, middleware) {
 		const isAllowedIp = BEARER_TOKEN_ALLOWED_IPS.has(clientIp);
 		const isAllowedEndpoint = req.method === BEARER_TOKEN_ALLOWED_METHOD && req.path === BEARER_TOKEN_ALLOWED_PATH;
 		if (!isAllowedIp || !isAllowedEndpoint) {
+			winston.warn(`[api-guard] blocked bearer request method=${req.method} path=${req.path} ip=${clientIp} xff="${req.get('x-forwarded-for') || ''}" xri="${req.get('x-real-ip') || ''}"`);
 			return controllerHelpers.notAllowed(req, res);
 		}
 
