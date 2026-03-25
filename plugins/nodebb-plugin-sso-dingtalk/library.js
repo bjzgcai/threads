@@ -20,6 +20,7 @@ const DINGTALK_APP_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/accessToken
 const DINGTALK_USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me';
 const DINGTALK_USER_SEARCH_URL = 'https://api.dingtalk.com/v1.0/contact/users/search';
 const DINGTALK_USER_DETAIL_URL = 'https://oapi.dingtalk.com/topapi/v2/user/get';
+const DINGTALK_USER_BY_MOBILE_URL = 'https://oapi.dingtalk.com/topapi/v2/user/getbymobile';
 const HTTP_TIMEOUT_MS = 10000;
 
 loadDotEnvIfNeeded();
@@ -507,7 +508,7 @@ function maskEmail(email) {
 async function searchDingtalkUserIdsByNick(appAccessToken, nick) {
 	if (!appAccessToken || typeof nick !== 'string' || !nick.trim()) {
 		winston.info('[sso-dingtalk][email-flow] skip /contact/users/search: missing appAccessToken or nick');
-		return [];
+		return { totalCount: 0, userIds: [] };
 	}
 	winston.info(`[sso-dingtalk][email-flow] call /contact/users/search nick="${nick.trim()}"`);
 
@@ -525,10 +526,40 @@ async function searchDingtalkUserIdsByNick(appAccessToken, nick) {
 	const totalCount = parseInt(response && response.totalCount, 10) || 0;
 	winston.info(`[sso-dingtalk][email-flow] /contact/users/search result totalCount=${totalCount}`);
 	if (!totalCount || !Array.isArray(response.list)) {
+		return { totalCount, userIds: [] };
+	}
+
+	return {
+		totalCount,
+		userIds: response.list.map(value => String(value)).filter(Boolean),
+	};
+}
+
+async function getDingtalkUserIdsByMobile(appAccessToken, mobile) {
+	if (!appAccessToken || typeof mobile !== 'string' || !mobile.trim()) {
+		winston.info('[sso-dingtalk][email-flow] skip /v2/user/getbymobile: missing appAccessToken or mobile');
 		return [];
 	}
 
-	return response.list.map(value => String(value)).filter(Boolean);
+	const normalizedMobile = mobile.trim();
+	winston.info(`[sso-dingtalk][email-flow] call /v2/user/getbymobile mobile=${normalizedMobile}`);
+
+	const response = await postJson(
+		`${DINGTALK_USER_BY_MOBILE_URL}?access_token=${encodeURIComponent(appAccessToken)}`,
+		{
+			mobile: normalizedMobile,
+			support_exclusive_account_search: true,
+		}
+	);
+
+	if (!response || parseInt(response.errcode, 10) !== 0 || !response.result) {
+		winston.info(`[sso-dingtalk][email-flow] /v2/user/getbymobile miss errcode=${response && response.errcode}`);
+		return [];
+	}
+
+	const exclusiveList = Array.isArray(response.result.exclusive_account_userid_list) ?
+		response.result.exclusive_account_userid_list : [];
+	return exclusiveList.map(value => String(value)).filter(Boolean);
 }
 
 async function getDingtalkUserByUserId(appAccessToken, userId) {
@@ -573,7 +604,22 @@ async function getOrgEmailFromNickAndUnionId(accessToken, profile) {
 		return '';
 	}
 	try {
-		userIds = await searchDingtalkUserIdsByNick(appAccessToken, nick);
+		const searchResult = await searchDingtalkUserIdsByNick(appAccessToken, nick);
+		userIds = searchResult.userIds;
+		if (searchResult.totalCount > 1) {
+			const mobile = typeof profile.mobile === 'string' ? profile.mobile.trim() : '';
+			if (mobile) {
+				const mobileUserIds = await getDingtalkUserIdsByMobile(appAccessToken, mobile);
+				if (mobileUserIds.length) {
+					winston.info(`[sso-dingtalk][email-flow] nickname duplicated, switched to mobile candidates count=${mobileUserIds.length}`);
+					userIds = mobileUserIds;
+				} else {
+					winston.info('[sso-dingtalk][email-flow] nickname duplicated, mobile fallback returned empty');
+				}
+			} else {
+				winston.info('[sso-dingtalk][email-flow] nickname duplicated but profile.mobile is empty');
+			}
+		}
 	} catch (err) {
 		winston.warn(`[sso-dingtalk] /contact/users/search failed: ${err.message}`);
 		return '';
