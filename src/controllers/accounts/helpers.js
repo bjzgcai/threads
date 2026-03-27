@@ -123,7 +123,8 @@ helpers.getUserDataByUserSlug = async function (userslug, callerUID, query = {})
 	userData.moderationNote = validator.escape(String(userData.moderationNote || ''));
 	userData['cover:position'] = validator.escape(String(userData['cover:position'] || '50% 50%'));
 	userData['username:disableEdit'] = !userData.isAdmin && meta.config['username:disableEdit'];
-	userData['email:disableEdit'] = !userData.isAdmin && meta.config['email:disableEdit'];
+	// "禁用修改邮箱" 对个人资料页统一生效（包括管理员自己的账号页）
+	userData['email:disableEdit'] = !!meta.config['email:disableEdit'];
 
 	await getCounts(userData, callerUID);
 

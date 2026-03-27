@@ -163,13 +163,11 @@ actions.buildCSS = async function buildCSS(data) {
 		const opts = {
 			loadPaths: data.paths,
 			importers: [new sass.NodePackageImporter()],
-		};
-		if (data.minify) {
-			opts.silenceDeprecations = [
+			silenceDeprecations: [
 				'legacy-js-api', 'color-functions',
 				'global-builtin', 'import', 'if-function',
-			];
-		}
+			],
+		};
 		const scssOutput = await sass.compileStringAsync(data.source, opts);
 		css = scssOutput.css.toString();
 	} catch (err) {

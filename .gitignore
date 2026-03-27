@@ -49,6 +49,7 @@ pidfile
 ## Directory-based project format:
 .idea/
 .vscode/
+.codex/
 
 ## File-based project format:
 *.ipr
@@ -65,15 +66,19 @@ coverage
 *.log
 test/files/normalise.jpg.png
 test/files/normalise-resized.jpg
-package-lock.json
-/package.json
 *.mongodb
 link-plugins.sh
 test.sh
-
+.npm-cache/
 .docker/**
 !**/.gitkeep
 # Local environment config
 .env.local
 .env.dev
 .env.prod
+.env
+
+# Local extracted/import source files
+temp_wuxia/
+package-lock.json
+pnpm-lock.yaml

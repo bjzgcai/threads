@@ -107,11 +107,14 @@ Controllers.login = async function (req, res) {
 	}
 
 	if (req.headers['x-return-to']) {
-		req.session.returnTo = req.headers['x-return-to'];
+		req.session.returnTo = String(req.headers['x-return-to']);
 	}
 
 	// Occasionally, x-return-to is passed a full url.
-	req.session.returnTo = req.session.returnTo && req.session.returnTo.replace(nconf.get('base_url'), '').replace(nconf.get('relative_path'), '');
+	req.session.returnTo = req.session.returnTo && req.session.returnTo
+		.replace(nconf.get('base_url'), '')
+		.replace(nconf.get('relative_path'), '')
+		.replace(/[\r\n]/g, '');
 
 	data.alternate_logins = loginStrategies.length > 0;
 	data.authentication = loginStrategies;
@@ -123,7 +126,25 @@ Controllers.login = async function (req, res) {
 	data.title = '[[pages:login]]';
 	data.allowPasswordReset = !meta.config['password:disableEdit'];
 
-	data.allowLocalLogin = false;
+	const allowLocalLogin = Object.prototype.hasOwnProperty.call(meta.config, 'allowLocalLogin') ?
+		parseInt(meta.config.allowLocalLogin, 10) !== 0 :
+		false;
+	data.allowLocalLogin = allowLocalLogin;
+
+	if (!data.allowLocalLogin && (!Array.isArray(loginStrategies) || !loginStrategies.length)) {
+		data.alternate_logins = true;
+		data.authentication = [{
+			name: 'dingtalk',
+			url: '/auth/dingtalk',
+			icons: {
+				normal: 'fa-comments',
+			},
+			labels: {
+				login: 'dingtalk',
+			},
+			color: '#00B0B0',
+		}];
+	}
 
 	// Re-auth challenge, pre-fill username
 	if (req.loggedIn) {

@@ -1,8 +1,15 @@
 {
   "id": "nodebb-plugin-sso-dingtalk",
   "library": "./library.js",
+  "scripts": [
+    "static/lib/composer-upload-override.js"
+  ],
+  "styles": [
+    "static/css/composer-upload-override.css"
+  ],
   "hooks": [
     { "hook": "static:app.load", "method": "init" },
+    { "hook": "filter:composer.formatting", "method": "customizeComposerFormatting" },
     { "hook": "filter:auth.init", "method": "getStrategy" },
     { "hook": "filter:login.override", "method": "loginOverride" },
     { "hook": "filter:register.interstitial", "method": "addInterstitial" },

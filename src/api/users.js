@@ -1,8 +1,5 @@
 'use strict';
 
-const path = require('path');
-const fs = require('fs').promises;
-
 const validator = require('validator');
 const winston = require('winston');
 
@@ -66,12 +63,12 @@ usersAPI.update = async function (caller, data) {
 		user.isAdminOrGlobalMod(caller.uid),
 		privileges.users.canEdit(caller.uid, data.uid),
 	]);
+	const isSelf = parseInt(caller.uid, 10) === parseInt(data.uid, 10);
 
 	const isChangingEmailOrUsername = data.hasOwnProperty('email') || data.hasOwnProperty('username');
 	if (isChangingEmailOrUsername) {
 		await isPrivilegedOrSelfAndPasswordMatch(caller, data);
 	}
-
 	if (!canEdit) {
 		throw new Error('[[error:no-privileges]]');
 	}
@@ -80,7 +77,7 @@ usersAPI.update = async function (caller, data) {
 		data.username = oldUserData.username;
 	}
 
-	if (!isAdminOrGlobalMod && meta.config['email:disableEdit']) {
+	if ((!isAdminOrGlobalMod && meta.config['email:disableEdit']) || (isSelf && meta.config['email:disableEdit'])) {
 		data.email = oldUserData.email;
 	}
 
@@ -429,13 +426,18 @@ usersAPI.getInviteGroups = async (caller, { uid }) => {
 };
 
 usersAPI.addEmail = async (caller, { email, skipConfirmation, uid }) => {
-	const isSelf = parseInt(caller.uid, 10) === parseInt(uid, 10);
 	const canEdit = await privileges.users.canEdit(caller.uid, uid);
-	if (skipConfirmation && canEdit && !isSelf) {
+	const isSelf = parseInt(caller.uid, 10) === parseInt(uid, 10);
+	if (isSelf && meta.config['email:disableEdit']) {
+		throw new Error('[[error:no-privileges]]');
+	}
+	if (skipConfirmation && canEdit) {
+		email = String(email || '').trim();
 		if (!email.length) {
 			await user.email.remove(uid);
 		} else {
-			if (!await user.email.available(email)) {
+			const ownerUid = parseInt(await user.getUidByEmail(email), 10) || 0;
+			if (ownerUid && ownerUid !== parseInt(uid, 10)) {
 				throw new Error('[[error:email-taken]]');
 			}
 			await user.setUserField(uid, 'email', email);
@@ -504,12 +506,14 @@ async function isPrivilegedOrSelfAndPasswordMatch(caller, data) {
 	if (!canEdit) {
 		throw new Error('[[error:no-privileges]]');
 	}
-	const [hasPassword, passwordMatch] = await Promise.all([
+	const [hasPassword, passwordMatch, isDingTalkSSO] = await Promise.all([
 		user.hasPassword(data.uid),
 		data.password ? user.isPasswordCorrect(data.uid, data.password, caller.ip) : false,
+		user.getUserField(data.uid, 'dingtalk:sso'),
 	]);
+	const skipPasswordCheck = String(isDingTalkSSO || '') === '1';
 
-	if (isSelf && hasPassword && !passwordMatch) {
+	if (isSelf && hasPassword && !skipPasswordCheck && !passwordMatch) {
 		throw new Error('[[error:invalid-password]]');
 	}
 }

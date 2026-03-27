@@ -1,6 +1,5 @@
 'use strict';
 
-const async = require('async');
 const passport = require('passport');
 const passportLocal = require('passport-local').Strategy;
 const BearerStrategy = require('passport-http-bearer').Strategy;
@@ -13,6 +12,7 @@ const api = require('../api');
 const { generateToken } = require('../middleware/csrf');
 
 let loginStrategies = [];
+const ALLOWED_AUTH_METHODS = new Set(['get', 'post']);
 
 const Auth = module.exports;
 
@@ -86,8 +86,18 @@ Auth.reloadRoutes = async function (params) {
 	}
 	loginStrategies = loginStrategies || [];
 	loginStrategies.forEach((strategy) => {
+		const urlMethod = normalizeAuthMethod(strategy.urlMethod);
+		const callbackMethod = normalizeAuthMethod(strategy.callbackMethod);
+		const strategyUrl = normalizeAuthPath(strategy.url);
+		const strategyCallbackURL = normalizeAuthPath(strategy.callbackURL);
+
+		if ((strategy.url && !strategyUrl) || (strategy.callbackURL && !strategyCallbackURL)) {
+			winston.warn(`[authentication] Skipping invalid auth strategy route for "${strategy.name || 'unknown'}".`);
+			return;
+		}
+
 		if (strategy.url) {
-			router[strategy.urlMethod || 'get'](strategy.url, Auth.middleware.applyCSRF, async (req, res, next) => {
+			router[urlMethod](strategyUrl, Auth.middleware.applyCSRF, async (req, res, next) => {
 				let opts = {
 					scope: strategy.scope,
 					prompt: strategy.prompt || undefined,
@@ -97,7 +107,7 @@ Auth.reloadRoutes = async function (params) {
 					req.session.ssoState = generateToken(req, true);
 					opts.state = req.session.ssoState;
 				}
-				if (req.query.next) {
+				if (typeof req.query.next === 'string' && req.query.next.startsWith('/') && !req.query.next.startsWith('//')) {
 					req.session.next = req.query.next;
 				}
 
@@ -107,13 +117,19 @@ Auth.reloadRoutes = async function (params) {
 			});
 		}
 
-		router[strategy.callbackMethod || 'get'](strategy.callbackURL, (req, res, next) => {
+		if (!strategyCallbackURL) {
+			winston.warn(`[authentication] Skipping auth strategy "${strategy.name || 'unknown'}" due to missing callbackURL.`);
+			return;
+		}
+
+		router[callbackMethod](strategyCallbackURL, (req, res, next) => {
 			// Ensure the passed-back state value is identical to the saved ssoState (unless explicitly skipped)
 			if (strategy.checkState === false) {
 				return next();
 			}
-
-			next(req.query.state !== req.session.ssoState ? new Error('[[error:csrf-invalid]]') : null);
+			const isValidState = req.query.state && req.session.ssoState && req.query.state === req.session.ssoState;
+			delete req.session.ssoState;
+			next(isValidState ? null : new Error('[[error:csrf-invalid]]'));
 		}, (req, res, next) => {
 			passport.authenticate(strategy.name, (err, user, info) => {
 				if (err) {
@@ -131,30 +147,64 @@ Auth.reloadRoutes = async function (params) {
 				res.locals.strategy = strategy;
 				next();
 			})(req, res, next);
-		}, Auth.middleware.validateAuth, (req, res, next) => {
-			async.waterfall([
-				async.apply(req.login.bind(req), res.locals.user, { keepSessionInfo: true }),
-				async.apply(controllers.authentication.onSuccessfulLogin, req, res.locals.user.uid),
-			], (err) => {
-				if (err) {
-					return next(err);
-				}
-
-				helpers.redirect(res, strategy.successUrl || '/');
-			});
+		}, Auth.middleware.validateAuth, async (req, res, next) => {
+			try {
+				// 登录用户
+				await new Promise((resolve, reject) => {
+					req.login(res.locals.user, { keepSessionInfo: true }, (err) => {
+						if (err) {
+							return reject(err);
+						}
+						resolve();
+					});
+				});
+				// 处理登录成功后的逻辑
+				await controllers.authentication.onSuccessfulLogin(req, res.locals.user.uid);
+				// 重定向到成功页面
+				const nextPath = consumeSafeNextPath(req.session);
+				helpers.redirect(res, nextPath || strategy.successUrl || '/');
+			} catch (err) {
+				next(err);
+			}
 		});
 	});
-
-	const upload = require('../middleware/multer');
-	const middlewares = [
-		upload.any(),
-		Auth.middleware.applyCSRF,
-		Auth.middleware.applyBlacklist,
-	];
 
 	router.post('/login', Auth.middleware.applyCSRF, Auth.middleware.applyBlacklist, controllers.authentication.login);
 	router.post('/logout', Auth.middleware.applyCSRF, controllers.authentication.logout);
 };
+
+function normalizeAuthMethod(method) {
+	const normalized = String(method || 'get').toLowerCase();
+	return ALLOWED_AUTH_METHODS.has(normalized) ? normalized : 'get';
+}
+
+function normalizeAuthPath(route) {
+	if (!route) {
+		return '';
+	}
+	if (typeof route !== 'string') {
+		return '';
+	}
+	if (!route.startsWith('/') || route.startsWith('//')) {
+		return '';
+	}
+	return route;
+}
+
+function consumeSafeNextPath(session) {
+	if (!session || typeof session.next !== 'string') {
+		return '';
+	}
+
+	const nextPath = session.next.trim();
+	delete session.next;
+
+	if (!nextPath || !nextPath.startsWith('/') || nextPath.startsWith('//') || /[\r\n]/.test(nextPath)) {
+		return '';
+	}
+
+	return nextPath;
+}
 
 passport.serializeUser((user, done) => {
 	done(null, user.uid);
@@ -165,3 +215,4 @@ passport.deserializeUser((uid, done) => {
 		uid: uid,
 	});
 });
+

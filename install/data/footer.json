@@ -2,7 +2,7 @@
 	{
 		"widget": "html",
 		"data" : {
-			"html": "<footer id=\"footer\" class=\"container footer d-flex flex-column align-items-center gap-1 mb-2\">\n\t<span>Powered by <a class=\"link-secondary text-decoration-underline\" target=\"_blank\" href=\"https://nodebb.org\">NodeBB</a></span>\n\t<span><a class=\"link-secondary\" target=\"_blank\" href=\"//github.com/NodeBB/NodeBB/graphs/contributors\"><i class=\"fa fa-users\"></i> <span class=\"text-decoration-underline\">Contributors<span></a></span>\n</footer>",
+			"html": "<footer id=\"footer\" class=\"container footer d-flex flex-column align-items-center gap-1 mb-2\">\n\t<span><img src=\"/assets/uploads/files/zgc-32.png\" style=\"height: 1.2em; vertical-align: text-bottom; margin-right: 0.3em;\" alt=\"ZGCAI Icon\" />Powered by <a class=\"link-secondary text-decoration-underline\" target=\"_blank\" href=\"https://bza.edu.cn\">ZGCAI</a></span>\n</footer>",
 			"title":"",
 			"container":""
 		}

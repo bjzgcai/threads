@@ -203,7 +203,12 @@ async function saveRenderedCss(data) {
 		return;
 	}
 	const sass = require('../utils').getSass();
-	const scssOutput = await sass.compileStringAsync(data.customCSS, {});
+	const scssOutput = await sass.compileStringAsync(data.customCSS, {
+		silenceDeprecations: [
+			'legacy-js-api', 'color-functions',
+			'global-builtin', 'import', 'if-function',
+		],
+	});
 	data.renderedCustomCSS = scssOutput.css.toString();
 }
 

@@ -1,1 +1,6 @@
 // global bs5 overrides if necessary
+/* Hide the duplicated "Powered by" widget shown in topic right sidebar footer area */
+[data-widget-area="sidebar-footer"] #footer,
+[widget-area="sidebar-footer"] #footer {
+	display: none !important;
+}

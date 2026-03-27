@@ -58,13 +58,13 @@ Tags.parse = async (req, data, meta, link) => {
 		});
 	}
 
-	const faviconPath = Meta.config['brand:favicon'] || `${relative_path}/assets/uploads/system/favicon.ico`;
+	const faviconPath = `${relative_path}/assets/images/favicon-zhuge.png`;
 	const cacheBuster = Meta.config['cache-buster'] || '';
 
 	// Link Tags
 	const defaultLinks = isAPI ? [] : [{
 		rel: 'icon',
-		type: 'image/x-icon',
+		type: 'image/png',
 		href: `${faviconPath}${cacheBuster ? `?${cacheBuster}` : ''}`,
 	}, {
 		rel: 'manifest',

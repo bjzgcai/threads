@@ -14,6 +14,8 @@ define('forum/account/edit', [
 
 	AccountEdit.init = function () {
 		header.init();
+		applyAccountEditGuards();
+		initWuxiaNicknamePicker();
 
 		$('#submitBtn').on('click', updateProfile);
 
@@ -41,6 +43,173 @@ define('forum/account/edit', [
 		}
 	};
 
+	function applyAccountEditGuards() {
+		const isDingTalkAccount = !!ajaxify.data.disableCredentialEdit;
+		const emailEditDisabled = toBoolean(ajaxify.data['email:disableEdit']);
+		const emailEditUrl = `${config.relative_path}/user/${ajaxify.data.userslug}/edit/email`;
+
+		$('#deleteAccountBtn').closest('.d-flex').remove();
+		if (isDingTalkAccount) {
+			$(`a[href="${config.relative_path}/user/${ajaxify.data.userslug}/edit/password"]`).closest('li').remove();
+		}
+		$(`a[href="${emailEditUrl}"]`).closest('li').remove();
+
+		if (isDingTalkAccount) {
+			const fullnameLabel = $('label[for="fullname"]');
+			const fullnameInput = $('#fullname');
+			if (fullnameLabel.length) {
+				fullnameLabel.text('姓名');
+			}
+			if (fullnameInput.length) {
+				fullnameInput.attr('readonly', true).attr('disabled', true);
+			}
+
+			const usernameDisableEdit = !!ajaxify.data['username:disableEdit'];
+			const usernameEl = $('.account .username.fw-bold').first();
+			if (!usernameDisableEdit && usernameEl.length && !$('#quick-edit-username').length) {
+				const usernameEditUrl = `${config.relative_path}/user/${ajaxify.data.userslug}/edit/username`;
+				const quickEditHtml = `
+					<a id="quick-edit-username" class="text-decoration-none text-secondary ms-1" href="${usernameEditUrl}" title="编辑花名" aria-label="编辑花名">
+						<i class="fa fa-pencil"></i>
+					</a>
+				`;
+				usernameEl.after(quickEditHtml);
+			}
+		}
+
+		ensureEmailField();
+		bindEmailEdit(emailEditDisabled);
+	}
+
+	function toBoolean(value) {
+		if (typeof value === 'boolean') {
+			return value;
+		}
+		if (typeof value === 'number') {
+			return value !== 0;
+		}
+		if (typeof value === 'string') {
+			const normalized = value.trim().toLowerCase();
+			if (!normalized || normalized === '0' || normalized === 'false' || normalized === 'off' || normalized === 'no') {
+				return false;
+			}
+			if (normalized === '1' || normalized === 'true' || normalized === 'on' || normalized === 'yes') {
+				return true;
+			}
+		}
+		return !!value;
+	}
+
+	function ensureEmailField() {
+		const readonlyEmail = $('#readonly-email');
+		if (readonlyEmail.length) {
+			readonlyEmail.val(ajaxify.data.email ? ajaxify.data.email : '-');
+			readonlyEmail.attr('readonly', true).attr('disabled', true);
+			return;
+		}
+
+		const emailValue = ajaxify.data.email ? ajaxify.data.email : '-';
+		translator.translate('[[user:email]]', (translatedEmailLabel) => {
+			const emailBlock = `
+				<div class="mb-3">
+					<label class="form-label fw-bold" for="readonly-email">${escapeHtml(translatedEmailLabel)}</label>
+					<input class="form-control" type="text" id="readonly-email" value="${escapeHtml(emailValue)}" readonly disabled>
+				</div>
+			`;
+			const fullnameBlock = $('#fullname').closest('.mb-3');
+			if (fullnameBlock.length) {
+				fullnameBlock.after(emailBlock);
+			}
+		});
+	}
+
+	function bindEmailEdit(emailEditDisabled) {
+		$('#inline-edit-email').remove();
+		if (emailEditDisabled) {
+			return;
+		}
+
+		const emailLabel = $('label[for="readonly-email"]').first();
+		if (!emailLabel.length) {
+			return;
+		}
+
+		emailLabel.append(' <a id="inline-edit-email" href="#" class="text-decoration-none text-primary small">更改邮箱</a>');
+		$('#inline-edit-email').on('click', function (ev) {
+			ev.preventDefault();
+			changeEmail.init({
+				uid: ajaxify.data.uid,
+				email: ajaxify.data.email,
+				onSuccess: function (newEmail) {
+					alerts.success('[[user:email-updated]]');
+					const nextEmail = String(newEmail || '').trim() || '-';
+					ajaxify.data.email = nextEmail === '-' ? '' : nextEmail;
+					$('#readonly-email').val(nextEmail);
+				},
+			});
+		});
+	}
+
+	function initWuxiaNicknamePicker() {
+		const novelSelect = $('#wuxiaNovelSelect');
+		const characterSelect = $('#wuxiaCharacterSelect');
+		const usernameInput = $('#inputNewUsername');
+		const novels = Array.isArray(ajaxify.data.wuxiaNicknames) ? ajaxify.data.wuxiaNicknames : [];
+		const takenNames = new Set(Array.isArray(ajaxify.data.takenWuxiaNicknames) ? ajaxify.data.takenWuxiaNicknames : []);
+
+		if (!novelSelect.length || !characterSelect.length || !usernameInput.length || !novels.length) {
+			return;
+		}
+
+		function renderCharacters(novelIndex) {
+			const novel = novels[novelIndex];
+			const characters = novel && Array.isArray(novel.characters) ? novel.characters : [];
+			const sortedCharacters = characters.slice().sort((a, b) => {
+				const aTaken = takenNames.has(a);
+				const bTaken = takenNames.has(b);
+				if (aTaken === bTaken) {
+					return String(a).localeCompare(String(b), 'zh-CN');
+				}
+				return aTaken ? 1 : -1;
+			});
+
+			characterSelect.empty();
+			if (!sortedCharacters.length) {
+				characterSelect.append('<option value="">请先选择小说</option>');
+				characterSelect.prop('disabled', true);
+				return;
+			}
+
+			characterSelect.append('<option value="">请选择人物花名</option>');
+			sortedCharacters.forEach((name) => {
+				const isTaken = takenNames.has(name);
+				const label = isTaken ? `${escapeHtml(name)}（已被使用）` : escapeHtml(name);
+				characterSelect.append(`<option value="${escapeHtml(name)}" ${isTaken ? 'disabled' : ''}>${label}</option>`);
+			});
+			characterSelect.prop('disabled', false);
+		}
+
+		novelSelect.on('change', function () {
+			renderCharacters($(this).val());
+		});
+
+		characterSelect.on('change', function () {
+			const selectedName = $(this).val();
+			if (selectedName) {
+				usernameInput.val(selectedName);
+			}
+		});
+	}
+
+	function escapeHtml(value) {
+		return String(value)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+	}
+
 	function updateProfile() {
 		function getGroupSelection() {
 			const els = $('[component="group/badge/list"] [component="group/badge/item"][data-selected="true"]');
@@ -49,7 +218,6 @@ define('forum/account/edit', [
 		const editForm = $('form[component="profile/edit/form"]');
 		const userData = editForm.serializeObject();
 
-		// stringify multi selects
 		editForm.find('select[multiple]').each((i, el) => {
 			const name = $(el).attr('name');
 			if (userData[name] && !Array.isArray(userData[name])) {
@@ -76,8 +244,6 @@ define('forum/account/edit', [
 
 		return false;
 	}
-
-
 
 	function handleAccountDelete() {
 		$('#deleteAccountBtn').on('click', function () {

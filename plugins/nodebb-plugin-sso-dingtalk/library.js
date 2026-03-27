@@ -1,10 +1,14 @@
-'use strict';
+﻿'use strict';
 
 const util = require('util');
 const https = require('https');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const passport = require.main.require('passport');
 const nconf = require.main.require('nconf');
 const winston = require.main.require('winston');
+const validator = require.main.require('validator');
 const user = require.main.require('./src/user');
 const db = require.main.require('./src/database');
 const plugins = require.main.require('./src/plugins');
@@ -12,25 +16,120 @@ const authenticationController = require.main.require('./src/controllers/authent
 
 const DINGTALK_AUTH_URL = 'https://login.dingtalk.com/oauth2/auth';
 const DINGTALK_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/userAccessToken';
+const DINGTALK_APP_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/accessToken';
 const DINGTALK_USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me';
+const DINGTALK_USER_SEARCH_URL = 'https://api.dingtalk.com/v1.0/contact/users/search';
+const DINGTALK_USER_DETAIL_URL = 'https://oapi.dingtalk.com/topapi/v2/user/get';
+const DINGTALK_USER_BY_MOBILE_URL = 'https://oapi.dingtalk.com/topapi/v2/user/getbymobile';
+const HTTP_TIMEOUT_MS = 10000;
+
+loadDotEnvIfNeeded();
+
+// 后台开通「邮箱等个人信息」(fieldEmail) 后，仍须在授权 URL 的 scope 中声明委托权限，
+// 否则 userAccessToken 只能拿到最小用户信息（无 email）。参见钉钉百科「浏览器内获取用户委托的访问凭证」。
+// 可通过环境变量 DINGTALK_OAUTH_SCOPE 覆盖（空格分隔，与官方文档一致）。
+const DINGTALK_SCOPE = process.env.DINGTALK_OAUTH_SCOPE || 'openid corpid Contact.User.Read Contact.User.email';
 
 const CLIENT_ID = process.env.DINGTALK_CLIENT_ID;
 const CLIENT_SECRET = process.env.DINGTALK_CLIENT_SECRET;
 const DB_KEY = 'dingtalk:openid2uid';
+const APP_TOKEN_REFRESH_SKEW_MS = 60 * 1000;
+let appAccessTokenCache = {
+	token: '',
+	expiresAt: 0,
+};
+
+function loadDotEnvIfNeeded() {
+	if (process.env.DINGTALK_CLIENT_ID && process.env.DINGTALK_CLIENT_SECRET) {
+		return;
+	}
+
+	try {
+		const envPath = path.resolve(__dirname, '..', '..', '.env');
+		if (!fs.existsSync(envPath)) {
+			return;
+		}
+		const raw = fs.readFileSync(envPath, 'utf-8');
+		raw.split(/\r?\n/).forEach((line) => {
+			const trimmed = line.trim();
+			if (!trimmed || trimmed.startsWith('#')) {
+				return;
+			}
+			const idx = trimmed.indexOf('=');
+			if (idx === -1) {
+				return;
+			}
+			const key = trimmed.slice(0, idx).trim();
+			let value = trimmed.slice(idx + 1).trim();
+			if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+				value = value.slice(1, -1);
+			}
+			if (!process.env[key]) {
+				process.env[key] = value;
+			}
+		});
+	} catch (err) {
+		winston.warn(`[sso-dingtalk] Failed to load .env: ${err.message}`);
+	}
+}
+
+async function syncAvatarForExistingUser(uid, profile) {
+	if (!profile.avatarUrl) {
+		return;
+	}
+
+	const userData = await user.getUserFields(uid, ['uploadedpicture', 'picture']);
+	const hasCustomUploadedAvatar = Boolean(
+		userData.uploadedpicture &&
+		userData.uploadedpicture.startsWith(`${nconf.get('relative_path')}/assets/uploads/`)
+	);
+
+	if (hasCustomUploadedAvatar) {
+		winston.verbose(`[sso-dingtalk] Preserve custom uploaded avatar for uid ${uid}`);
+		return;
+	}
+
+	if (!userData.picture) {
+		await user.setUserField(uid, 'picture', profile.avatarUrl);
+	}
+
+	if (!userData.uploadedpicture) {
+		await user.setUserField(uid, 'uploadedpicture', profile.avatarUrl);
+	}
+}
+
+async function assertAndBindDingtalkId(dingtalkId, uid) {
+	const existingUidRaw = await db.getObjectField(DB_KEY, dingtalkId);
+	const existingUid = existingUidRaw ? parseInt(existingUidRaw, 10) : 0;
+
+	// Never rebind an existing DingTalk identity to a different local user.
+	if (existingUid > 0 && existingUid !== uid) {
+		throw new Error('DingTalk account already linked to another user');
+	}
+
+	if (!existingUid) {
+		await db.setObjectField(DB_KEY, dingtalkId, uid);
+	}
+}
 
 // --- HTTP helpers ---
 
 function postJson(url, body) {
+	return postJsonWithHeaders(url, body, {});
+}
+
+function postJsonWithHeaders(url, body, extraHeaders) {
 	return new Promise((resolve, reject) => {
 		const payload = JSON.stringify(body);
 		const parsed = new URL(url);
 		const options = {
 			hostname: parsed.hostname,
-			path: parsed.pathname,
+			path: parsed.pathname + (parsed.search || ''),
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 				'Content-Length': Buffer.byteLength(payload),
+				...(extraHeaders || {}),
 			},
 		};
 		const req = https.request(options, (res) => {
@@ -40,14 +139,17 @@ function postJson(url, body) {
 				try {
 					const json = JSON.parse(data);
 					if (res.statusCode >= 400) {
-						reject(new Error(`DingTalk API error ${res.statusCode}: ${JSON.stringify(json)}`));
+						reject(new Error(`DingTalk API error ${res.statusCode}`));
 					} else {
 						resolve(json);
 					}
 				} catch (e) {
-					reject(new Error(`Invalid JSON from DingTalk: ${data}`));
+					reject(new Error('Invalid JSON from DingTalk'));
 				}
 			});
+		});
+		req.setTimeout(HTTP_TIMEOUT_MS, () => {
+			req.destroy(new Error('DingTalk API request timeout'));
 		});
 		req.on('error', reject);
 		req.write(payload);
@@ -71,14 +173,17 @@ function getJson(url, headers) {
 				try {
 					const json = JSON.parse(data);
 					if (res.statusCode >= 400) {
-						reject(new Error(`DingTalk API error ${res.statusCode}: ${JSON.stringify(json)}`));
+						reject(new Error(`DingTalk API error ${res.statusCode}`));
 					} else {
 						resolve(json);
 					}
 				} catch (e) {
-					reject(new Error(`Invalid JSON from DingTalk: ${data}`));
+					reject(new Error('Invalid JSON from DingTalk'));
 				}
 			});
+		});
+		req.setTimeout(HTTP_TIMEOUT_MS, () => {
+			req.destroy(new Error('DingTalk API request timeout'));
 		});
 		req.on('error', reject);
 		req.end();
@@ -102,12 +207,12 @@ DingTalkStrategy.prototype.authenticate = function (req, options) {
 	const authCode = req.query.authCode || req.query.code;
 
 	if (!authCode) {
-		// Initiate authorization — redirect to DingTalk login page
+		// Initiate authorization 鈥?redirect to DingTalk login page
 		const params = new URLSearchParams({
 			response_type: 'code',
 			client_id: opts.clientId,
 			redirect_uri: opts.callbackURL,
-			scope: opts.scope || 'openid',
+			scope: opts.scope || DINGTALK_SCOPE,
 			prompt: 'consent',
 		});
 		if (opts.state) {
@@ -127,7 +232,7 @@ DingTalkStrategy.prototype.authenticate = function (req, options) {
 		.then((tokenData) => {
 			const accessToken = tokenData.accessToken;
 			if (!accessToken) {
-				throw new Error(`No accessToken in response: ${JSON.stringify(tokenData)}`);
+				throw new Error('No accessToken in response');
 			}
 			return getJson(DINGTALK_USERINFO_URL, {
 				'x-acs-dingtalk-access-token': accessToken,
@@ -152,23 +257,42 @@ DingTalkPlugin.init = async function (params) {
 	winston.verbose('[sso-dingtalk] Plugin initialized');
 };
 
-DingTalkPlugin.getStrategy = async function (strategies) {
-	if (!CLIENT_ID || !CLIENT_SECRET) {
-		winston.error('[sso-dingtalk] Missing required env vars: DINGTALK_CLIENT_ID / DINGTALK_CLIENT_SECRET');
-		return strategies;
+DingTalkPlugin.customizeComposerFormatting = async function (payload) {
+	if (!payload || !Array.isArray(payload.options)) {
+		return payload;
 	}
 
+	payload.options = payload.options.map((option) => {
+		if (option && option.name === 'picture-o') {
+			return {
+				...option,
+				name: 'picture',
+				title: '[[modules:composer.upload-picture]]',
+			};
+		}
+		return option;
+	});
+
+	return payload;
+};
+
+DingTalkPlugin.getStrategy = async function (strategies) {
 	const callbackURL = `${nconf.get('url')}/auth/dingtalk/callback`;
+
+	winston.info(`[sso-dingtalk] OAuth authorize scope: ${DINGTALK_SCOPE}`);
 
 	passport.use(new DingTalkStrategy(
 		{
 			clientId: CLIENT_ID,
 			clientSecret: CLIENT_SECRET,
 			callbackURL: callbackURL,
-			scope: 'openid',
+			scope: DINGTALK_SCOPE,
 		},
 		async (req, accessToken, profile, done) => {
 			try {
+				if (!CLIENT_ID || !CLIENT_SECRET) {
+					return done(new Error('DingTalk app credentials not configured'));
+				}
 				// profile fields: openId, unionId, nick, avatarUrl, mobile, email
 				// Use unionId as the stable unique identifier (consistent across all DingTalk apps)
 				// Fall back to openId only if unionId is not available
@@ -182,38 +306,60 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 				uid = uid ? parseInt(uid, 10) : null;
 
 				if (uid && uid > 0) {
-					// Existing user — update picture if available
-					if (profile.avatarUrl) {
-						await user.setUserField(uid, 'uploadedpicture', profile.avatarUrl);
-						await user.setUserField(uid, 'picture', profile.avatarUrl);
-					}
+					logDingTalkUserinfoDiagnostics(profile, {
+						flow: 'existing-user',
+						uid,
+						dingtalkIdTail: dingtalkId.slice(-4),
+					});
+					winston.info(`[sso-dingtalk][email-flow] existing-user login uid=${uid}, start email sync`);
+					await user.setUserField(uid, 'dingtalk:sso', 1);
+					await syncEmailPreservingExisting(uid, profile, accessToken);
+					await syncAvatarForExistingUser(uid, profile);
 					return done(null, { uid });
 				}
 
 				// If already logged in, link the DingTalk account to the current NodeBB user
 				if (req.user && req.user.uid && parseInt(req.user.uid, 10) > 0) {
 					uid = parseInt(req.user.uid, 10);
-					await db.setObjectField(DB_KEY, dingtalkId, uid);
+					logDingTalkUserinfoDiagnostics(profile, {
+						flow: 'link-session',
+						uid,
+						dingtalkIdTail: dingtalkId.slice(-4),
+					});
+					await assertAndBindDingtalkId(dingtalkId, uid);
+					await user.setUserField(uid, 'dingtalk:sso', 1);
+					await syncEmailPreservingExisting(uid, profile, accessToken);
 					return done(null, { uid });
 				}
 
-				// New user — build registration data and create account
+				// New user 鈥?build registration data and create account
 				const username = cleanUsername(profile.nick || `dingtalk_${dingtalkId.slice(-6)}`);
+				const resolvedEmail = await resolveProfileEmail(accessToken, profile);
+				winston.info(`[sso-dingtalk][email-flow] new-user resolvedEmail=${maskEmail(resolvedEmail)}`);
 				const userData = {
 					username: username,
 					fullname: profile.nick || '',
-					email: profile.email || '',
+					email: resolvedEmail,
 					picture: profile.avatarUrl || '',
 					joindate: Date.now(),
 				};
 
+				logDingTalkUserinfoDiagnostics(profile, {
+					flow: 'new-user',
+					uid: null,
+					dingtalkIdTail: dingtalkId.slice(-4),
+					newUserHasEmailField: Boolean(userData.email),
+				});
+
 				// Remove empty email so NodeBB prompts for it via interstitial if configured
 				if (!userData.email) {
 					delete userData.email;
+					winston.info('[sso-dingtalk] New user: no email from DingTalk userinfo; NodeBB may send verification after user supplies email');
 				}
 
 				const newUid = await createUser(userData);
-				await db.setObjectField(DB_KEY, dingtalkId, newUid);
+				await assertAndBindDingtalkId(dingtalkId, newUid);
+				await user.setUserField(newUid, 'dingtalk:sso', 1);
 
 				if (profile.avatarUrl) {
 					await user.setUserField(newUid, 'uploadedpicture', profile.avatarUrl);
@@ -245,18 +391,22 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 			login: '[[login:dingtalk]]',
 		},
 		color: '#00B0B0',
-		scope: 'openid',
+		scope: DINGTALK_SCOPE,
 		prompt: 'consent',
 		checkState: true,
 		successUrl: '/',
 		failureUrl: '/login',
 	});
 
+	if (!CLIENT_ID || !CLIENT_SECRET) {
+		winston.error('[sso-dingtalk] Missing required env vars: DINGTALK_CLIENT_ID / DINGTALK_CLIENT_SECRET');
+	}
+
 	return strategies;
 };
 
 DingTalkPlugin.loginOverride = async function (data) {
-	// Not overriding local login — pass through
+	// Not overriding local login 鈥?pass through
 	return data;
 };
 
@@ -291,11 +441,287 @@ async function ensureUniqueUsername(username) {
 	if (!exists) {
 		return username;
 	}
-	// Append random suffix to avoid collision
-	return `${username}_${Math.random().toString(36).slice(2, 6)}`;
+	// Append cryptographically strong random suffix to avoid predictable collisions
+	return `${username}_${crypto.randomBytes(3).toString('hex')}`;
 }
 
 function cleanUsername(name) {
 	// NodeBB usernames: letters, numbers, spaces, hyphens, underscores, dots, @
 	return name.replace(/[^\w\s\-@.]/gu, '').trim().slice(0, 30) || 'dingtalk_user';
 }
+
+function getProfileEmail(profile) {
+	if (!profile) {
+		return '';
+	}
+
+	const candidates = [profile.email, profile.orgEmail, profile.workEmail];
+	for (const value of candidates) {
+		if (typeof value === 'string' && value.trim()) {
+			const email = value.trim().toLowerCase();
+			if (email.length <= 254 && validator.isEmail(email)) {
+				return email;
+			}
+		}
+	}
+
+	return '';
+}
+
+async function getAppAccessToken() {
+	if (appAccessTokenCache.token && Date.now() < appAccessTokenCache.expiresAt) {
+		return appAccessTokenCache.token;
+	}
+
+	const response = await postJson(DINGTALK_APP_TOKEN_URL, {
+		appKey: CLIENT_ID,
+		appSecret: CLIENT_SECRET,
+	});
+
+	const token = String(response && response.accessToken || '').trim();
+	const expiresIn = parseInt(response && response.expireIn, 10) || 7200;
+	if (!token) {
+		throw new Error('DingTalk app accessToken is empty');
+	}
+
+	appAccessTokenCache = {
+		token,
+		expiresAt: Date.now() + Math.max(0, expiresIn * 1000 - APP_TOKEN_REFRESH_SKEW_MS),
+	};
+	return token;
+}
+
+function tail(value, size = 6) {
+	const str = String(value || '');
+	return str.length > size ? str.slice(-size) : str;
+}
+
+function maskEmail(email) {
+	const value = String(email || '').trim().toLowerCase();
+	const at = value.indexOf('@');
+	if (at <= 1) {
+		return value ? `***${value.slice(at)}` : '';
+	}
+	return `${value.slice(0, 2)}***${value.slice(at)}`;
+}
+
+async function searchDingtalkUserIdsByNick(appAccessToken, nick) {
+	if (!appAccessToken || typeof nick !== 'string' || !nick.trim()) {
+		winston.info('[sso-dingtalk][email-flow] skip /contact/users/search: missing appAccessToken or nick');
+		return { totalCount: 0, userIds: [] };
+	}
+	winston.info(`[sso-dingtalk][email-flow] call /contact/users/search nick="${nick.trim()}"`);
+
+	const response = await postJsonWithHeaders(
+		DINGTALK_USER_SEARCH_URL,
+		{
+			queryWord: nick.trim(),
+			offset: 0,
+			size: 10,
+			fullMatchField: 1,
+		},
+		{ 'x-acs-dingtalk-access-token': appAccessToken }
+	);
+
+	const totalCount = parseInt(response && response.totalCount, 10) || 0;
+	winston.info(`[sso-dingtalk][email-flow] /contact/users/search result totalCount=${totalCount}`);
+	if (!totalCount || !Array.isArray(response.list)) {
+		return { totalCount, userIds: [] };
+	}
+
+	return {
+		totalCount,
+		userIds: response.list.map(value => String(value)).filter(Boolean),
+	};
+}
+
+async function getDingtalkUserIdsByMobile(appAccessToken, mobile) {
+	if (!appAccessToken || typeof mobile !== 'string' || !mobile.trim()) {
+		winston.info('[sso-dingtalk][email-flow] skip /v2/user/getbymobile: missing appAccessToken or mobile');
+		return [];
+	}
+
+	const normalizedMobile = mobile.trim();
+	winston.info(`[sso-dingtalk][email-flow] call /v2/user/getbymobile mobile=${normalizedMobile}`);
+
+	const response = await postJson(
+		`${DINGTALK_USER_BY_MOBILE_URL}?access_token=${encodeURIComponent(appAccessToken)}`,
+		{
+			mobile: normalizedMobile,
+			support_exclusive_account_search: true,
+		}
+	);
+
+	if (!response || parseInt(response.errcode, 10) !== 0 || !response.result) {
+		winston.info(`[sso-dingtalk][email-flow] /v2/user/getbymobile miss errcode=${response && response.errcode}`);
+		return [];
+	}
+
+	const exclusiveList = Array.isArray(response.result.exclusive_account_userid_list) ?
+		response.result.exclusive_account_userid_list : [];
+	return exclusiveList.map(value => String(value)).filter(Boolean);
+}
+
+async function getDingtalkUserByUserId(appAccessToken, userId) {
+	if (!appAccessToken || !userId) {
+		winston.info('[sso-dingtalk][email-flow] skip /v2/user/get: missing appAccessToken or userId');
+		return null;
+	}
+	winston.info(`[sso-dingtalk][email-flow] call /v2/user/get userid=${userId}`);
+
+	const response = await postJson(
+		`${DINGTALK_USER_DETAIL_URL}?access_token=${encodeURIComponent(appAccessToken)}`,
+		{ userid: userId }
+	);
+
+	if (!response || String(response.errcode) !== '0' || !response.result) {
+		winston.info(`[sso-dingtalk][email-flow] /v2/user/get miss userid=${userId} errcode=${response && response.errcode}`);
+		return null;
+	}
+
+	return response.result;
+}
+
+async function getOrgEmailFromNickAndUnionId(accessToken, profile) {
+	if (!profile || typeof profile !== 'object') {
+		return '';
+	}
+
+	const nick = typeof profile.nick === 'string' ? profile.nick.trim() : '';
+	const targetUnionId = typeof profile.unionId === 'string' ? profile.unionId.trim() : '';
+	if (!nick || !targetUnionId) {
+		winston.info(`[sso-dingtalk][email-flow] skip unionId fallback: nick or unionId missing nick="${nick}" unionIdTail=${tail(targetUnionId, 4)}`);
+		return '';
+	}
+	winston.info(`[sso-dingtalk][email-flow] start fallback by nick+unionId nick="${nick}" unionIdTail=${tail(targetUnionId, 4)}`);
+
+	let userIds = [];
+	let appAccessToken = '';
+	try {
+		appAccessToken = await getAppAccessToken();
+	} catch (err) {
+		winston.warn(`[sso-dingtalk][email-flow] get app access token failed: ${err.message}`);
+		return '';
+	}
+	try {
+		const searchResult = await searchDingtalkUserIdsByNick(appAccessToken, nick);
+		userIds = searchResult.userIds;
+		if (searchResult.totalCount > 1) {
+			const mobile = typeof profile.mobile === 'string' ? profile.mobile.trim() : '';
+			if (mobile) {
+				const mobileUserIds = await getDingtalkUserIdsByMobile(appAccessToken, mobile);
+				if (mobileUserIds.length) {
+					winston.info(`[sso-dingtalk][email-flow] nickname duplicated, switched to mobile candidates count=${mobileUserIds.length}`);
+					userIds = mobileUserIds;
+				} else {
+					winston.info('[sso-dingtalk][email-flow] nickname duplicated, mobile fallback returned empty');
+				}
+			} else {
+				winston.info('[sso-dingtalk][email-flow] nickname duplicated but profile.mobile is empty');
+			}
+		}
+	} catch (err) {
+		winston.warn(`[sso-dingtalk] /contact/users/search failed: ${err.message}`);
+		return '';
+	}
+
+	if (!userIds.length) {
+		winston.info('[sso-dingtalk][email-flow] fallback stop: no userid found by nick');
+		return '';
+	}
+	winston.info(`[sso-dingtalk][email-flow] fallback candidates useridCount=${userIds.length} userids=${userIds.join(',')}`);
+
+	for (const userId of userIds) {
+		try {
+			const result = await getDingtalkUserByUserId(appAccessToken, userId);
+			const candidateUnionId = String(result && result.unionid || '').trim();
+			if (!result || candidateUnionId !== targetUnionId) {
+				winston.info(`[sso-dingtalk][email-flow] userid=${userId} unionId not match candidateTail=${tail(candidateUnionId, 4)} targetTail=${tail(targetUnionId, 4)}`);
+				continue;
+			}
+			winston.info(`[sso-dingtalk][email-flow] userid=${userId} unionId matched`);
+
+			const candidates = [result.org_email, result.email];
+			for (const value of candidates) {
+				const email = String(value || '').trim().toLowerCase();
+				if (email && email.length <= 254 && validator.isEmail(email)) {
+					winston.info(`[sso-dingtalk][email-flow] picked email from user detail userid=${userId} email=${maskEmail(email)}`);
+					return email;
+				}
+			}
+			winston.info(`[sso-dingtalk][email-flow] userid=${userId} has no usable org_email/email`);
+			return '';
+		} catch (err) {
+			winston.warn(`[sso-dingtalk] /v2/user/get failed for userid ${userId}: ${err.message}`);
+		}
+	}
+
+	winston.info('[sso-dingtalk][email-flow] fallback finished: no unionId matched or no usable email');
+	return '';
+}
+
+async function resolveProfileEmail(accessToken, profile) {
+	const direct = getProfileEmail(profile);
+	if (direct) {
+		winston.info(`[sso-dingtalk][email-flow] email resolved directly from /users/me email=${maskEmail(direct)}`);
+		return direct;
+	}
+	winston.info('[sso-dingtalk][email-flow] /users/me had no usable email, entering fallback flow');
+	return await getOrgEmailFromNickAndUnionId(accessToken, profile);
+}
+
+/**
+ * One-line diagnostics for DingTalk /v1.0/contact/users/me — no raw email values.
+ */
+function logDingTalkUserinfoDiagnostics(profile, meta) {
+	if (!profile || typeof profile !== 'object') {
+		winston.warn('[sso-dingtalk] userinfo diagnostics: profile missing or not an object');
+		return;
+	}
+
+	const keys = Object.keys(profile).sort();
+	const emailCandidateKeys = ['email', 'orgEmail', 'workEmail'];
+	const candidateSummary = emailCandidateKeys.map((key) => {
+		const v = profile[key];
+		if (typeof v !== 'string' || !v.trim()) {
+			return `${key}:empty`;
+		}
+		const t = v.trim().toLowerCase();
+		const ok = t.length <= 254 && validator.isEmail(t);
+		return `${key}:len=${t.length},emailFormatOk=${ok}`;
+	}).join('; ');
+
+	const resolved = Boolean(getProfileEmail(profile));
+
+	winston.info(`[sso-dingtalk] userinfo diagnostics ${JSON.stringify({
+		...meta,
+		profileKeyCount: keys.length,
+		profileKeys: keys,
+		emailCandidates: candidateSummary,
+		resolvedUsableEmail: resolved,
+	})}`);
+}
+
+async function syncEmailPreservingExisting(uid, profile, accessToken) {
+	const currentEmail = await user.getUserField(uid, 'email');
+	if (currentEmail) {
+		winston.info(`[sso-dingtalk][email-flow] keep existing email for uid ${uid}, skip DingTalk lookup currentEmail=${maskEmail(currentEmail)}`);
+		return;
+	}
+
+	const profileEmail = await resolveProfileEmail(accessToken, profile);
+	winston.info(`[sso-dingtalk][email-flow] sync uid=${uid} currentEmail=${maskEmail(currentEmail)} resolvedEmail=${maskEmail(profileEmail)}`);
+
+	if (!profileEmail) {
+		winston.info(`[sso-dingtalk] uid ${uid} has no stored email and DingTalk userinfo had no usable email; user may need NodeBB email verification flow`);
+		return;
+	}
+
+	winston.info(`[sso-dingtalk][email-flow] set email for uid ${uid} email=${maskEmail(profileEmail)}`);
+	await user.setUserField(uid, 'email', profileEmail);
+	await user.setUserField(uid, 'email:confirmed', 1);
+	await db.sortedSetRemove('users:notvalidated', uid);
+}
+
+
+

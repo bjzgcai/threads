@@ -1,5 +1,8 @@
 'use strict';
 
+const path = require('path');
+const fs = require('fs').promises;
+
 const user = require('../../user');
 const meta = require('../../meta');
 const helpers = require('../helpers');
@@ -10,6 +13,8 @@ const file = require('../../file');
 const accountHelpers = require('./helpers');
 
 const editController = module.exports;
+const wuxiaNicknamePath = path.join(__dirname, '../../data/wuxia-nicknames.json');
+let wuxiaNicknameCache = null;
 
 editController.get = async function (req, res, next) {
 	const { userData } = res.locals;
@@ -36,7 +41,8 @@ editController.get = async function (req, res, next) {
 	userData.maximumSignatureLength = meta.config.maximumSignatureLength;
 	userData.maximumAboutMeLength = meta.config.maximumAboutMeLength;
 	userData.allowMultipleBadges = meta.config.allowMultipleBadges === 1;
-	userData.allowAccountDelete = meta.config.allowAccountDelete === 1;
+	// Hide delete-account action in account edit for all users.
+	userData.allowAccountDelete = false;
 	userData.allowAboutMe = !isSelf || !!meta.config['reputation:disabled'] || reputation >= meta.config['min:rep:aboutme'];
 	userData.allowSignature = canUseSignature && (!isSelf || !!meta.config['reputation:disabled'] || reputation >= meta.config['min:rep:signature']);
 	userData.defaultAvatar = user.getDefaultAvatar();
@@ -47,6 +53,12 @@ editController.get = async function (req, res, next) {
 		const { associations } = await plugins.hooks.fire('filter:auth.list', { uid: res.locals.uid, associations: [] });
 		userData.sso = associations;
 	}
+
+	const dingtalkSSOFlag = await user.getUserField(res.locals.uid, 'dingtalk:sso');
+	const hasDingTalkAssociation = Array.isArray(userData.sso) && userData.sso.some(item =>
+		['name', 'url', 'deauthUrl', 'component'].some(key => String((item && item[key]) || '').toLowerCase().includes('dingtalk'))
+	);
+	userData.disableCredentialEdit = String(dingtalkSSOFlag || '') === '1' || hasDingTalkAssociation;
 
 	if (!allowMultipleBadges) {
 		userData.groupTitle = groupTitleArray[0];
@@ -92,27 +104,34 @@ editController.username = async function (req, res, next) {
 };
 
 editController.email = async function (req, res, next) {
-	const targetUid = await user.getUidByUserslug(req.params.userslug);
-	if (!targetUid || req.uid !== parseInt(targetUid, 10)) {
-		return next();
-	}
-
-	helpers.redirect(res, `/user/${req.params.userslug}/edit`);
+	await renderRoute('email', req, res, next);
 };
 
 async function renderRoute(name, req, res) {
 	const { userData } = res.locals;
-	const [isAdmin, { username, userslug }, hasPassword] = await Promise.all([
+	const [isAdmin, { username, userslug }, hasPassword, dingtalkSSOFlag] = await Promise.all([
 		privileges.admin.can('admin:users', req.uid),
 		user.getUserFields(res.locals.uid, ['username', 'userslug']),
 		user.hasPassword(res.locals.uid),
+		user.getUserField(res.locals.uid, 'dingtalk:sso'),
 	]);
+	const isDingTalkSSO = String(dingtalkSSOFlag || '') === '1';
 
 	if (meta.config[`${name}:disableEdit`] && !isAdmin) {
 		return helpers.notAllowed(req, res);
 	}
+	if (isDingTalkSSO && name === 'password' && !isAdmin) {
+		return helpers.notAllowed(req, res);
+	}
 
 	userData.hasPassword = hasPassword;
+	userData.disableCredentialEdit = isDingTalkSSO;
+	if (name === 'username' && isDingTalkSSO) {
+		const wuxiaNicknames = await getWuxiaNicknames();
+		userData.wuxiaNicknames = wuxiaNicknames;
+		userData.hasWuxiaNicknames = wuxiaNicknames.length > 0;
+		userData.takenWuxiaNicknames = await getTakenWuxiaNicknames(wuxiaNicknames, res.locals.uid);
+	}
 	if (name === 'password') {
 		userData.minimumPasswordLength = meta.config.minimumPasswordLength;
 		userData.minimumPasswordStrength = meta.config.minimumPasswordStrength;
@@ -134,6 +153,53 @@ async function renderRoute(name, req, res) {
 	]);
 
 	res.render(`account/edit/${name}`, userData);
+}
+
+async function getWuxiaNicknames() {
+	if (wuxiaNicknameCache) {
+		return wuxiaNicknameCache;
+	}
+
+	try {
+		const raw = await fs.readFile(wuxiaNicknamePath, 'utf8');
+		const parsed = JSON.parse(raw);
+		const novels = Array.isArray(parsed.groups) ?
+			parsed.groups.flatMap(group => Array.isArray(group && group.novels) ? group.novels : []) :
+			(Array.isArray(parsed.novels) ? parsed.novels : []);
+		wuxiaNicknameCache = novels
+			.filter(item => item && item.novel && Array.isArray(item.characters))
+			.map(item => ({
+				group: String(item.group || ''),
+				novel: String(item.novel || ''),
+				characters: item.characters
+					.map(name => String(name || '').trim())
+					.filter(Boolean),
+			}));
+		return wuxiaNicknameCache;
+	} catch (err) {
+		wuxiaNicknameCache = [];
+		return wuxiaNicknameCache;
+	}
+}
+
+async function getTakenWuxiaNicknames(wuxiaNicknames, currentUid) {
+	const allowedNames = wuxiaNicknames
+		.flatMap(item => Array.isArray(item.characters) ? item.characters : [])
+		.map(name => String(name || '').trim())
+		.filter(Boolean);
+
+	if (!allowedNames.length) {
+		return [];
+	}
+
+	const currentUsername = await user.getUserField(currentUid, 'username');
+	const lookupNames = Array.from(new Set(allowedNames));
+	const matchedUids = await user.getUidsByUsernames(lookupNames);
+
+	return lookupNames.filter((name, index) => {
+		const uid = parseInt(matchedUids[index], 10);
+		return uid > 0 && uid !== parseInt(currentUid, 10) && name !== currentUsername;
+	});
 }
 
 editController.uploadPicture = async function (req, res, next) {

@@ -1,11 +1,32 @@
-<div data-widget-area="header">
+﻿<div data-widget-area="header">
 	{{{each widgets.header}}}
 	{{widgets.header.html}}
 	{{{end}}}
 </div>
+<style>
+	body.user-guest nav[component="sidebar/left"],
+	body.user-guest nav[component="sidebar/right"],
+	body.user-guest [component="bottombar"],
+	body.user-guest .sidebar-toggle-container {
+		display: none !important;
+	}
+	
+	/* 缩小登录页面输入框高度 */
+	.login-block .form-control {
+		height: calc(1.5em + 0.5rem + 2px) !important;
+		padding: 0.25rem 0.75rem !important;
+		font-size: 0.95rem !important;
+	}
+</style>
 <div class="row login flex-fill">
 	<div class="d-flex flex-column gap-2 {{{ if widgets.sidebar.length }}}col-lg-9 col-sm-12{{{ else }}}col-lg-12{{{ end }}}">
-		<h2 class="tracking-tight fw-semibold text-center">[[global:login]]</h2>
+		<div class="text-center mb-1">
+			<img src="{config.relative_path}/assets/images/zgc.png" alt="诸葛菜园" style="max-width: 340px; width: 100%; height: auto;">
+		</div>
+		<div class="text-center mb-1">
+			<p class="text-secondary mb-1" style="font-size: 1.1rem;">欢迎来到诸葛菜园</p>
+			<h2 class="tracking-tight fw-semibold text-center mb-4" style="margin-top: 2.0rem;">[[global:login]]</h2>
+		</div>
 		<div class="row justify-content-center gap-5">
 			{{{ if allowLocalLogin }}}
 			<div class="col-12 col-md-5 col-lg-3 px-md-0">
@@ -59,24 +80,26 @@
 			{{{ end }}}
 
 			{{{ if alternate_logins }}}
-			<div class="col-12 col-md-5 col-lg-3 px-md-0">
-				<div class="alt-login-block d-flex flex-column gap-2">
-					<label>[[login:alternative-logins]]</label>
-					<ul class="alt-logins list-unstyled">
+			<div class="col-12 col-md-7 col-lg-5 px-md-0">
+				<div class="alt-login-block card border-0 shadow-sm">
+					<div class="card-body p-3 p-md-3 d-flex flex-column gap-2">
+					<ul class="alt-logins list-unstyled mb-0">
 						{{{ each authentication }}}
+						{{{ if (./name == "dingtalk") }}}
 						<li class="{./name} mb-2">
-							<a class="btn btn-outline-light d-flex align-items-center" rel="nofollow noopener noreferrer" target="_top" href="{config.relative_path}{./url}">
+							<a class="btn btn-primary btn-lg d-flex align-items-center justify-content-center mx-auto" style="width: 50%;" rel="nofollow noopener noreferrer" target="_top" href="{config.relative_path}{./url}">
 								{{{ if ./icons.svg }}}
 								{./icons.svg}
 								{{{ else }}}
-								<i class="flex-shrink-0 {./icons.normal}" style="color:{./color};"></i>
+								<i class="d-none flex-shrink-0 {./icons.normal}"></i>
 								{{{ end }}}
-								{{{ if ./labels.login }}}
-								<div class="flex-grow-1 text-body text-sm">{./labels.login}</div>
-								{{{ end }}}
-							</a></li>
+								<div class="text-center">钉钉</div>
+							</a>
+						</li>
+						{{{ end }}}
 						{{{ end }}}
 					</ul>
+					</div>
 				</div>
 			</div>
 			{{{ end }}}

@@ -15,6 +15,27 @@ const writeRoutes = require('./write');
 const helpers = require('./helpers');
 
 const { setupPageRoute } = helpers;
+const SAFE_MOUNT_REGEX = /^[a-z0-9][a-z0-9-]*$/i;
+const BEARER_TOKEN_ALLOWED_IPS = new Set(
+	(process.env.NODEBB_BEARER_ALLOWED_IPS || '10.100.11.202,127.0.0.1,::1')
+		.split(',')
+		.map(ip => ip.trim())
+		.filter(Boolean)
+);
+const BEARER_TOKEN_ALLOWED_METHOD = 'POST';
+const BEARER_TOKEN_ALLOWED_PATH = '/api/v3/topics';
+
+function isBearerRequest(req) {
+	const authHeader = req.get('authorization') || '';
+	return /^Bearer\s+\S+/i.test(authHeader);
+}
+
+function getClientIp(req) {
+	const forwarded = (req.get('x-forwarded-for') || '').split(',')[0].trim();
+	const realIp = (req.get('x-real-ip') || '').trim();
+	const rawIp = forwarded || realIp || req.ip || req.socket?.remoteAddress || '';
+	return String(rawIp).replace(/^::ffff:/, '');
+}
 
 const _mounts = {
 	user: require('./user'),
@@ -116,11 +137,20 @@ module.exports = async function (app, middleware) {
 		}, {}),
 	});
 	// Guard against plugins sending back missing/extra mounts
-	Object.keys(mounts).forEach((mount) => {
-		if (!remountable.includes(mount)) {
-			delete mounts[mount];
-		} else if (typeof mount !== 'string') {
-			mounts[mount] = mount;
+	Object.keys(mounts).forEach((mountKey) => {
+		if (!remountable.includes(mountKey)) {
+			delete mounts[mountKey];
+			return;
+		}
+
+		const mountTarget = mounts[mountKey];
+		if (mountTarget === false || mountTarget === null || mountTarget === '') {
+			mounts[mountKey] = '';
+			return;
+		}
+
+		if (typeof mountTarget !== 'string' || !SAFE_MOUNT_REGEX.test(mountTarget)) {
+			mounts[mountKey] = mountKey;
 		}
 	});
 	remountable.forEach((mount) => {
@@ -132,6 +162,63 @@ module.exports = async function (app, middleware) {
 	router.all('(/+api|/+api/*?)', middleware.prepareAPI);
 	router.all(`(/+api/admin|/+api/admin/*?${mounts.admin !== 'admin' ? `|/+api/${mounts.admin}|/+api/${mounts.admin}/*?` : ''})`, middleware.authenticateRequest, middleware.ensureLoggedIn, middleware.admin.checkPrivileges);
 	router.all(`(/+admin|/+admin/*?${mounts.admin !== 'admin' ? `|/+${mounts.admin}|/+${mounts.admin}/*?` : ''})`, middleware.ensureLoggedIn, middleware.applyCSRF, middleware.admin.checkPrivileges);
+	router.use((req, res, next) => {
+		if (!isBearerRequest(req)) {
+			return next();
+		}
+
+		const clientIp = getClientIp(req);
+		const isAllowedIp = BEARER_TOKEN_ALLOWED_IPS.has(clientIp);
+		const isAllowedEndpoint = req.method === BEARER_TOKEN_ALLOWED_METHOD && req.path === BEARER_TOKEN_ALLOWED_PATH;
+		if (!isAllowedIp || !isAllowedEndpoint) {
+			winston.warn(`[api-guard] blocked bearer request method=${req.method} path=${req.path} ip=${clientIp}`);
+			return controllerHelpers.notAllowed(req, res);
+		}
+
+		next();
+	});
+	router.use((req, res, next) => {
+		if (req.loggedIn) {
+			return next();
+		}
+		const authHeader = req.get('authorization') || '';
+		const hasBearerToken = /^Bearer\s+\S+/i.test(authHeader);
+
+		const publicPatterns = [
+			/^\/login\/?$/,
+			/^\/auth(?:\/|$)/,
+			/^\/api\/?$/,
+			/^\/api\/config\/?$/,
+			/^\/api\/login\/?$/,
+			/^\/api\/v3\/ping\/?$/,
+			/^\/api\/v3\/utilities\/login\/?$/,
+			/^\/assets(?:\/|$)/,
+			/^\/uploads(?:\/|$)/,
+			/^\/plugins(?:\/|$)/,
+			/^\/apple-touch-icon$/,
+			/^\/manifest\.webmanifest$/,
+			/^\/favicon\.ico$/,
+			/^\/robots\.txt$/,
+			/^\/ping$/,
+			/^\/sping$/,
+			/^\/reset(?:\/|$)/,
+			/^\/confirm(?:\/|$)/,
+			/^\/email\/unsubscribe(?:\/|$)/,
+		];
+
+		if (publicPatterns.some(pattern => pattern.test(req.path))) {
+			return next();
+		}
+
+		if (req.path.startsWith('/api/')) {
+			if (hasBearerToken) {
+				return next();
+			}
+			return controllerHelpers.notAllowed(req, res);
+		}
+
+		controllerHelpers.redirect(res, `${nconf.get('relative_path')}/login`);
+	});
 
 	app.use(middleware.stripLeadingSlashes);
 
