@@ -8,6 +8,7 @@ module.exports = function (app, name, middleware, controllers) {
 	helpers.setupAdminPageRoute(app, `/${name}`, middlewares, controllers.admin.routeIndex);
 
 	helpers.setupAdminPageRoute(app, `/${name}/dashboard`, middlewares, controllers.admin.dashboard.get);
+	helpers.setupAdminPageRoute(app, `/${name}/dashboard/daily-report`, middlewares, controllers.admin.dailyReport.get);
 	helpers.setupAdminPageRoute(app, `/${name}/dashboard/logins`, middlewares, controllers.admin.dashboard.getLogins);
 	helpers.setupAdminPageRoute(app, `/${name}/dashboard/users`, middlewares, controllers.admin.dashboard.getUsers);
 	helpers.setupAdminPageRoute(app, `/${name}/dashboard/topics`, middlewares, controllers.admin.dashboard.getTopics);

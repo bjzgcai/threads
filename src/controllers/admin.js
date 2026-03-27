@@ -7,6 +7,7 @@ const apiController = require('./api');
 
 const adminController = {
 	dashboard: require('./admin/dashboard'),
+	dailyReport: require('./admin/daily-report'),
 	categories: require('./admin/categories'),
 	privileges: require('./admin/privileges'),
 	adminsMods: require('./admin/admins-mods'),

@@ -16,6 +16,7 @@
 				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/dashboard/users">[[admin/menu:dashboard/users]]</a>
 				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/dashboard/topics">[[admin/menu:dashboard/topics]]</a>
 				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/dashboard/searches">[[admin/menu:dashboard/searches]]</a>
+				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/dashboard/daily-report">[[admin/menu:dashboard/daily-report]]</a>
 			</div>
 		</div>
 	</div>
