@@ -7,6 +7,7 @@ const nconf = require('nconf');
 const winston = require('winston');
 
 const db = require('../database');
+const analytics = require('../analytics');
 
 const report = module.exports;
 
@@ -57,7 +58,7 @@ report.buildDailySummaryData = async function () {
 	const dayStart = new Date(now);
 	dayStart.setHours(0, 0, 0, 0);
 	const yesterdayStart = new Date(dayStart.getTime() - 24 * 60 * 60 * 1000);
-	const stamp = yesterdayStart.getTime();
+	const todayStartTs = dayStart.getTime();
 	const dateLabel = formatDate(yesterdayStart);
 
 	const [
@@ -69,12 +70,12 @@ report.buildDailySummaryData = async function () {
 		logins,
 		global,
 	] = await Promise.all([
-		getScore('analytics:registrations', stamp),
-		getScore('analytics:topics', stamp),
-		getScore('analytics:posts', stamp),
-		getScore('analytics:pageviews', stamp),
-		getScore('analytics:uniquevisitors', stamp),
-		getScore('analytics:logins', stamp),
+		getYesterdayAnalyticsValue('analytics:registrations', todayStartTs),
+		getYesterdayAnalyticsValue('analytics:topics', todayStartTs),
+		getYesterdayAnalyticsValue('analytics:posts', todayStartTs),
+		getYesterdayAnalyticsValue('analytics:pageviews', todayStartTs),
+		getYesterdayAnalyticsValue('analytics:uniquevisitors', todayStartTs),
+		getYesterdayAnalyticsValue('analytics:logins', todayStartTs),
 		db.getObjectFields('global', ['userCount', 'topicCount', 'postCount', 'loginCount']),
 	]);
 
@@ -113,16 +114,20 @@ report.buildDailySummaryData = async function () {
 
 	return {
 		dateLabel,
-		timestamp: stamp,
+		timestamp: yesterdayStart.getTime(),
 		metrics,
 		totals,
 		markdown,
 	};
 };
 
-async function getScore(key, timestamp) {
-	const value = await db.sortedSetScore(key, timestamp);
-	return toInt(value);
+async function getYesterdayAnalyticsValue(key, todayStartTs) {
+	// Match admin dashboard aggregation: daily buckets up to today's 00:00, then take yesterday.
+	const data = await analytics.getDailyStatsForSet(key, todayStartTs, 60);
+	if (!Array.isArray(data) || data.length < 2) {
+		return 0;
+	}
+	return toInt(data[data.length - 2]);
 }
 
 function toInt(value) {
