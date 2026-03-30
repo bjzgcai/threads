@@ -1,5 +1,7 @@
 'use strict';
 
+require('../load-env')();
+
 const https = require('https');
 const crypto = require('crypto');
 const { CronJob } = require('cron');
