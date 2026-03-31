@@ -1,0 +1,299 @@
+'use strict';
+
+
+define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alerts', 'translator'], function (header, api, bootbox, alerts, translator) {
+	const AccountSkills = {};
+	const t = {};
+
+	AccountSkills.init = function () {
+		header.init();
+		loadTranslations().then(() => {
+			bindCreate();
+			bindRoll();
+			bindRevoke();
+		}).catch(alerts.error);
+	};
+
+	async function loadTranslations() {
+		const keys = [
+			'[[skills:modal.create.title]]',
+			'[[skills:modal.create.name]]',
+			'[[skills:modal.create.name-placeholder]]',
+			'[[skills:modal.create.name-help]]',
+			'[[skills:modal.create.scopes]]',
+			'[[skills:modal.create.scope-read]]',
+			'[[skills:modal.create.scope-write]]',
+			'[[skills:modal.create.scopes-help]]',
+			'[[skills:modal.create.expiry]]',
+			'[[skills:modal.create.expiry-30]]',
+			'[[skills:modal.create.expiry-90]]',
+			'[[skills:modal.create.expiry-180]]',
+			'[[skills:modal.create.expiry-365]]',
+			'[[skills:modal.create.expiry-never]]',
+			'[[skills:modal.create.expiry-help]]',
+			'[[skills:modal.create.cancel]]',
+			'[[skills:modal.create.submit]]',
+			'[[skills:modal.created.title]]',
+			'[[skills:modal.created.warning]]',
+			'[[skills:modal.created.scopes]]',
+			'[[skills:modal.created.expiry]]',
+			'[[skills:modal.created.never-expires]]',
+			'[[skills:modal.created.token]]',
+			'[[skills:modal.created.copy]]',
+			'[[skills:modal.created.done]]',
+			'[[skills:modal.roll.confirm]]',
+			'[[skills:modal.revoke.confirm]]',
+			'[[skills:alert.copied]]',
+			'[[skills:alert.copy-failed]]',
+			'[[skills:alert.revoked]]',
+			'[[skills:alert.rolled]]',
+		];
+		const translated = await Promise.all(keys.map(key => translator.translate(key)));
+		[
+			t.createTitle,
+			t.nameLabel,
+			t.namePlaceholder,
+			t.nameHelp,
+			t.scopesLabel,
+			t.scopeRead,
+			t.scopeWrite,
+			t.scopesHelp,
+			t.expiryLabel,
+			t.expiry30,
+			t.expiry90,
+			t.expiry180,
+			t.expiry365,
+			t.expiryNever,
+			t.expiryHelp,
+			t.cancel,
+			t.createSubmit,
+			t.createdTitle,
+			t.createdWarning,
+			t.createdScopes,
+			t.createdExpiry,
+			t.createdNeverExpires,
+			t.createdToken,
+			t.copy,
+			t.done,
+			t.rollConfirm,
+			t.revokeConfirm,
+			t.copied,
+			t.copyFailed,
+			t.revoked,
+			t.rolled,
+		] = translated;
+	}
+
+	function bindCreate() {
+		$('[data-action="create-skill-token"]').on('click', async function () {
+			const dialog = bootbox.dialog({
+				title: t.createTitle,
+				message: [
+					'<form component="account/skills/create-form" class="d-flex flex-column gap-3">',
+					'  <div>',
+					`    <label class="form-label" for="skill-token-name">${utils.escapeHTML(t.nameLabel)}</label>`,
+					`    <input id="skill-token-name" name="name" type="text" class="form-control" maxlength="128" placeholder="${utils.escapeHTML(t.namePlaceholder)}" />`,
+					`    <div class="form-text">${utils.escapeHTML(t.nameHelp)}</div>`,
+					'  </div>',
+					'  <div>',
+					`    <label class="form-label d-block mb-2">${utils.escapeHTML(t.scopesLabel)}</label>`,
+					'    <div class="form-check">',
+					'      <input class="form-check-input" type="checkbox" id="scope-post-read" name="scopes" value="post:read" checked />',
+					`      <label class="form-check-label" for="scope-post-read">${utils.escapeHTML(t.scopeRead)} <code>post:read</code></label>`,
+					'    </div>',
+					'    <div class="form-check">',
+					'      <input class="form-check-input" type="checkbox" id="scope-post-write" name="scopes" value="post:write" />',
+					`      <label class="form-check-label" for="scope-post-write">${utils.escapeHTML(t.scopeWrite)} <code>post:write</code></label>`,
+					'    </div>',
+					`    <div class="form-text">${utils.escapeHTML(t.scopesHelp)}</div>`,
+					'  </div>',
+					'  <div>',
+					`    <label class="form-label" for="skill-token-expiry">${utils.escapeHTML(t.expiryLabel)}</label>`,
+					'    <select id="skill-token-expiry" name="expiresInDays" class="form-select">',
+					`      <option value="30">${utils.escapeHTML(t.expiry30)}</option>`,
+					`      <option value="90" selected>${utils.escapeHTML(t.expiry90)}</option>`,
+					`      <option value="180">${utils.escapeHTML(t.expiry180)}</option>`,
+					`      <option value="365">${utils.escapeHTML(t.expiry365)}</option>`,
+					`      <option value="0">${utils.escapeHTML(t.expiryNever)}</option>`,
+					'    </select>',
+					`    <div class="form-text">${utils.escapeHTML(t.expiryHelp)}</div>`,
+					'  </div>',
+					'</form>',
+				].join(''),
+				buttons: {
+					cancel: {
+						label: t.cancel,
+						className: 'btn-light',
+					},
+					confirm: {
+						label: t.createSubmit,
+						className: 'btn-primary',
+						callback: async function () {
+							const modal = this;
+							const formEl = modal.find('form').get(0);
+							if (!formEl) {
+								return false;
+							}
+
+							const payload = {
+								name: formEl.querySelector('[name="name"]').value.trim(),
+								scopes: Array.from(formEl.querySelectorAll('[name="scopes"]:checked')).map(el => el.value),
+								expiresInDays: formEl.querySelector('[name="expiresInDays"]').value,
+							};
+
+							try {
+								const tokenObj = await api.post('/skills/tokens', payload);
+								modal.modal('hide');
+								showCreatedToken(tokenObj);
+							} catch (err) {
+								alerts.error(err);
+							}
+							return false;
+						},
+					},
+				},
+			});
+
+			setTimeout(() => {
+				dialog.find('#skill-token-name').trigger('focus');
+			}, 50);
+		});
+	}
+
+	function showCreatedToken(tokenObj) {
+		const rawToken = tokenObj && tokenObj.token ? tokenObj.token : '';
+		const scopeText = Array.isArray(tokenObj && tokenObj.scopes) && tokenObj.scopes.length ? tokenObj.scopes.join(', ') : 'post:read';
+		const expiryText = tokenObj && tokenObj.expiresAtISO ? tokenObj.expiresAtISO : t.createdNeverExpires;
+		const dialog = bootbox.dialog({
+			title: t.createdTitle,
+			message: [
+				'<div class="d-flex flex-column gap-3">',
+				`  <div class="alert alert-warning mb-0">${utils.escapeHTML(t.createdWarning)}</div>`,
+				'  <div>',
+				`    <div class="small text-muted mb-1">${utils.escapeHTML(t.createdScopes)}</div>`,
+				`    <div class="fw-semibold">${utils.escapeHTML(scopeText)}</div>`,
+				'  </div>',
+				'  <div>',
+				`    <div class="small text-muted mb-1">${utils.escapeHTML(t.createdExpiry)}</div>`,
+				`    <div class="fw-semibold">${utils.escapeHTML(expiryText)}</div>`,
+				'  </div>',
+				'  <div>',
+				`    <label class="form-label" for="created-skill-token">${utils.escapeHTML(t.createdToken)}</label>`,
+				`    <textarea id="created-skill-token" class="form-control font-monospace" rows="4" readonly>${utils.escapeHTML(rawToken)}</textarea>`,
+				'  </div>',
+				'</div>',
+			].join(''),
+			buttons: {
+				copy: {
+					label: t.copy,
+					className: 'btn-primary',
+					callback: function () {
+						const textarea = this.find('#created-skill-token').get(0);
+						copyText(textarea.value).then(() => {
+							alerts.success(t.copied);
+						}).catch((err) => {
+							console.error(err);
+							alerts.error(t.copyFailed);
+						});
+						return false;
+					},
+				},
+				done: {
+					label: t.done,
+					className: 'btn-light',
+				},
+			},
+		});
+
+		dialog.on('hidden.bs.modal', function () {
+			ajaxify.refresh();
+		});
+
+		setTimeout(() => {
+			const textarea = dialog.find('#created-skill-token').get(0);
+			if (textarea) {
+				textarea.focus();
+				textarea.select();
+			}
+		}, 50);
+	}
+
+	function bindRoll() {
+		$('[component="account/skills/tokens"]').on('click', '[data-action="roll-skill-token"]', function () {
+			const rowEl = this.closest('[data-token]');
+			const token = rowEl && rowEl.getAttribute('data-token');
+			if (!token) {
+				return;
+			}
+
+			bootbox.confirm(t.rollConfirm, async function (confirmed) {
+				if (!confirmed) {
+					return;
+				}
+
+				try {
+					const tokenObj = await api.post(`/skills/tokens/${encodeURIComponent(token)}/roll`);
+					showCreatedToken(tokenObj);
+					alerts.success(t.rolled);
+				} catch (err) {
+					alerts.error(err);
+				}
+			});
+		});
+	}
+
+	function bindRevoke() {
+		$('[component="account/skills/tokens"]').on('click', '[data-action="revoke-skill-token"]', function () {
+			const rowEl = this.closest('[data-token]');
+			const token = rowEl && rowEl.getAttribute('data-token');
+			if (!token) {
+				return;
+			}
+
+			bootbox.confirm(t.revokeConfirm, async function (confirmed) {
+				if (!confirmed) {
+					return;
+				}
+
+				try {
+					await api.del(`/skills/tokens/${encodeURIComponent(token)}`);
+					rowEl.remove();
+					alerts.success(t.revoked);
+
+					if (!$('[component="account/skills/tokens"] tbody [data-token]').length) {
+						ajaxify.refresh();
+					}
+				} catch (err) {
+					alerts.error(err);
+				}
+			});
+		});
+	}
+
+	function copyText(text) {
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			return navigator.clipboard.writeText(text);
+		}
+
+		return new Promise((resolve, reject) => {
+			const textarea = document.createElement('textarea');
+			textarea.value = text;
+			textarea.setAttribute('readonly', 'readonly');
+			textarea.style.position = 'absolute';
+			textarea.style.left = '-9999px';
+			document.body.appendChild(textarea);
+			textarea.select();
+
+			try {
+				document.execCommand('copy');
+				resolve();
+			} catch (err) {
+				reject(err);
+			} finally {
+				document.body.removeChild(textarea);
+			}
+		});
+	}
+
+	return AccountSkills;
+});

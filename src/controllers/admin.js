@@ -32,6 +32,7 @@ const adminController = {
 	themes: require('./admin/themes'),
 	users: require('./admin/users'),
 	uploads: require('./admin/uploads'),
+	skills: require('./admin/skills'),
 	info: require('./admin/info'),
 };
 

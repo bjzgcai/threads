@@ -26,11 +26,14 @@ Do not call any other internal API, route, or tool.
 - Minimize data exposure: return only fields needed for the user request.
 - If a write action could be risky (mass posting, unclear target topic), ask for confirmation first.
 - Respect server authorization failures (`401/403`) and report lack of permission clearly.
+- Assume the Bearer token belongs to one specific logged-in ZGCY user.
+- Do not treat the gateway as anonymous or public access.
 
 ## Request Construction Rules
 
 - Endpoint base: `/api/skills`
 - Execute route: `POST /{skill}/execute`
+- Authentication: `Authorization: Bearer <user_personal_skills_token>`
 - Body shape must be:
 
 ```json

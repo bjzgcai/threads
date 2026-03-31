@@ -3,7 +3,9 @@
 const api = require('../api');
 const search = require('../search');
 const manifest = require('../skills/manifest');
+const skillTokens = require('../skills/tokens');
 const helpers = require('./helpers');
+const user = require('../user');
 
 const Skills = module.exports;
 
@@ -51,6 +53,46 @@ Skills.getManifest = async (req, res) => {
 	helpers.formatApiResponse(200, res, manifest);
 };
 
+async function assertSkillsTokenCanBeManagedByRequester(req) {
+	const requireDingtalkSso = String(process.env.SKILLS_TOKEN_REQUIRE_DINGTALK_SSO || 'true').toLowerCase() === 'true';
+	if (!requireDingtalkSso) {
+		return;
+	}
+
+	const isDingTalkSSO = String(await user.getUserField(req.uid, 'dingtalk:sso') || '') === '1';
+	if (!isDingTalkSSO) {
+		throw new Error('skills-token-requires-dingtalk-sso-login');
+	}
+}
+
+Skills.listTokens = async (req, res) => {
+	await assertSkillsTokenCanBeManagedByRequester(req);
+	const tokens = await skillTokens.list(req.uid);
+	helpers.formatApiResponse(200, res, { tokens });
+};
+
+Skills.createToken = async (req, res) => {
+	await assertSkillsTokenCanBeManagedByRequester(req);
+	const token = await skillTokens.create(req.uid, {
+		name: req.body.name,
+		scopes: req.body.scopes,
+		expiresInDays: req.body.expiresInDays,
+	});
+	helpers.formatApiResponse(200, res, token);
+};
+
+Skills.revokeToken = async (req, res) => {
+	await assertSkillsTokenCanBeManagedByRequester(req);
+	await skillTokens.revoke(req.uid, req.params.token);
+	helpers.formatApiResponse(200, res);
+};
+
+Skills.rollToken = async (req, res) => {
+	await assertSkillsTokenCanBeManagedByRequester(req);
+	const token = await skillTokens.roll(req.uid, req.params.token);
+	helpers.formatApiResponse(200, res, token);
+};
+
 Skills.execute = async (req, res) => {
 	const { skill } = req.params;
 	const skillDef = manifest.skills[skill];
@@ -59,7 +101,7 @@ Skills.execute = async (req, res) => {
 	}
 
 	const input = req.body && req.body.input ? req.body.input : {};
-	const caller = { uid: req.uid, ip: req.ip };
+	const caller = { uid: req.skillActorUid || req.uid, ip: req.ip };
 	let response;
 
 	if (skill === 'search_topics') {
@@ -143,6 +185,8 @@ Skills.execute = async (req, res) => {
 
 	helpers.formatApiResponse(200, res, {
 		skill,
+		actor: req.externalActor || {},
+		actorUid: req.skillActorUid || req.uid,
 		response,
 	});
 };

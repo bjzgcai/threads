@@ -34,6 +34,7 @@ module.exports = function (app, name, middleware, controllers) {
 
 	helpers.setupAdminPageRoute(app, `/${name}/manage/uploads`, middlewares, controllers.admin.uploads.get);
 	helpers.setupAdminPageRoute(app, `/${name}/manage/digest`, middlewares, controllers.admin.digest.get);
+	helpers.setupAdminPageRoute(app, `/${name}/manage/skills`, middlewares, controllers.admin.skills.get);
 
 	helpers.setupAdminPageRoute(app, `/${name}/settings/general`, middlewares, controllers.admin.settings.general);
 	helpers.setupAdminPageRoute(app, `/${name}/settings/navigation`, middlewares, controllers.admin.settings.navigation);
@@ -87,6 +88,8 @@ function apiRoutes(router, name, middleware, controllers) {
 	router.get(`/api/${name}/config`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.getConfig));
 	router.get(`/api/${name}/users/csv`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.users.getCSV));
 	router.get(`/api/${name}/groups/:groupname/csv`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.groups.getCSV));
+	router.get(`/api/${name}/manage/skills`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.skills.list));
+	router.delete(`/api/${name}/manage/skills/:token`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.skills.revoke));
 	router.get(`/api/${name}/analytics`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.dashboard.getAnalytics));
 	router.get(`/api/${name}/advanced/cache/dump`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.cache.dump));
 	router.post(`/api/${name}/manage/categories`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.categories.addRemote));

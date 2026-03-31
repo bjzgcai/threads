@@ -310,6 +310,19 @@ async function getProfileMenu(uid, callerUID) {
 			admin: false,
 			canViewInfo: false,
 		},
+	}, {
+		id: 'skills',
+		route: 'skills',
+		name: '[[skills:account.title]]',
+		icon: 'fa-key',
+		visibility: {
+			self: true,
+			other: false,
+			moderator: false,
+			globalMod: false,
+			admin: false,
+			canViewInfo: false,
+		},
 	}];
 
 	if (meta.config.gdpr_enabled) {

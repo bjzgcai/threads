@@ -1,10 +1,14 @@
 'use strict';
 
 const crypto = require('crypto');
+const https = require('https');
 const nconf = require('nconf');
+const winston = require('winston');
 
 const cacheCreate = require('../cache/lru');
+const db = require('../database');
 const helpers = require('../controllers/helpers');
+const skillTokens = require('../skills/tokens');
 
 const middleware = module.exports;
 
@@ -17,6 +21,7 @@ const nonceCache = cacheCreate({
 
 const rateLimitStore = new Map();
 let scopePolicyCache = { raw: null, parsed: {} };
+const DINGTALK_USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me';
 
 function parseList(input) {
 	return String(input || '')
@@ -65,6 +70,37 @@ middleware.requireEnabled = async (req, res, next) => {
 	next();
 };
 
+middleware.requireBearerToken = async (req, res, next) => {
+	const token = getTokenFromAuthHeader(req);
+	if (!token) {
+		return helpers.formatApiResponse(401, res, new Error('skills-bearer-token-required'));
+	}
+	next();
+};
+
+middleware.requireIssuedSkillToken = async (req, res, next) => {
+	const required = String(process.env.SKILLS_REQUIRE_ISSUED_TOKENS || 'true').toLowerCase() === 'true';
+	if (!required) {
+		return next();
+	}
+
+	const token = getTokenFromAuthHeader(req);
+	if (!token) {
+		return helpers.formatApiResponse(401, res, new Error('skills-bearer-token-required'));
+	}
+
+	const tokenMeta = await skillTokens.getByToken(token);
+	if (!tokenMeta || tokenMeta.uid !== parseInt(req.uid, 10)) {
+		return helpers.formatApiResponse(403, res, new Error('skills-issued-token-required'));
+	}
+	if (tokenMeta.expired) {
+		return helpers.formatApiResponse(403, res, new Error('skills-issued-token-expired'));
+	}
+
+	req.skillTokenMeta = tokenMeta;
+	next();
+};
+
 function parseScopes(value) {
 	if (!value) {
 		return [];
@@ -82,6 +118,60 @@ function getTokenFromAuthHeader(req) {
 		return '';
 	}
 	return parts[1].trim();
+}
+
+function normalizeExternalActor(req) {
+	const bodyActor = req.body && req.body.actor && typeof req.body.actor === 'object' ? req.body.actor : {};
+	const externalUserId = String(req.get('x-external-user-id') || bodyActor.externalUserId || '').trim();
+	const externalUserName = String(req.get('x-external-user-name') || bodyActor.externalUserName || '').trim();
+	const externalSessionId = String(req.get('x-external-session-id') || bodyActor.externalSessionId || '').trim();
+
+	return {
+		externalUserId: externalUserId.slice(0, 128),
+		externalUserName: externalUserName.slice(0, 128),
+		externalSessionId: externalSessionId.slice(0, 128),
+	};
+}
+
+function getDingtalkAccessToken(req) {
+	return String(req.get('x-dingtalk-access-token') || '').trim();
+}
+
+function getAllowedDingtalkIds() {
+	return new Set(parseList(process.env.SKILLS_DINGTALK_ALLOWED_IDS));
+}
+
+function getJson(url, headers) {
+	return new Promise((resolve, reject) => {
+		const parsed = new URL(url);
+		const options = {
+			hostname: parsed.hostname,
+			path: parsed.pathname + (parsed.search || ''),
+			method: 'GET',
+			headers: headers || {},
+		};
+		const req = https.request(options, (res) => {
+			let data = '';
+			res.on('data', chunk => { data += chunk; });
+			res.on('end', () => {
+				try {
+					const json = JSON.parse(data);
+					if (res.statusCode >= 400) {
+						reject(new Error(`DingTalk API error ${res.statusCode}`));
+					} else {
+						resolve(json);
+					}
+				} catch (err) {
+					reject(new Error('Invalid JSON from DingTalk'));
+				}
+			});
+		});
+		req.setTimeout(10000, () => {
+			req.destroy(new Error('DingTalk API request timeout'));
+		});
+		req.on('error', reject);
+		req.end();
+	});
 }
 
 function getTokenHash(token) {
@@ -175,19 +265,119 @@ middleware.requireSkillScopes = (manifest) => async (req, res, next) => {
 		return next();
 	}
 
-	const token = getTokenFromAuthHeader(req);
-	if (!token) {
-		return helpers.formatApiResponse(401, res, new Error('skills-missing-bearer-token'));
-	}
+	let scopes = Array.isArray(req.skillTokenMeta && req.skillTokenMeta.scopes) ? req.skillTokenMeta.scopes : [];
+	if (!scopes.length) {
+		const token = getTokenFromAuthHeader(req);
+		if (!token) {
+			return helpers.formatApiResponse(401, res, new Error('skills-missing-bearer-token'));
+		}
 
-	const tokenHash = getTokenHash(token);
-	const policy = getScopePolicy();
-	const scopes = parseScopes(policy[tokenHash]);
+		const tokenHash = getTokenHash(token);
+		const policy = getScopePolicy();
+		scopes = parseScopes(policy[tokenHash]);
+	}
 	const allowed = requiredScopes.every(scope => scopes.includes(scope));
 	if (!allowed) {
 		return helpers.formatApiResponse(403, res, new Error('skills-scope-not-allowed'));
 	}
 
+	next();
+};
+
+middleware.extractExternalActor = async (req, res, next) => {
+	req.externalActor = normalizeExternalActor(req);
+	next();
+};
+
+middleware.requireDingtalkAuth = async (req, res, next) => {
+	const required = String(process.env.SKILLS_REQUIRE_DINGTALK_AUTH || 'false').toLowerCase() === 'true';
+	if (!required) {
+		return next();
+	}
+
+	const accessToken = getDingtalkAccessToken(req);
+	if (!accessToken) {
+		return helpers.formatApiResponse(401, res, new Error('skills-dingtalk-access-token-required'));
+	}
+
+	let profile;
+	try {
+		profile = await getJson(DINGTALK_USERINFO_URL, {
+			'x-acs-dingtalk-access-token': accessToken,
+		});
+	} catch (err) {
+		return helpers.formatApiResponse(401, res, new Error('skills-dingtalk-auth-invalid'));
+	}
+
+	const dingtalkId = String(profile.unionId || profile.openId || '').trim();
+	if (!dingtalkId) {
+		return helpers.formatApiResponse(401, res, new Error('skills-dingtalk-id-missing'));
+	}
+
+	const allowedIds = getAllowedDingtalkIds();
+	if (allowedIds.size && !allowedIds.has(dingtalkId)) {
+		return helpers.formatApiResponse(403, res, new Error('skills-dingtalk-user-not-allowed'));
+	}
+
+	const linkedUidRaw = await db.getObjectField('dingtalk:openid2uid', dingtalkId);
+	const linkedUid = linkedUidRaw ? parseInt(linkedUidRaw, 10) : 0;
+	if (linkedUid <= 0) {
+		return helpers.formatApiResponse(403, res, new Error('skills-dingtalk-user-not-linked'));
+	}
+
+	req.skillActorUid = linkedUid;
+	req.externalActor = {
+		...(req.externalActor || {}),
+		externalUserId: dingtalkId,
+		externalUserName: String(profile.nick || req.externalActor?.externalUserName || '').trim().slice(0, 128),
+		externalSessionId: String(req.externalActor?.externalSessionId || '').trim().slice(0, 128),
+	};
+	req.dingtalkProfile = {
+		unionId: String(profile.unionId || '').trim(),
+		openId: String(profile.openId || '').trim(),
+		nick: String(profile.nick || '').trim(),
+	};
+
+	next();
+};
+
+middleware.requireExternalActor = async (req, res, next) => {
+	const required = String(process.env.SKILLS_REQUIRE_EXTERNAL_ACTOR || 'true').toLowerCase() === 'true';
+	if (!required) {
+		return next();
+	}
+
+	const actor = req.externalActor || normalizeExternalActor(req);
+	if (!actor.externalUserId && req.skillTokenMeta) {
+		req.externalActor = {
+			...actor,
+			externalUserId: `uid:${req.uid}`,
+			externalUserName: req.skillTokenMeta.name || `uid:${req.uid}`,
+		};
+		return next();
+	}
+
+	if (!actor.externalUserId) {
+		return helpers.formatApiResponse(400, res, new Error('skills-external-user-id-required'));
+	}
+
+	next();
+};
+
+middleware.auditSkillRequest = async (req, res, next) => {
+	const startedAt = Date.now();
+	res.on('finish', () => {
+		const actor = req.externalActor || {};
+		if (res.statusCode < 400 && req.skillTokenMeta && req.skillTokenMeta.token) {
+			skillTokens.recordUsage(req.skillTokenMeta.token, {
+				ip: getClientIp(req),
+				externalActor: actor,
+			}).catch(err => winston.warn(`[skills-audit] failed to record token usage: ${err.message}`));
+		}
+		winston.info(
+			`[skills-audit] skill=${req.params.skill || 'unknown'} status=${res.statusCode} uid=${req.uid || 0} actorUid=${req.skillActorUid || req.uid || 0} externalUserId=${actor.externalUserId || '-'} externalUserName=${actor.externalUserName || '-'} externalSessionId=${actor.externalSessionId || '-'} ip=${getClientIp(req)} durationMs=${Date.now() - startedAt}`
+		);
+	});
 	next();
 };
 
