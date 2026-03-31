@@ -53,7 +53,7 @@ define('admin/manage/skills', ['api', 'bootbox', 'alerts'], function (api, bootb
 				}
 
 				try {
-					await api.del(`/admin/manage/skills/${encodeURIComponent(token)}`);
+					await api.del(`/api/admin/manage/skills/${encodeURIComponent(token)}`);
 					rowEl.remove();
 					alerts.success('Skills token revoked');
 

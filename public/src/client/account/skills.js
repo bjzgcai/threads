@@ -142,7 +142,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 							};
 
 							try {
-								const tokenObj = await api.post('/skills/tokens', payload);
+								const tokenObj = await api.post('/api/skills/tokens', payload);
 								modal.modal('hide');
 								showCreatedToken(tokenObj);
 							} catch (err) {
@@ -232,7 +232,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 				}
 
 				try {
-					const tokenObj = await api.post(`/skills/tokens/${encodeURIComponent(token)}/roll`);
+					const tokenObj = await api.post(`/api/skills/tokens/${encodeURIComponent(token)}/roll`);
 					showCreatedToken(tokenObj);
 					alerts.success(t.rolled);
 				} catch (err) {
@@ -256,7 +256,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 				}
 
 				try {
-					await api.del(`/skills/tokens/${encodeURIComponent(token)}`);
+					await api.del(`/api/skills/tokens/${encodeURIComponent(token)}`);
 					rowEl.remove();
 					alerts.success(t.revoked);
 
