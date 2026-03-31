@@ -162,8 +162,8 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 
 	function showCreatedToken(tokenObj) {
 		const rawToken = tokenObj && tokenObj.token ? tokenObj.token : '';
-		const scopeText = Array.isArray(tokenObj && tokenObj.scopes) && tokenObj.scopes.length ? tokenObj.scopes.join(', ') : 'post:read';
-		const expiryText = tokenObj && tokenObj.expiresAtISO ? tokenObj.expiresAtISO : t.createdNeverExpires;
+		const scopeText = formatScopes(tokenObj && tokenObj.scopes);
+		const expiryText = tokenObj && tokenObj.expiresAt ? formatDateTime(tokenObj.expiresAt) : t.createdNeverExpires;
 		const dialog = bootbox.dialog({
 			title: t.createdTitle,
 			message: [
@@ -216,6 +216,29 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 				textarea.select();
 			}
 		}, 50);
+	}
+
+	function formatScopes(scopes) {
+		const values = Array.isArray(scopes) ? scopes : [];
+		if (!values.length) {
+			return '';
+		}
+
+		const labels = {
+			'post:read': t.scopeRead,
+			'post:write': t.scopeWrite,
+		};
+		return values.map(scope => labels[scope] || scope).join('，');
+	}
+
+	function formatDateTime(value) {
+		const date = new Date(value);
+		if (Number.isNaN(date.getTime())) {
+			return '';
+		}
+
+		const pad = num => String(num).padStart(2, '0');
+		return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 	}
 
 	function bindRoll() {

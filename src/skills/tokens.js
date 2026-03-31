@@ -8,6 +8,17 @@ const TOKEN_META_PREFIX = 'token:skills:meta:';
 const ALLOWED_SCOPES = new Set(['post:read', 'post:write']);
 const MAX_EXPIRES_IN_DAYS = 3650;
 
+function formatDateTime(value) {
+	const timestamp = parseInt(value, 10) || 0;
+	if (!timestamp) {
+		return '';
+	}
+
+	const date = new Date(timestamp);
+	const pad = num => String(num).padStart(2, '0');
+	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 function normalizeScopes(scopes) {
 	const values = Array.isArray(scopes) ? scopes : (scopes ? [scopes] : []);
 	const normalized = [...new Set(values.map(scope => String(scope || '').trim()).filter(Boolean))];
@@ -73,12 +84,15 @@ function parseTokenMeta(meta, tokenObj = {}) {
 		scopesLabel: scopes.join(', '),
 		createdAt: parseInt(meta.createdAt, 10) || 0,
 		createdAtISO: meta.createdAt ? new Date(parseInt(meta.createdAt, 10)).toISOString() : null,
+		createdAtFormatted: formatDateTime(meta.createdAt),
 		expiresInDays: parseInt(meta.expiresInDays, 10) || 0,
 		expiresAt,
 		expiresAtISO: expiresAt ? new Date(expiresAt).toISOString() : null,
+		expiresAtFormatted: formatDateTime(expiresAt),
 		expired,
 		lastSeen: tokenObj.lastSeen || 0,
 		lastSeenISO: tokenObj.lastSeenISO || null,
+		lastSeenFormatted: formatDateTime(tokenObj.lastSeen),
 		lastSeenIp: String(meta.lastSeenIp || ''),
 		lastExternalUserId: String(meta.lastExternalUserId || ''),
 		lastExternalUserName: String(meta.lastExternalUserName || ''),
@@ -95,7 +109,7 @@ async function create(uid, { name, scopes, expiresInDays }) {
 	});
 	const expiresAt = safeExpiresInDays > 0 ? Date.now() + safeExpiresInDays * 24 * 60 * 60 * 1000 : 0;
 
-	await db.setObject(`${TOKEN_META_PREFIX}${token.token}`, {
+	await db.setObject(`${TOKEN_META_PREFIX}${token}`, {
 		type: 'skills',
 		uid,
 		name: safeName,
@@ -106,7 +120,7 @@ async function create(uid, { name, scopes, expiresInDays }) {
 	});
 
 	return {
-		token: token.token,
+		token,
 		name: safeName,
 		scopes: safeScopes,
 		expiresInDays: safeExpiresInDays,
