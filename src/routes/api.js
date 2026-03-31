@@ -9,6 +9,7 @@ module.exports = function (app, middleware, controllers) {
 	const middlewares = [middleware.autoLocale, middleware.authenticateRequest];
 	const router = express.Router();
 	app.use('/api', router);
+	router.use('/skills', require('./skills')());
 
 	router.get('/config', [...middlewares, middleware.applyCSRF], helpers.tryRoute(controllers.api.getConfig));
 

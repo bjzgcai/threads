@@ -1,0 +1,10 @@
+# External Skill Pack Metadata
+
+name: nodebb-external-skill-pack
+version: 1.0.0
+entry: SKILL.md
+
+skills:
+  - search_topics
+  - get_post_raw
+  - create_topic_or_reply
