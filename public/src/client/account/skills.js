@@ -188,8 +188,13 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 					label: t.copy,
 					className: 'btn-primary',
 					callback: function () {
-						const textarea = this.find('#created-skill-token').get(0);
-						copyText(textarea.value).then(() => {
+						const textarea = dialog.find('#created-skill-token').get(0);
+						if (!textarea) {
+							alerts.error(t.copyFailed);
+							return false;
+						}
+
+						copyText(textarea).then(() => {
 							alerts.success(t.copied);
 						}).catch((err) => {
 							console.error(err);
@@ -214,6 +219,9 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			if (textarea) {
 				textarea.focus();
 				textarea.select();
+				if (textarea.setSelectionRange) {
+					textarea.setSelectionRange(0, textarea.value.length);
+				}
 			}
 		}, 50);
 	}
@@ -293,27 +301,51 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 		});
 	}
 
-	function copyText(text) {
-		if (navigator.clipboard && navigator.clipboard.writeText) {
-			return navigator.clipboard.writeText(text);
+	function copyText(textarea) {
+		const text = textarea && textarea.value ? textarea.value : '';
+		if (!text) {
+			return Promise.reject(new Error('empty-token'));
 		}
 
+		textarea.focus();
+		textarea.select();
+		if (textarea.setSelectionRange) {
+			textarea.setSelectionRange(0, text.length);
+		}
+
+		if (window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText) {
+			return navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
+		}
+
+		return legacyCopy(text);
+	}
+
+	function legacyCopy(text) {
 		return new Promise((resolve, reject) => {
-			const textarea = document.createElement('textarea');
-			textarea.value = text;
-			textarea.setAttribute('readonly', 'readonly');
-			textarea.style.position = 'absolute';
-			textarea.style.left = '-9999px';
-			document.body.appendChild(textarea);
-			textarea.select();
+			const tempEl = document.createElement('textarea');
+			tempEl.value = text;
+			tempEl.setAttribute('readonly', 'readonly');
+			tempEl.style.position = 'fixed';
+			tempEl.style.left = '0';
+			tempEl.style.top = '0';
+			tempEl.style.opacity = '0';
+			document.body.appendChild(tempEl);
+			tempEl.focus();
+			tempEl.select();
+			if (tempEl.setSelectionRange) {
+				tempEl.setSelectionRange(0, text.length);
+			}
 
 			try {
-				document.execCommand('copy');
-				resolve();
+				const copied = document.execCommand('copy');
+				if (!copied) {
+					throw new Error('copy-command-failed');
+				}
+				resolve(true);
 			} catch (err) {
 				reject(err);
 			} finally {
-				document.body.removeChild(textarea);
+				document.body.removeChild(tempEl);
 			}
 		});
 	}
