@@ -240,6 +240,11 @@ middleware.verifySignature = async (req, res, next) => {
 
 	const payload = buildSigningPayload(req, timestamp, nonce);
 	const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+	winston.warn(`[skills-sign-debug] path=${req.path}`);
+	winston.warn(`[skills-sign-debug] body=${JSON.stringify(req.body || {})}`);
+	winston.warn(`[skills-sign-debug] payload=${payload}`);
+	winston.warn(`[skills-sign-debug] expected=${expected}`);
+	winston.warn(`[skills-sign-debug] received=${signature}`);
 	if (!safeCompare(expected, signature)) {
 		return helpers.formatApiResponse(401, res, new Error('skills-signature-invalid'));
 	}
