@@ -11,6 +11,118 @@ Use this skill when you need to read from or write to the Zhuge Caiyuan forum ex
 
 Important: this skill only works by calling `POST /api/skills/{skill}/execute` with a Bearer token and the required signing headers when signing is enabled. Do not call normal forum APIs directly with the skills token.
 
+## Required request flow
+
+To successfully call this skill gateway, the client must do all of the following:
+
+1. Send a `POST` request to `/api/skills/{skill}/execute`
+2. Send `Authorization: Bearer <personal_skills_token>`
+3. Send `Content-Type: application/json`
+4. Send a JSON body shaped as:
+
+```json
+{
+  "input": {}
+}
+```
+
+5. If signing is enabled on the server, also send:
+   - `x-skills-timestamp`
+   - `x-skills-nonce`
+   - `x-skills-signature`
+
+If you call normal forum APIs directly, or omit the Bearer token on the skills route, the server may respond with "not authorised" or "please log in".
+
+## Signing details
+
+The server verifies the signature with this exact payload format:
+
+`timestamp + "." + nonce + "." + method + "." + path + "." + stableJsonBody`
+
+Where:
+
+- `timestamp`: unix timestamp in seconds
+- `nonce`: a unique random string, for example a UUID
+- `method`: `POST`
+- `path`: the execute path only, for example `/unread_topics/execute`
+- `stableJsonBody`: the request body serialized with deterministic key ordering
+
+### Stable JSON rule
+
+This is important:
+
+- object keys must be sorted lexicographically at every level
+- arrays keep their original order
+- the signature must use the stable JSON string, not the original object insertion order
+
+For example, this request body:
+
+```json
+{
+  "input": {
+    "page": 1,
+    "limit": 10,
+    "filter": ""
+  }
+}
+```
+
+must be signed as:
+
+```json
+{"input":{"filter":"","limit":10,"page":1}}
+```
+
+not:
+
+```json
+{"input":{"page":1,"limit":10,"filter":""}}
+```
+
+If the key order is wrong, the signature will be wrong.
+
+### Signing example
+
+Example unsigned values:
+
+- `timestamp`: `1775041945`
+- `nonce`: `5cd17c7d-476a-4899-b2b2-96e52eb7a604`
+- `method`: `POST`
+- `path`: `/unread_topics/execute`
+- stable body:
+
+```json
+{"input":{"filter":"","limit":10,"page":1}}
+```
+
+Then the signing payload must be:
+
+```text
+1775041945.5cd17c7d-476a-4899-b2b2-96e52eb7a604.POST./unread_topics/execute.{"input":{"filter":"","limit":10,"page":1}}
+```
+
+## Authentication behavior
+
+The skills token is intended for the skills gateway routes, not as a general forum session cookie replacement.
+
+- supported route pattern: `POST /api/skills/*`
+- do not assume the same token can be used to call unrelated forum APIs
+- do not assume `GET` requests to forum endpoints will work with the skills token
+
+## Recommended implementation
+
+If possible, reuse the logic from `external-skill-pack-nodebb/tools/sign-and-call.js` instead of rewriting the signing behavior from scratch.
+
+Common causes of failure:
+
+- calling the wrong route
+- using `GET` instead of `POST`
+- signing the wrong path
+- signing non-stable JSON
+- omitting the Bearer token
+- using a token without the required scopes
+- calling forum APIs directly instead of the skills gateway
+
 ## Files provided to external users
 
 The external delivery can contain these three files:
