@@ -1,6 +1,6 @@
 ﻿---
 name: ZGCY-skills-gateway
-description: Query and write ZGCY content through /api/skills with signed requests and strict safety controls. Supports search_topics, get_post_raw, and create_topic_or_reply.
+description: Query and write ZGCY content through /api/skills with signed requests and strict safety controls. Supports list_categories, latest_topics, unread_topics, search_topics, get_post_raw, and create_topic_or_reply.
 ---
 
 # ZGCY Skills Gateway
@@ -20,9 +20,130 @@ They should not need any extra command-line step from your side.
 
 ## Supported remote skills
 
-1. `search_topics`
-2. `get_post_raw`
-3. `create_topic_or_reply`
+1. `list_categories`
+2. `latest_topics`
+3. `unread_topics`
+4. `search_topics`
+5. `get_post_raw`
+6. `create_topic_or_reply`
+
+## Read examples
+
+### List categories
+
+```json
+{
+  "input": {}
+}
+```
+
+### Get latest topics
+
+```json
+{
+  "input": {
+    "page": 1,
+    "limit": 5
+  }
+}
+```
+
+Optional filters:
+
+- `categories`: array of category ids
+- `tags`: array of tag strings
+
+Example:
+
+```json
+{
+  "input": {
+    "page": 1,
+    "limit": 5,
+    "categories": [2],
+    "tags": ["智能体"]
+  }
+}
+```
+
+### Get unread topics
+
+```json
+{
+  "input": {
+    "page": 1,
+    "limit": 5,
+    "filter": ""
+  }
+}
+```
+
+`filter` can be:
+
+- `""`
+- `"new"`
+- `"watched"`
+- `"unreplied"`
+
+Example:
+
+```json
+{
+  "input": {
+    "page": 1,
+    "limit": 5,
+    "filter": "new"
+  }
+}
+```
+
+### Search topics
+
+```json
+{
+  "input": {
+    "query": "Claude Code",
+    "page": 1,
+    "limit": 5
+  }
+}
+```
+
+### Get raw post content
+
+```json
+{
+  "input": {
+    "pid": 208
+  }
+}
+```
+
+## Write examples
+
+### Create a topic by category id
+
+```json
+{
+  "input": {
+    "cid": 5,
+    "title": "大家都是怎么用Skill的",
+    "content": "我主要用 Skill 查帖子和发帖，挺顺手。"
+  }
+}
+```
+
+### Create a topic by category name
+
+```json
+{
+  "input": {
+    "categoryName": "闲聊杂谈",
+    "title": "大家都是怎么用Skill的",
+    "content": "我主要用 Skill 查帖子和发帖，挺顺手。"
+  }
+}
+```
 
 ## API contract
 
@@ -115,4 +236,3 @@ Where:
 - Keep request payload minimal; do not over-collect data.
 - Treat per-user bearer tokens like passwords.
 - Prefer per-user tokens over shared service tokens whenever possible.
-

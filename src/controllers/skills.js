@@ -1,9 +1,11 @@
 'use strict';
 
 const api = require('../api');
+const categories = require('../categories');
 const search = require('../search');
 const manifest = require('../skills/manifest');
 const skillTokens = require('../skills/tokens');
+const topics = require('../topics');
 const helpers = require('./helpers');
 const user = require('../user');
 
@@ -13,6 +15,8 @@ const CONTENT_MAX = 20000;
 const TITLE_MAX = 200;
 const QUERY_MAX = 200;
 const TAG_MAX = 5;
+const LIST_LIMIT_MAX = 20;
+const UNREAD_FILTERS = new Set(['', 'new', 'watched', 'unreplied']);
 
 function asPositiveInt(value, name) {
 	const num = parseInt(value, 10);
@@ -47,6 +51,161 @@ function normalizeTags(tags) {
 		throw new Error('too-many-tags');
 	}
 	return tags.map(tag => asString(tag, 'tag', 30));
+}
+
+function asOptionalPositiveInt(value, name) {
+	if (value === undefined || value === null || value === '') {
+		return undefined;
+	}
+	return asPositiveInt(value, name);
+}
+
+function normalizeCategoryIds(categories) {
+	if (categories === undefined) {
+		return undefined;
+	}
+	if (!Array.isArray(categories)) {
+		throw new Error('categories-must-be-array');
+	}
+	return categories.map(cid => asPositiveInt(cid, 'category'));
+}
+
+function normalizeOptionalTags(tags) {
+	if (tags === undefined) {
+		return undefined;
+	}
+	return normalizeTags(tags);
+}
+
+function normalizeListPaging(input) {
+	const page = input.page ? asPositiveInt(input.page, 'page') : 1;
+	const limit = input.limit ? Math.min(asPositiveInt(input.limit, 'limit'), LIST_LIMIT_MAX) : 10;
+	return {
+		page,
+		limit,
+		start: (page - 1) * limit,
+		stop: (page * limit) - 1,
+	};
+}
+
+function normalizeUnreadFilter(value) {
+	const filter = value === undefined || value === null ? '' : String(value).trim();
+	if (!UNREAD_FILTERS.has(filter)) {
+		throw new Error('invalid-unread-filter');
+	}
+	return filter;
+}
+
+function mapTopicSummary(topic) {
+	if (!topic) {
+		return null;
+	}
+
+	return {
+		tid: topic.tid,
+		cid: topic.cid,
+		uid: topic.uid,
+		title: topic.title,
+		slug: topic.slug,
+		timestamp: topic.timestamp,
+		lastposttime: topic.lastposttime,
+		postcount: topic.postcount,
+		viewcount: topic.viewcount,
+		votes: topic.votes,
+		pinned: !!topic.pinned,
+		locked: !!topic.locked,
+		unread: !!topic.unread,
+		isFollowed: !!topic.isFollowed,
+		category: topic.category ? {
+			cid: topic.category.cid,
+			name: topic.category.name,
+			slug: topic.category.slug,
+			icon: topic.category.icon,
+		} : null,
+		user: topic.user ? {
+			uid: topic.user.uid,
+			username: topic.user.username,
+			userslug: topic.user.userslug,
+		} : null,
+		teaser: topic.teaser ? {
+			pid: topic.teaser.pid,
+			uid: topic.teaser.uid,
+			timestamp: topic.teaser.timestamp,
+			content: topic.teaser.content,
+		} : null,
+		tags: Array.isArray(topic.tags) ? topic.tags.map(tag => ({
+			value: tag && tag.value,
+			score: tag && tag.score,
+		})) : [],
+	};
+}
+
+function mapCategorySummary(category) {
+	if (!category) {
+		return null;
+	}
+
+	return {
+		cid: category.cid,
+		name: category.name,
+		slug: category.slug,
+		handle: category.handle,
+		description: category.description,
+		icon: category.icon,
+		bgColor: category.bgColor,
+		color: category.color,
+		parentCid: category.parentCid,
+		topic_count: category.topic_count,
+		post_count: category.post_count,
+		disabled: !!category.disabled,
+		order: category.order,
+	};
+}
+
+function normalizeCategoryLookup(value) {
+	if (value === undefined || value === null) {
+		return '';
+	}
+	if (typeof value !== 'string') {
+		throw new Error('category-must-be-string');
+	}
+	return value.trim().toLowerCase();
+}
+
+async function resolveCategoryId(input, uid) {
+	const cid = asOptionalPositiveInt(input.cid, 'cid');
+	if (cid) {
+		return cid;
+	}
+
+	const lookup = normalizeCategoryLookup(input.category || input.categoryName || input.categorySlug || input.categoryHandle);
+	if (!lookup) {
+		throw new Error('cid-required-for-topic');
+	}
+
+	const visibleCategories = await categories.getCategoriesByPrivilege('categories:cid', uid, 'topics:read');
+	const matched = visibleCategories.filter((category) => {
+		if (!category || category.disabled) {
+			return false;
+		}
+
+		const slug = String(category.slug || '').toLowerCase();
+		const slugTail = slug.includes('/') ? slug.split('/').slice(1).join('/') : slug;
+		return [
+			String(category.name || '').trim().toLowerCase(),
+			String(category.handle || '').trim().toLowerCase(),
+			slug,
+			slugTail,
+		].includes(lookup);
+	});
+
+	if (!matched.length) {
+		throw new Error('category-not-found');
+	}
+	if (matched.length > 1) {
+		throw new Error('category-ambiguous');
+	}
+	return parseInt(matched[0].cid, 10);
 }
 
 Skills.getManifest = async (req, res) => {
@@ -104,11 +263,61 @@ Skills.execute = async (req, res) => {
 	const caller = { uid: req.skillActorUid || req.uid, ip: req.ip };
 	let response;
 
-	if (skill === 'search_topics') {
+	if (skill === 'list_categories') {
+		const categoriesData = await categories.getCategoriesByPrivilege('categories:cid', req.uid, 'topics:read');
+		response = {
+			matchCount: categoriesData.length,
+			categories: categoriesData.map(mapCategorySummary).filter(Boolean),
+		};
+	} else if (skill === 'latest_topics') {
+		const { page, limit, start, stop } = normalizeListPaging(input);
+		const categories = normalizeCategoryIds(input.categories);
+		const tags = normalizeOptionalTags(input.tags);
+		const result = await topics.getSortedTopics({
+			cids: categories,
+			tags,
+			uid: req.uid,
+			start,
+			stop,
+			filter: '',
+			term: 'alltime',
+			sort: 'recent',
+			floatPinned: 0,
+			query: {},
+		});
+
+		response = {
+			page,
+			limit,
+			matchCount: result.topicCount,
+			topics: (result.topics || []).map(mapTopicSummary).filter(Boolean),
+		};
+	} else if (skill === 'unread_topics') {
+		const { page, limit, start, stop } = normalizeListPaging(input);
+		const categories = normalizeCategoryIds(input.categories);
+		const tags = normalizeOptionalTags(input.tags);
+		const filter = normalizeUnreadFilter(input.filter);
+		const result = await topics.getUnreadTopics({
+			cid: categories,
+			tag: tags,
+			uid: req.uid,
+			start,
+			stop,
+			filter,
+			query: {},
+		});
+
+		response = {
+			page,
+			limit,
+			filter,
+			matchCount: result.topicCount || 0,
+			topics: (result.topics || []).map(mapTopicSummary).filter(Boolean),
+		};
+	} else if (skill === 'search_topics') {
 		const query = asString(input.query, 'query', QUERY_MAX);
-		const page = input.page ? asPositiveInt(input.page, 'page') : 1;
-		const itemsPerPage = input.limit ? Math.min(asPositiveInt(input.limit, 'limit'), 20) : 10;
-		const categories = Array.isArray(input.categories) ? input.categories : undefined;
+		const { page, limit: itemsPerPage } = normalizeListPaging(input);
+		const categories = normalizeCategoryIds(input.categories);
 
 		const result = await search.search({
 			uid: req.uid,
@@ -164,7 +373,7 @@ Skills.execute = async (req, res) => {
 				timestamp: post.timestamp,
 			};
 		} else {
-			const cid = asPositiveInt(input.cid, 'cid');
+			const cid = await resolveCategoryId(input, req.uid);
 			if (!title) {
 				throw new Error('title-required-for-topic');
 			}

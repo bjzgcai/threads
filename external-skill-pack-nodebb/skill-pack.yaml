@@ -5,6 +5,9 @@ version: 1.0.0
 entry: SKILL.md
 
 skills:
+  - list_categories
+  - latest_topics
+  - unread_topics
   - search_topics
   - get_post_raw
   - create_topic_or_reply
