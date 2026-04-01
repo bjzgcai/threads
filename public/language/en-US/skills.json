@@ -23,6 +23,7 @@
 	"modal.create.expiry-help": "Shorter expiry reduces the risk if a token is leaked.",
 	"modal.create.cancel": "Cancel",
 	"modal.create.submit": "Create Token",
+	"error.name-required": "Please enter a token name",
 	"modal.created.title": "Token Created",
 	"modal.created.warning": "This full token is shown only once. Copy it now and store it securely.",
 	"modal.created.scopes": "Scopes",

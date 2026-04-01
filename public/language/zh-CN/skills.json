@@ -23,6 +23,7 @@
 	"modal.create.expiry-help": "较短的有效期可以在令牌泄露时降低风险。",
 	"modal.create.cancel": "取消",
 	"modal.create.submit": "创建令牌",
+	"error.name-required": "请输入令牌名称",
 	"modal.created.title": "令牌已创建",
 	"modal.created.warning": "完整令牌只会展示这一次，请立即复制并妥善保存。",
 	"modal.created.scopes": "权限范围",

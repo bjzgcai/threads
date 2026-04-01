@@ -32,7 +32,7 @@ function normalizeScopes(scopes) {
 function sanitizeName(name) {
 	const value = String(name || '').trim();
 	if (!value) {
-		return 'Personal Skills Token';
+		throw new Error('skills-token-name-required');
 	}
 	if (value.length > 128) {
 		throw new Error('skills-token-name-too-long');

@@ -20,6 +20,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			'[[skills:modal.create.name]]',
 			'[[skills:modal.create.name-placeholder]]',
 			'[[skills:modal.create.name-help]]',
+			'[[skills:error.name-required]]',
 			'[[skills:modal.create.scopes]]',
 			'[[skills:modal.create.scope-read]]',
 			'[[skills:modal.create.scope-write]]',
@@ -54,6 +55,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			t.nameLabel,
 			t.namePlaceholder,
 			t.nameHelp,
+			t.nameRequired,
 			t.scopesLabel,
 			t.scopeRead,
 			t.scopeWrite,
@@ -92,7 +94,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 					'<form component="account/skills/create-form" class="d-flex flex-column gap-3">',
 					'  <div>',
 					`    <label class="form-label" for="skill-token-name">${utils.escapeHTML(t.nameLabel)}</label>`,
-					`    <input id="skill-token-name" name="name" type="text" class="form-control" maxlength="128" placeholder="${utils.escapeHTML(t.namePlaceholder)}" />`,
+					`    <input id="skill-token-name" name="name" type="text" class="form-control" maxlength="128" required placeholder="${utils.escapeHTML(t.namePlaceholder)}" />`,
 					`    <div class="form-text">${utils.escapeHTML(t.nameHelp)}</div>`,
 					'  </div>',
 					'  <div>',
@@ -135,11 +137,19 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 								return false;
 							}
 
+							const nameInput = formEl.querySelector('[name="name"]');
 							const payload = {
-								name: formEl.querySelector('[name="name"]').value.trim(),
+								name: nameInput.value.trim(),
 								scopes: Array.from(formEl.querySelectorAll('[name="scopes"]:checked')).map(el => el.value),
 								expiresInDays: formEl.querySelector('[name="expiresInDays"]').value,
 							};
+
+							if (!payload.name) {
+								nameInput.focus();
+								nameInput.classList.add('is-invalid');
+								alerts.error(t.nameRequired);
+								return false;
+							}
 
 							try {
 								const tokenObj = await api.post('/api/skills/tokens', payload);
@@ -155,7 +165,11 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			});
 
 			setTimeout(() => {
-				dialog.find('#skill-token-name').trigger('focus');
+				const nameInput = dialog.find('#skill-token-name');
+				nameInput.on('input', function () {
+					this.classList.remove('is-invalid');
+				});
+				nameInput.trigger('focus');
 			}, 50);
 		});
 	}
@@ -236,7 +250,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			'post:read': t.scopeRead,
 			'post:write': t.scopeWrite,
 		};
-		return values.map(scope => labels[scope] || scope).join('，');
+		return values.map(scope => labels[scope] || scope).join(' / ');
 	}
 
 	function formatDateTime(value) {
