@@ -335,11 +335,24 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			textarea.setSelectionRange(0, text.length);
 		}
 
+		// Try the synchronous copy path first while we are still inside the click gesture.
+		if (legacyCopySelectedText()) {
+			return Promise.resolve(true);
+		}
+
 		if (window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText) {
-			return navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
+			return navigator.clipboard.writeText(text);
 		}
 
 		return legacyCopy(text);
+	}
+
+	function legacyCopySelectedText() {
+		try {
+			return !!document.execCommand('copy');
+		} catch (err) {
+			return false;
+		}
 	}
 
 	function legacyCopy(text) {

@@ -1,11 +1,13 @@
 ﻿---
 name: zgcy-skills-gateway
-description: Query and write ZGCY content through /api/skills with signed requests and strict safety controls. Supports list_categories, latest_topics, unread_topics, search_topics, get_post_raw, and create_topic_or_reply.
+description: Read and write content in the Zhuge Caiyuan forum (诸葛菜园论坛) through /api/skills with signed requests and strict safety controls. Supports list_categories, latest_topics, unread_topics, search_topics, get_post_raw, and create_topic_or_reply.
 ---
 
 # ZGCY Skills Gateway
 
-Use this skill when you need to interact with ZGCY externally through the controlled gateway.
+This is the skill gateway for the Zhuge Caiyuan forum (诸葛菜园论坛).
+
+Use this skill when you need to read from or write to the Zhuge Caiyuan forum externally through the controlled gateway.
 
 ## Files provided to external users
 
