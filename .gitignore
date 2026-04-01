@@ -49,7 +49,6 @@ pidfile
 ## Directory-based project format:
 .idea/
 .vscode/
-.codex/
 
 ## File-based project format:
 *.ipr

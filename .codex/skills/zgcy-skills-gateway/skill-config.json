@@ -1,0 +1,19 @@
+﻿{
+  "name": "ZGCY Skills Gateway Config",
+  "baseUrl": "https://forum.example.com/api/skills",
+  "timeoutMs": 15000,
+  "userAgent": "my-external-agent/1.0",
+  "auth": {
+    "bearerToken": "sk_xxx_replace_with_personal_skills_token",
+    "signingSecret": ""
+  },
+  "permissions": {
+    "allowRead": true,
+    "allowWrite": false
+  },
+  "notes": {
+    "howToGetToken": "The user logs in to ZGCY and creates a personal token at /user/<userslug>/skills",
+    "signingSecret": "Leave empty unless the ZGCY operator explicitly enabled signing and provided the secret",
+    "delivery": "For external users, only fill this file together with _meta.json and SKILL.md; no extra command-line step is required"
+  }
+}
