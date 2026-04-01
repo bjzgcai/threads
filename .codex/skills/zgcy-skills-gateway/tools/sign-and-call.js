@@ -2,6 +2,7 @@
 'use strict';
 
 const fs = require('fs');
+const path = require('path');
 const crypto = require('crypto');
 
 function readJsonFile(filePath) {
@@ -14,7 +15,7 @@ function stableStringify(value) {
   }
   if (value && typeof value === 'object') {
     const keys = Object.keys(value).sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(value[k])}`).join(',')}}`;
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
   }
   return JSON.stringify(value);
 }
@@ -26,10 +27,13 @@ function usage() {
 
 async function main() {
   const [, , skillName, payloadPath, configPathArg] = process.argv;
-  if (!skillName || !payloadPath) usage();
+  if (!skillName || !payloadPath) {
+    usage();
+  }
 
-  const configPath = configPathArg || process.env.SKILL_CONFIG_PATH || '';
-  const config = configPath ? readJsonFile(configPath) : {};
+  const defaultConfigPath = path.resolve(__dirname, '..', 'skill-config.json');
+  const configPath = configPathArg || process.env.SKILL_CONFIG_PATH || defaultConfigPath;
+  const config = readJsonFile(configPath);
   const auth = config.auth || {};
 
   const baseUrl = process.env.SKILL_BASE_URL || config.baseUrl || '';
@@ -39,16 +43,15 @@ async function main() {
   const userAgent = process.env.SKILL_USER_AGENT || config.userAgent || 'zgcy-skill-client/1.0';
 
   if (!baseUrl || !bearer) {
-    console.error('Missing required config: baseUrl and bearerToken (or SKILL_BASE_URL / SKILL_BEARER_TOKEN)');
+    console.error('Missing required config: baseUrl and bearerToken');
     process.exit(1);
   }
 
   const payload = readJsonFile(payloadPath);
   const stableBody = stableStringify(payload);
   const method = 'POST';
-  const path = `/${skillName}/execute`;
-  const url = `${baseUrl.replace(/\/$/, '')}${path}`;
-
+  const requestPath = `/${skillName}/execute`;
+  const url = `${baseUrl.replace(/\/$/, '')}${requestPath}`;
   const headers = {
     'content-type': 'application/json',
     authorization: `Bearer ${bearer}`,
@@ -58,7 +61,7 @@ async function main() {
   if (secret) {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonce = crypto.randomUUID();
-    const signingPayload = `${timestamp}.${nonce}.${method}.${path}.${stableBody}`;
+    const signingPayload = `${timestamp}.${nonce}.${method}.${requestPath}.${stableBody}`;
     const signature = crypto.createHmac('sha256', secret).update(signingPayload).digest('hex');
 
     headers['x-skills-timestamp'] = timestamp;

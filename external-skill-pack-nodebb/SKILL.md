@@ -11,6 +11,65 @@ Use this skill when you need to read from or write to the Zhuge Caiyuan forum ex
 
 Important: this skill only works by calling `POST /api/skills/{skill}/execute` with a Bearer token and the required signing headers when signing is enabled. Do not call normal forum APIs directly with the skills token.
 
+## Files to deliver to external users
+
+For external users, recommend delivering these files together:
+
+1. `_meta.json`
+2. `SKILL.md`
+3. `skill-config.json`
+4. `tools/sign-and-call.js`
+5. `examples/*.request.json`
+
+The external user should mainly do two things:
+
+1. fill in `skill-config.json`
+2. choose or modify an example request file under `examples/`
+
+## Quick start for external users
+
+### Step 1: fill in `skill-config.json`
+
+Example:
+
+```json
+{
+  "name": "ZGCY Skills Gateway Config",
+  "baseUrl": "https://forum.example.com/api/skills",
+  "timeoutMs": 15000,
+  "userAgent": "my-external-agent/1.0",
+  "auth": {
+    "bearerToken": "sk_xxx_replace_with_personal_skills_token",
+    "signingSecret": ""
+  }
+}
+```
+
+### Step 2: choose a request template
+
+Provided examples:
+
+- `examples/list_categories.request.json`
+- `examples/latest_topics.request.json`
+- `examples/unread_topics.request.json`
+- `examples/search_topics.request.json`
+- `examples/get_post_raw.request.json`
+- `examples/create_topic.request.json`
+- `examples/create_reply.request.json`
+
+### Step 3: call the helper script
+
+Examples:
+
+```bash
+node tools/sign-and-call.js list_categories examples/list_categories.request.json skill-config.json
+node tools/sign-and-call.js latest_topics examples/latest_topics.request.json skill-config.json
+node tools/sign-and-call.js unread_topics examples/unread_topics.request.json skill-config.json
+node tools/sign-and-call.js search_topics examples/search_topics.request.json skill-config.json
+```
+
+If `skill-config.json` is in the same package root and your wrapper already knows that path, the last argument can be omitted.
+
 ## Required request flow
 
 To successfully call this skill gateway, the client must do all of the following:
@@ -31,7 +90,7 @@ To successfully call this skill gateway, the client must do all of the following
    - `x-skills-nonce`
    - `x-skills-signature`
 
-If you call normal forum APIs directly, or omit the Bearer token on the skills route, the server may respond with "not authorised" or "please log in".
+If you call normal forum APIs directly, or omit the Bearer token on the skills route, the server may respond with `not authorised` or `please log in`.
 
 ## Signing details
 
@@ -54,6 +113,7 @@ This is important:
 - object keys must be sorted lexicographically at every level
 - arrays keep their original order
 - the signature must use the stable JSON string, not the original object insertion order
+- the HTTP request body must be the exact same stable JSON text used for signing
 
 For example, this request body:
 
@@ -67,7 +127,7 @@ For example, this request body:
 }
 ```
 
-must be signed as:
+must be signed and sent as:
 
 ```json
 {"input":{"filter":"","limit":10,"page":1}}
@@ -81,26 +141,6 @@ not:
 
 If the key order is wrong, the signature will be wrong.
 
-### Signing example
-
-Example unsigned values:
-
-- `timestamp`: `1775041945`
-- `nonce`: `5cd17c7d-476a-4899-b2b2-96e52eb7a604`
-- `method`: `POST`
-- `path`: `/unread_topics/execute`
-- stable body:
-
-```json
-{"input":{"filter":"","limit":10,"page":1}}
-```
-
-Then the signing payload must be:
-
-```text
-1775041945.5cd17c7d-476a-4899-b2b2-96e52eb7a604.POST./unread_topics/execute.{"input":{"filter":"","limit":10,"page":1}}
-```
-
 ## Authentication behavior
 
 The skills token is intended for the skills gateway routes, not as a general forum session cookie replacement.
@@ -111,7 +151,7 @@ The skills token is intended for the skills gateway routes, not as a general for
 
 ## Recommended implementation
 
-If possible, reuse the logic from `external-skill-pack-nodebb/tools/sign-and-call.js` instead of rewriting the signing behavior from scratch.
+If possible, reuse `tools/sign-and-call.js` instead of rewriting the signing behavior from scratch.
 
 Common causes of failure:
 
@@ -119,20 +159,10 @@ Common causes of failure:
 - using `GET` instead of `POST`
 - signing the wrong path
 - signing non-stable JSON
+- sending a different JSON text than the one used for signing
 - omitting the Bearer token
 - using a token without the required scopes
 - calling forum APIs directly instead of the skills gateway
-
-## Files provided to external users
-
-The external delivery can contain these three files:
-
-1. `_meta.json`
-2. `SKILL.md`
-3. `skill-config.json`
-
-The external user only needs to copy `skill-config.json` to their own config file and fill in the values.
-They should not need any extra command-line step from your side.
 
 ## Supported remote skills
 
@@ -261,19 +291,6 @@ Example:
 }
 ```
 
-## API contract
-
-- Base URL: `https://<host>/api/skills`
-- Discover: `GET /manifest`
-- Execute: `POST /{skill}/execute`
-- Body:
-
-```json
-{
-  "input": {}
-}
-```
-
 ## Preferred authentication flow
 
 1. The human user logs in to ZGCY in the browser.
@@ -286,60 +303,6 @@ This means:
 - every token belongs to one forum account
 - admins can revoke tokens centrally from `/admin/manage/skills`
 - the external agent acts as that specific user instead of a shared robot identity
-
-## User config file
-
-Provide the external user with this config template:
-
-File: `skill-config.json`
-
-```json
-{
-  "name": "ZGCY Skills Gateway Config",
-  "baseUrl": "https://forum.example.com/api/skills",
-  "timeoutMs": 15000,
-  "userAgent": "my-external-agent/1.0",
-  "auth": {
-    "bearerToken": "sk_xxx_replace_with_personal_skills_token",
-    "signingSecret": ""
-  }
-}
-```
-
-Field meanings:
-
-- `baseUrl`: the ZGCY gateway address, normally `/api/skills`
-- `auth.bearerToken`: the personal token created by the logged-in user
-- `auth.signingSecret`: optional, only needed if the server enabled request signing
-- `timeoutMs`: optional request timeout
-- `userAgent`: optional client identifier for troubleshooting
-
-Actual read/write permission is determined by the token scopes issued by the forum.
-
-## Signing
-
-If `SKILLS_SIGNING_SECRET` is enabled on server, send:
-
-- `x-skills-timestamp`
-- `x-skills-nonce`
-- `x-skills-signature`
-
-Signature algorithm:
-
-`HMAC_SHA256_HEX(secret, timestamp + "." + nonce + "." + method + "." + path + "." + stableJsonBody)`
-
-Where:
-
-- `method` is `POST`
-- `path` example: `/search_topics/execute`
-- `stableJsonBody` means JSON with deterministic key order
-
-## Posting rules
-
-- Only write when user explicitly asks to publish, post, or reply.
-- For new topic: require `cid`, `title`, `content`.
-- For reply: require `tid`, `content`.
-- Return identifiers (`tid`, `pid`) after successful write.
 
 ## Security rules
 
