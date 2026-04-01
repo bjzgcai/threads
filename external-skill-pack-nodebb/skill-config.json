@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "ZGCY Skills Gateway Config",
   "baseUrl": "https://forum.example.com/api/skills",
   "timeoutMs": 15000,

@@ -1,4 +1,4 @@
-﻿---
+---
 name: zgcy-skills-gateway
 description: Read and write content in the Zhuge Caiyuan forum (诸葛菜园论坛) through /api/skills with signed requests and strict safety controls. Supports list_categories, latest_topics, unread_topics, search_topics, get_post_raw, and create_topic_or_reply.
 ---
@@ -164,6 +164,36 @@ Common causes of failure:
 - using a token without the required scopes
 - calling forum APIs directly instead of the skills gateway
 
+## File Encoding
+
+All JSON files in this skill package should be saved as UTF-8 without BOM.
+
+This applies to:
+
+- `skill-config.json`
+- `examples/*.request.json`
+- `_meta.json`
+
+Why this matters:
+
+- some Python environments will fail with `Unexpected UTF-8 BOM`
+- some Node.js or third-party parsers may also reject BOM-prefixed JSON
+
+The helper scripts in `tools/` are BOM-tolerant, but the recommended package format is still UTF-8 without BOM.
+## Python Fallback
+
+If a Python client needs extra compatibility with third-party JSON files, it is safe to read JSON using `utf-8-sig` as a fallback.
+
+Example:
+
+```python
+import json
+
+with open('skill-config.json', 'r', encoding='utf-8-sig') as f:
+    config = json.load(f)
+```
+
+This is only a compatibility fallback. The recommended file format for this skill package is still UTF-8 without BOM.
 ## Supported remote skills
 
 1. `list_categories`

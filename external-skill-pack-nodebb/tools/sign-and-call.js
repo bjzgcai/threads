@@ -1,11 +1,12 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 'use strict';
 
 const fs = require('fs');
 const crypto = require('crypto');
 
 function readJsonFile(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  const content = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '');
+  return JSON.parse(content);
 }
 
 function stableStringify(value) {
