@@ -21,6 +21,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			'[[skills:modal.create.name-placeholder]]',
 			'[[skills:modal.create.name-help]]',
 			'[[skills:error.name-required]]',
+			'[[skills:error.scope-required]]',
 			'[[skills:modal.create.scopes]]',
 			'[[skills:modal.create.scope-read]]',
 			'[[skills:modal.create.scope-write]]',
@@ -57,6 +58,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			t.namePlaceholder,
 			t.nameHelp,
 			t.nameRequired,
+			t.scopeRequired,
 			t.scopesLabel,
 			t.scopeRead,
 			t.scopeWrite,
@@ -150,6 +152,11 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 								nameInput.focus();
 								nameInput.classList.add('is-invalid');
 								alerts.error(t.nameRequired);
+								return false;
+							}
+
+							if (!payload.scopes.length) {
+								alerts.error(t.scopeRequired);
 								return false;
 							}
 

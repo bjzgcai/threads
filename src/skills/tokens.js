@@ -22,11 +22,14 @@ function formatDateTime(value) {
 function normalizeScopes(scopes) {
 	const values = Array.isArray(scopes) ? scopes : (scopes ? [scopes] : []);
 	const normalized = [...new Set(values.map(scope => String(scope || '').trim()).filter(Boolean))];
+	if (!normalized.length) {
+		throw new Error('skills-token-scopes-required');
+	}
 	const invalid = normalized.filter(scope => !ALLOWED_SCOPES.has(scope));
 	if (invalid.length) {
 		throw new Error('skills-token-invalid-scopes');
 	}
-	return normalized.length ? normalized : ['post:read'];
+	return normalized;
 }
 
 function sanitizeName(name) {
