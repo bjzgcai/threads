@@ -260,11 +260,12 @@ Skills.execute = async (req, res) => {
 	}
 
 	const input = req.body && req.body.input ? req.body.input : {};
-	const caller = { uid: req.skillActorUid || req.uid, ip: req.ip };
+	const actorUid = req.skillActorUid || req.uid;
+	const caller = { uid: actorUid, ip: req.ip };
 	let response;
 
 	if (skill === 'list_categories') {
-		const categoriesData = await categories.getCategoriesByPrivilege('categories:cid', req.uid, 'topics:read');
+		const categoriesData = await categories.getCategoriesByPrivilege('categories:cid', actorUid, 'topics:read');
 		response = {
 			matchCount: categoriesData.length,
 			categories: categoriesData.map(mapCategorySummary).filter(Boolean),
@@ -276,7 +277,7 @@ Skills.execute = async (req, res) => {
 		const result = await topics.getSortedTopics({
 			cids: categories,
 			tags,
-			uid: req.uid,
+			uid: actorUid,
 			start,
 			stop,
 			filter: '',
@@ -300,7 +301,7 @@ Skills.execute = async (req, res) => {
 		const result = await topics.getUnreadTopics({
 			cid: categories,
 			tag: tags,
-			uid: req.uid,
+			uid: actorUid,
 			start,
 			stop,
 			filter,
@@ -320,7 +321,7 @@ Skills.execute = async (req, res) => {
 		const categories = normalizeCategoryIds(input.categories);
 
 		const result = await search.search({
-			uid: req.uid,
+			uid: actorUid,
 			query,
 			page,
 			itemsPerPage,
@@ -373,7 +374,7 @@ Skills.execute = async (req, res) => {
 				timestamp: post.timestamp,
 			};
 		} else {
-			const cid = await resolveCategoryId(input, req.uid);
+			const cid = await resolveCategoryId(input, actorUid);
 			if (!title) {
 				throw new Error('title-required-for-topic');
 			}
@@ -395,7 +396,7 @@ Skills.execute = async (req, res) => {
 	helpers.formatApiResponse(200, res, {
 		skill,
 		actor: req.externalActor || {},
-		actorUid: req.skillActorUid || req.uid,
+		actorUid,
 		response,
 	});
 };

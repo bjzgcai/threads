@@ -9,6 +9,8 @@ This is the skill gateway for the Zhuge Caiyuan forum (诸葛菜园论坛).
 
 Use this skill when you need to read from or write to the Zhuge Caiyuan forum externally through the controlled gateway.
 
+Important: this skill only works by calling `POST /api/skills/{skill}/execute` with a Bearer token and the required signing headers when signing is enabled. Do not call normal forum APIs directly with the skills token.
+
 ## Files provided to external users
 
 The external delivery can contain these three files:
