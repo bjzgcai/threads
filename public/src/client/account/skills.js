@@ -153,6 +153,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 
 							try {
 								const tokenObj = await api.post('/api/skills/tokens', payload);
+								releaseModalFocus(modal);
 								modal.modal('hide');
 								showCreatedToken(tokenObj);
 							} catch (err) {
@@ -226,6 +227,10 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 
 		dialog.on('hidden.bs.modal', function () {
 			ajaxify.refresh();
+		});
+
+		dialog.on('hide.bs.modal', function () {
+			releaseModalFocus(dialog);
 		});
 
 		setTimeout(() => {
@@ -362,6 +367,18 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 				document.body.removeChild(tempEl);
 			}
 		});
+	}
+
+	function releaseModalFocus(modal) {
+		const activeElement = document.activeElement;
+		if (!activeElement || !modal || !modal.length) {
+			return;
+		}
+
+		const modalEl = modal.get(0);
+		if (modalEl && modalEl.contains(activeElement) && typeof activeElement.blur === 'function') {
+			activeElement.blur();
+		}
 	}
 
 	return AccountSkills;

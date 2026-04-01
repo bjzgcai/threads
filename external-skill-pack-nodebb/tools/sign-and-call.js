@@ -1,8 +1,12 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 'use strict';
 
 const fs = require('fs');
 const crypto = require('crypto');
+
+function readJsonFile(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
 
 function stableStringify(value) {
   if (Array.isArray(value)) {
@@ -16,24 +20,30 @@ function stableStringify(value) {
 }
 
 function usage() {
-  console.error('Usage: node tools/sign-and-call.js <skillName> <payloadJsonPath>');
+  console.error('Usage: node tools/sign-and-call.js <skillName> <payloadJsonPath> [configJsonPath]');
   process.exit(1);
 }
 
 async function main() {
-  const [, , skillName, payloadPath] = process.argv;
+  const [, , skillName, payloadPath, configPathArg] = process.argv;
   if (!skillName || !payloadPath) usage();
 
-  const baseUrl = process.env.SKILL_BASE_URL;
-  const bearer = process.env.SKILL_BEARER_TOKEN;
-  const secret = process.env.SKILL_SIGNING_SECRET || '';
+  const configPath = configPathArg || process.env.SKILL_CONFIG_PATH || '';
+  const config = configPath ? readJsonFile(configPath) : {};
+  const auth = config.auth || {};
+
+  const baseUrl = process.env.SKILL_BASE_URL || config.baseUrl || '';
+  const bearer = process.env.SKILL_BEARER_TOKEN || auth.bearerToken || '';
+  const secret = process.env.SKILL_SIGNING_SECRET || auth.signingSecret || '';
+  const timeoutMs = Number(process.env.SKILL_TIMEOUT_MS || config.timeoutMs || 15000);
+  const userAgent = process.env.SKILL_USER_AGENT || config.userAgent || 'zgcy-skill-client/1.0';
 
   if (!baseUrl || !bearer) {
-    console.error('SKILL_BASE_URL and SKILL_BEARER_TOKEN are required');
+    console.error('Missing required config: baseUrl and bearerToken (or SKILL_BASE_URL / SKILL_BEARER_TOKEN)');
     process.exit(1);
   }
 
-  const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
+  const payload = readJsonFile(payloadPath);
   const method = 'POST';
   const path = `/${skillName}/execute`;
   const url = `${baseUrl.replace(/\/$/, '')}${path}`;
@@ -41,6 +51,7 @@ async function main() {
   const headers = {
     'content-type': 'application/json',
     authorization: `Bearer ${bearer}`,
+    'user-agent': userAgent,
   };
 
   if (secret) {
@@ -55,11 +66,15 @@ async function main() {
     headers['x-skills-signature'] = signature;
   }
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
   const response = await fetch(url, {
     method,
     headers,
     body: JSON.stringify(payload),
-  });
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timer));
 
   const text = await response.text();
   console.log(`HTTP ${response.status}`);
