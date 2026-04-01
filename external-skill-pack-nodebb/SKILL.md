@@ -1,5 +1,5 @@
 ﻿---
-name: ZGCY-skills-gateway
+name: zgcy-skills-gateway
 description: Query and write ZGCY content through /api/skills with signed requests and strict safety controls. Supports list_categories, latest_topics, unread_topics, search_topics, get_post_raw, and create_topic_or_reply.
 ---
 
