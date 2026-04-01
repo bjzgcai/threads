@@ -12,7 +12,7 @@
 	"account.install-step-1": "Install the skill package in your external agent.",
 	"account.install-step-2": "Open skill-config.json in that agent environment.",
 	"account.install-step-3": "Paste the token from this page into auth.bearerToken, then save the file.",
-	"account.install-note": "If the agent needs to create topics or replies, create a token that also includes post:write scope.",
+	"account.install-note": "Actual read/write access is determined by the token scopes; if the agent needs to create topics or replies, create a token that includes post:write.",
 	"account.capabilities-title": "Available Skills",
 	"account.capabilities-intro": "The current Zhuge Caiyuan forum skill gateway can provide these abilities to external agents.",
 	"account.capability-list-categories": "List visible categories so the agent can choose the correct target before posting.",

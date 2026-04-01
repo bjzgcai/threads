@@ -4,12 +4,8 @@
   "timeoutMs": 15000,
   "userAgent": "my-external-agent/1.0",
   "auth": {
-    "bearerToken": "sk_xxx_replace_with_personal_skills_token",
+    "bearerToken": "YOUR-PERSONAL-SKILLS-TOKEN",
     "signingSecret": ""
-  },
-  "permissions": {
-    "allowRead": true,
-    "allowWrite": false
   },
   "notes": {
     "howToGetToken": "The user logs in to ZGCY and creates a personal token at /user/<userslug>/skills",

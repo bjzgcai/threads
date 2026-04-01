@@ -188,10 +188,6 @@ File: `skill-config.json`
   "auth": {
     "bearerToken": "sk_xxx_replace_with_personal_skills_token",
     "signingSecret": ""
-  },
-  "permissions": {
-    "allowRead": true,
-    "allowWrite": false
   }
 }
 ```
@@ -203,8 +199,8 @@ Field meanings:
 - `auth.signingSecret`: optional, only needed if the server enabled request signing
 - `timeoutMs`: optional request timeout
 - `userAgent`: optional client identifier for troubleshooting
-- `permissions.allowRead`: whether the external side should enable read-type operations
-- `permissions.allowWrite`: whether the external side should enable write-type operations
+
+Actual read/write permission is determined by the token scopes issued by the forum.
 
 ## Signing
 
