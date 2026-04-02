@@ -9,6 +9,7 @@ const cacheCreate = require('../cache/lru');
 const db = require('../database');
 const helpers = require('../controllers/helpers');
 const skillTokens = require('../skills/tokens');
+const ipMatcher = require('../utils/ip-matcher');
 
 const middleware = module.exports;
 
@@ -24,17 +25,14 @@ let scopePolicyCache = { raw: null, parsed: {} };
 const DINGTALK_USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me';
 
 function parseList(input) {
-	return String(input || '')
-		.split(',')
-		.map(item => item.trim())
-		.filter(Boolean);
+	return ipMatcher.parseList(input);
 }
 
 function getClientIp(req) {
 	const forwarded = (req.get('x-forwarded-for') || '').split(',')[0].trim();
 	const realIp = (req.get('x-real-ip') || '').trim();
 	const rawIp = forwarded || realIp || req.ip || req.socket?.remoteAddress || '';
-	return String(rawIp).replace(/^::ffff:/, '');
+	return ipMatcher.normalizeIp(rawIp);
 }
 
 function stableStringify(value) {
@@ -207,7 +205,7 @@ middleware.allowlistedIp = async (req, res, next) => {
 	}
 
 	const clientIp = getClientIp(req);
-	if (!configured.includes(clientIp)) {
+	if (!ipMatcher.matchesAny(clientIp, configured)) {
 		return helpers.formatApiResponse(403, res, new Error('skills-ip-not-allowed'));
 	}
 

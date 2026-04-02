@@ -13,14 +13,12 @@ const plugins = require('../plugins');
 const authRoutes = require('./authentication');
 const writeRoutes = require('./write');
 const helpers = require('./helpers');
+const ipMatcher = require('../utils/ip-matcher');
 
 const { setupPageRoute } = helpers;
 const SAFE_MOUNT_REGEX = /^[a-z0-9][a-z0-9-]*$/i;
-const BEARER_TOKEN_ALLOWED_IPS = new Set(
-	(process.env.NODEBB_BEARER_ALLOWED_IPS || '10.100.11.202,127.0.0.1,::1')
-		.split(',')
-		.map(ip => ip.trim())
-		.filter(Boolean)
+const BEARER_TOKEN_ALLOWED_IPS = ipMatcher.parseList(
+	process.env.NODEBB_BEARER_ALLOWED_IPS || '10.100.11.202,127.0.0.1,::1'
 );
 const BEARER_TOKEN_ALLOWED_ROUTES = parseBearerRouteRules(
 	process.env.NODEBB_BEARER_ALLOWED_ROUTES || 'POST:/api/v3/topics,POST:/api/skills/*'
@@ -35,7 +33,7 @@ function getClientIp(req) {
 	const forwarded = (req.get('x-forwarded-for') || '').split(',')[0].trim();
 	const realIp = (req.get('x-real-ip') || '').trim();
 	const rawIp = forwarded || realIp || req.ip || req.socket?.remoteAddress || '';
-	return String(rawIp).replace(/^::ffff:/, '');
+	return ipMatcher.normalizeIp(rawIp);
 }
 
 function parseBearerRouteRules(input) {
@@ -198,7 +196,7 @@ module.exports = async function (app, middleware) {
 		}
 
 		const clientIp = getClientIp(req);
-		const isAllowedIp = BEARER_TOKEN_ALLOWED_IPS.has(clientIp);
+		const isAllowedIp = ipMatcher.matchesAny(clientIp, BEARER_TOKEN_ALLOWED_IPS);
 		const isAllowedEndpoint = isBearerRouteAllowed(req);
 		if (!isAllowedIp || !isAllowedEndpoint) {
 			winston.warn(`[api-guard] blocked bearer request method=${req.method} path=${req.path} ip=${clientIp}`);

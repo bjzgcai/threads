@@ -334,6 +334,13 @@ This means:
 - admins can revoke tokens centrally from `/admin/manage/skills`
 - the external agent acts as that specific user instead of a shared robot identity
 
+You can validate the whole package with:
+
+```bash
+node tools/validate-package.js
+```
+
+This checks required files, JSON validity, and BOM issues in one pass.
 ## Security rules
 
 - Never expose bearer token or signing secret.
