@@ -12,7 +12,8 @@ const validator = require.main.require('validator');
 const user = require.main.require('./src/user');
 const db = require.main.require('./src/database');
 const plugins = require.main.require('./src/plugins');
-const authenticationController = require.main.require('./src/controllers/authentication');
+const posts = require.main.require('./src/posts');
+const topics = require.main.require('./src/topics');
 
 const DINGTALK_AUTH_URL = 'https://login.dingtalk.com/oauth2/auth';
 const DINGTALK_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/userAccessToken';
@@ -21,6 +22,7 @@ const DINGTALK_USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me';
 const DINGTALK_USER_SEARCH_URL = 'https://api.dingtalk.com/v1.0/contact/users/search';
 const DINGTALK_USER_DETAIL_URL = 'https://oapi.dingtalk.com/topapi/v2/user/get';
 const DINGTALK_USER_BY_MOBILE_URL = 'https://oapi.dingtalk.com/topapi/v2/user/getbymobile';
+const DINGTALK_ASYNC_SEND_URL = 'https://oapi.dingtalk.com/topapi/message/corpconversation/asyncsend_v2';
 const HTTP_TIMEOUT_MS = 10000;
 
 loadDotEnvIfNeeded();
@@ -30,20 +32,27 @@ loadDotEnvIfNeeded();
 // 可通过环境变量 DINGTALK_OAUTH_SCOPE 覆盖（空格分隔，与官方文档一致）。
 const DINGTALK_SCOPE = process.env.DINGTALK_OAUTH_SCOPE || 'openid corpid Contact.User.Read Contact.User.email';
 
+const AGENT_ID = parseInt(process.env.DINGTALK_AGENT_ID, 10) || 0;
 const CLIENT_ID = process.env.DINGTALK_CLIENT_ID;
 const CLIENT_SECRET = process.env.DINGTALK_CLIENT_SECRET;
 const DB_KEY = 'dingtalk:openid2uid';
+const MENTION_CATEGORY_IDS = parseCategoryIds(process.env.DINGTALK_MENTION_CATEGORY_IDS);
 const APP_TOKEN_REFRESH_SKEW_MS = 60 * 1000;
 let appAccessTokenCache = {
 	token: '',
 	expiresAt: 0,
 };
 
-function loadDotEnvIfNeeded() {
-	if (process.env.DINGTALK_CLIENT_ID && process.env.DINGTALK_CLIENT_SECRET) {
-		return;
-	}
+function parseCategoryIds(value) {
+	return Array.from(new Set(
+		String(value || '')
+			.split(',')
+			.map(part => parseInt(part.trim(), 10))
+			.filter(cid => Number.isInteger(cid) && cid > 0)
+	));
+}
 
+function loadDotEnvIfNeeded() {
 	try {
 		const envPath = path.resolve(__dirname, '..', '..', '.env');
 		if (!fs.existsSync(envPath)) {
@@ -190,6 +199,44 @@ function getJson(url, headers) {
 	});
 }
 
+function postForm(url, body) {
+	return new Promise((resolve, reject) => {
+		const payload = new URLSearchParams(body).toString();
+		const parsed = new URL(url);
+		const options = {
+			hostname: parsed.hostname,
+			path: parsed.pathname + (parsed.search || ''),
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded',
+				'Content-Length': Buffer.byteLength(payload),
+			},
+		};
+		const req = https.request(options, (res) => {
+			let data = '';
+			res.on('data', chunk => { data += chunk; });
+			res.on('end', () => {
+				try {
+					const json = JSON.parse(data);
+					if (res.statusCode >= 400 || (json.errcode && String(json.errcode) !== '0')) {
+						reject(new Error(`DingTalk API error ${res.statusCode || 500}: ${json.errmsg || data}`));
+					} else {
+						resolve(json);
+					}
+				} catch (err) {
+					reject(new Error(`Invalid JSON from DingTalk: ${data}`));
+				}
+			});
+		});
+		req.setTimeout(HTTP_TIMEOUT_MS, () => {
+			req.destroy(new Error('DingTalk API request timeout'));
+		});
+		req.on('error', reject);
+		req.write(payload);
+		req.end();
+	});
+}
+
 // --- DingTalk Passport Strategy ---
 
 function DingTalkStrategy(options, verify) {
@@ -276,6 +323,65 @@ DingTalkPlugin.customizeComposerFormatting = async function (payload) {
 	return payload;
 };
 
+DingTalkPlugin.exposeClientConfig = async function (config) {
+	config.dingtalkMentionCategoryIds = MENTION_CATEGORY_IDS;
+	return config;
+};
+
+DingTalkPlugin.normalizeMentionNamesOnCreate = async function (payload) {
+	if (!payload || !payload.post || !payload.data) {
+		return payload;
+	}
+
+	const cid = await resolveCategoryIdForComposerPayload(payload);
+	payload.post.content = await normalizeMentionNames(payload.post.content, cid, payload.data.uid);
+	if (typeof payload.post.sourceContent === 'string') {
+		payload.post.sourceContent = await normalizeMentionNames(payload.post.sourceContent, cid, payload.data.uid);
+	}
+	return payload;
+};
+
+DingTalkPlugin.normalizeMentionNamesOnEdit = async function (payload) {
+	if (!payload || !payload.post || !payload.data) {
+		return payload;
+	}
+
+	const cid = await resolveCategoryIdForEditPayload(payload);
+	payload.post.content = await normalizeMentionNames(payload.post.content, cid, payload.uid || payload.data.uid);
+	if (typeof payload.post.sourceContent === 'string') {
+		payload.post.sourceContent = await normalizeMentionNames(payload.post.sourceContent, cid, payload.uid || payload.data.uid);
+	}
+	return payload;
+};
+
+DingTalkPlugin.renderMentionsAsFullnameInPosts = async function (payload) {
+	if (!payload || !Array.isArray(payload.posts) || !payload.posts.length) {
+		return payload;
+	}
+	payload.posts = await renderMentionFullnames(payload.posts);
+	return payload;
+};
+
+DingTalkPlugin.renderMentionsAsFullnameInSummaries = async function (payload) {
+	if (!payload || !Array.isArray(payload.posts) || !payload.posts.length) {
+		return payload;
+	}
+	payload.posts = await renderMentionFullnames(payload.posts);
+	return payload;
+};
+
+DingTalkPlugin.notifyMentionedUsersInDingTalk = async function (payload) {
+	if (!payload || !payload.notification || !Array.isArray(payload.uids) || !payload.uids.length) {
+		return;
+	}
+
+	try {
+		await sendMentionNotificationsToDingTalk(payload.notification, payload.uids);
+	} catch (err) {
+		winston.error(`[sso-dingtalk] mention DingTalk notify failed: ${err.stack || err.message}`);
+	}
+};
+
 DingTalkPlugin.getStrategy = async function (strategies) {
 	const callbackURL = `${nconf.get('url')}/auth/dingtalk/callback`;
 
@@ -313,7 +419,9 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 					});
 					winston.info(`[sso-dingtalk][email-flow] existing-user login uid=${uid}, start email sync`);
 					await user.setUserField(uid, 'dingtalk:sso', 1);
+					await syncDingtalkIdentityFields(uid, profile);
 					await syncEmailPreservingExisting(uid, profile, accessToken);
+					await syncDingtalkUserId(uid, profile);
 					await syncAvatarForExistingUser(uid, profile);
 					return done(null, { uid });
 				}
@@ -328,7 +436,9 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 					});
 					await assertAndBindDingtalkId(dingtalkId, uid);
 					await user.setUserField(uid, 'dingtalk:sso', 1);
+					await syncDingtalkIdentityFields(uid, profile);
 					await syncEmailPreservingExisting(uid, profile, accessToken);
+					await syncDingtalkUserId(uid, profile);
 					return done(null, { uid });
 				}
 
@@ -360,6 +470,8 @@ DingTalkPlugin.getStrategy = async function (strategies) {
 				const newUid = await createUser(userData);
 				await assertAndBindDingtalkId(dingtalkId, newUid);
 				await user.setUserField(newUid, 'dingtalk:sso', 1);
+				await syncDingtalkIdentityFields(newUid, profile);
+				await syncDingtalkUserId(newUid, profile);
 
 				if (profile.avatarUrl) {
 					await user.setUserField(newUid, 'uploadedpicture', profile.avatarUrl);
@@ -418,6 +530,7 @@ DingTalkPlugin.addInterstitial = async function (data) {
 DingTalkPlugin.deleteUserData = async function (data) {
 	try {
 		const { uid } = data;
+		await db.deleteObjectFields(`user:${uid}`, ['dingtalk:sso', 'dingtalk:unionid', 'dingtalk:openid', 'dingtalk:userid']);
 		// Remove all dingtalkId (unionId/openId) entries that map to this uid
 		const mapping = await db.getObject(DB_KEY);
 		if (mapping) {
@@ -430,6 +543,316 @@ DingTalkPlugin.deleteUserData = async function (data) {
 };
 
 // --- Helpers ---
+
+const fullnameMentionRegex = /(^|\P{L})(@[\p{L}\d\-_.@]+(?<![.-]))/gu;
+const mentionAnchorRegex = /<a\b([^>]*class="[^"]*plugin-mentions-user[^"]*"[^>]*)href="([^"]*\/user\/([^"?/#]+)[^"]*)"([^>]*)>(@?)(<bdi>)([^<]*)(<\/bdi><\/a>)/gu;
+
+async function resolveCategoryIdForComposerPayload(payload) {
+	const directCid = payload.post && payload.post.cid ? parseInt(payload.post.cid, 10) : parseInt(payload.data && payload.data.cid, 10);
+	if (directCid > 0) {
+		return directCid;
+	}
+	const tid = payload.post && payload.post.tid ? payload.post.tid : payload.data && payload.data.tid;
+	return tid ? parseInt(await topics.getTopicField(tid, 'cid'), 10) || 0 : 0;
+}
+
+async function resolveCategoryIdForEditPayload(payload) {
+	const directCid = payload.post && payload.post.cid ? parseInt(payload.post.cid, 10) : parseInt(payload.data && payload.data.cid, 10);
+	if (directCid > 0) {
+		return directCid;
+	}
+	const tid = payload.post && payload.post.tid ? payload.post.tid : payload.data && payload.data.tid;
+	return tid ? parseInt(await topics.getTopicField(tid, 'cid'), 10) || 0 : 0;
+}
+
+function isMentionCategory(cid) {
+	return MENTION_CATEGORY_IDS.includes(parseInt(cid, 10));
+}
+
+async function normalizeMentionNames(content, cid, callerUid) {
+	if (!isMentionCategory(cid) || typeof content !== 'string' || !content.includes('@')) {
+		return content;
+	}
+
+	const cache = new Map();
+	return await replaceAsync(content, fullnameMentionRegex, async (match, prefix, mentionToken) => {
+		const token = mentionToken.slice(1);
+		const userslug = await resolveUserslugForMentionToken(token, callerUid, cache);
+		return userslug ? `${prefix}@${userslug}` : match;
+	});
+}
+
+async function resolveUserslugForMentionToken(token, callerUid, cache) {
+	if (!token || token.includes('@')) {
+		return '';
+	}
+	if (cache.has(token)) {
+		return cache.get(token);
+	}
+
+	const slugUid = await user.getUidByUserslug(token);
+	if (slugUid) {
+		cache.set(token, '');
+		return '';
+	}
+
+	const matches = await findUsersByExactFullname(token);
+	if (matches.length !== 1) {
+		cache.set(token, '');
+		if (matches.length > 1) {
+			winston.warn(`[sso-dingtalk] fullname mention "${token}" is ambiguous for uid ${callerUid || 0}, skipped rewrite`);
+		}
+		return '';
+	}
+
+	const userslug = String(matches[0].userslug || '').trim();
+	cache.set(token, userslug);
+	return userslug;
+}
+
+async function findUsersByExactFullname(fullname) {
+	const normalized = String(fullname || '').trim();
+	if (!normalized) {
+		return [];
+	}
+	const query = normalized.toLowerCase();
+	const max = query.length > 1 ?
+		`${query.slice(0, -1)}${String.fromCharCode(query.charCodeAt(query.length - 1) + 1)}` :
+		`${query}\uffff`;
+	const rows = await db.getSortedSetRangeByLex('fullname:sorted', query, max, 0, 20);
+	const uids = Array.from(new Set(rows
+		.map((row) => {
+			const idx = row.lastIndexOf(':');
+			return idx === -1 ? 0 : parseInt(row.slice(idx + 1), 10);
+		})
+		.filter(uid => uid > 0)));
+	if (!uids.length) {
+		return [];
+	}
+	const users = await user.getUsersFields(uids, ['uid', 'userslug', 'fullname']);
+	return users.filter(userData =>
+		userData &&
+		userData.userslug &&
+		String(userData.fullname || '').trim().toLowerCase() === query
+	);
+}
+
+async function renderMentionFullnames(posts) {
+	const targetPosts = await getTargetCategoryPosts(posts);
+	if (!targetPosts.length) {
+		return posts;
+	}
+
+	const slugs = Array.from(new Set(targetPosts.flatMap(post => extractMentionSlugs(post.content))));
+	if (!slugs.length) {
+		return posts;
+	}
+
+	const users = await user.getUsersFields(await user.getUidsByUserslugs(slugs), ['userslug', 'fullname']);
+	const slugToFullname = new Map(users
+		.filter(userData => userData && userData.userslug && userData.fullname)
+		.map(userData => [String(userData.userslug), String(userData.fullname)]));
+
+	targetPosts.forEach((post) => {
+		post.content = replaceMentionAnchorsWithFullnames(post.content, slugToFullname);
+	});
+
+	return posts;
+}
+
+async function getTargetCategoryPosts(posts) {
+	const tids = Array.from(new Set(posts
+		.filter(post => post && post.tid && !isMentionCategory(post.cid) && !(post.topic && isMentionCategory(post.topic.cid)) && !(post.category && isMentionCategory(post.category.cid)))
+		.map(post => post.tid)));
+	const tidToCid = new Map();
+	if (tids.length) {
+		const topicRows = await topics.getTopicsFields(tids, ['tid', 'cid']);
+		topicRows.forEach(topic => tidToCid.set(String(topic.tid), parseInt(topic.cid, 10) || 0));
+	}
+
+	return posts.filter((post) => {
+		if (!post || typeof post.content !== 'string' || !post.content.includes('plugin-mentions-user')) {
+			return false;
+		}
+		const cid = parseInt(post.cid || (post.topic && post.topic.cid) || (post.category && post.category.cid) || tidToCid.get(String(post.tid)), 10) || 0;
+		return isMentionCategory(cid);
+	});
+}
+
+function extractMentionSlugs(content) {
+	if (typeof content !== 'string') {
+		return [];
+	}
+	const slugs = [];
+	let match;
+	while ((match = mentionAnchorRegex.exec(content))) {
+		slugs.push(decodeURIComponent(match[3] || ''));
+	}
+	mentionAnchorRegex.lastIndex = 0;
+	return slugs.filter(Boolean);
+}
+
+function replaceMentionAnchorsWithFullnames(content, slugToFullname) {
+	if (typeof content !== 'string' || !content.includes('plugin-mentions-user')) {
+		return content;
+	}
+	mentionAnchorRegex.lastIndex = 0;
+	return content.replace(mentionAnchorRegex, (match, beforeHref, href, rawSlug, afterHref, atPrefix, bdiOpen, currentLabel, closeTag) => {
+		const userslug = decodeURIComponent(rawSlug || '');
+		const fullname = slugToFullname.get(userslug);
+		if (!fullname) {
+			return match;
+		}
+		return `<a${beforeHref}href="${href}"${afterHref}>${atPrefix}${bdiOpen}${validator.escape(fullname)}${closeTag}`;
+	});
+}
+
+async function sendMentionNotificationsToDingTalk(notification, uids) {
+	if (!AGENT_ID || !notification || !notification.pid || !uids.length) {
+		return;
+	}
+
+	const pid = parseInt(notification.pid, 10);
+	if (!(pid > 0)) {
+		return;
+	}
+
+	const postData = await posts.getPostFields(pid, ['pid', 'tid', 'uid']);
+	if (!postData || !isMentionCategory(await topics.getTopicField(postData.tid, 'cid'))) {
+		return;
+	}
+
+	const [topicData, fromUser, targetUsers] = await Promise.all([
+		topics.getTopicFields(postData.tid, ['title', 'cid']),
+		user.getUserFields(postData.uid, ['username', 'fullname']),
+		user.getUsersFields(uids, ['uid', 'dingtalk:userid']),
+	]);
+	if (!topicData || !isMentionCategory(topicData.cid)) {
+		return;
+	}
+
+	const userIds = Array.from(new Set(targetUsers
+		.map(userData => String(userData && userData['dingtalk:userid'] || '').trim())
+		.filter(Boolean)));
+	if (!userIds.length) {
+		return;
+	}
+
+	const senderName = String(fromUser && (fromUser.fullname || fromUser.username) || '有人');
+	const topicTitle = String(topicData.title || '帖子');
+	const path = notification.path || `/post/${encodeURIComponent(pid)}`;
+	const messageUrl = `${nconf.get('url')}${path}`;
+	const content = `${senderName} 在《${topicTitle}》中提到了你：${messageUrl}`;
+	await sendWorkNoticeToUserIds(userIds, {
+		msgtype: 'text',
+		text: {
+			content,
+		},
+	});
+}
+
+async function sendWorkNoticeToUserIds(userIds, msg) {
+	if (!userIds.length) {
+		return;
+	}
+	const appAccessToken = await getAppAccessToken();
+	await postForm(
+		`${DINGTALK_ASYNC_SEND_URL}?access_token=${encodeURIComponent(appAccessToken)}`,
+		{
+			agent_id: String(AGENT_ID),
+			userid_list: userIds.join(','),
+			msg: JSON.stringify(msg),
+		}
+	);
+}
+
+async function syncDingtalkIdentityFields(uid, profile) {
+	const fields = {};
+	if (profile && profile.unionId) {
+		fields['dingtalk:unionid'] = String(profile.unionId);
+	}
+	if (profile && profile.openId) {
+		fields['dingtalk:openid'] = String(profile.openId);
+	}
+	if (Object.keys(fields).length) {
+		await user.setUserFields(uid, fields);
+	}
+}
+
+async function syncDingtalkUserId(uid, profile) {
+	const dingtalkUserId = await getDingtalkUserIdByProfile(profile);
+	if (dingtalkUserId) {
+		await user.setUserField(uid, 'dingtalk:userid', dingtalkUserId);
+	}
+}
+
+async function getDingtalkUserIdByProfile(profile) {
+	const match = await findDingtalkUserByUnionId(profile);
+	return match ? match.userId : '';
+}
+
+async function findDingtalkUserByUnionId(profile) {
+	if (!profile || typeof profile !== 'object') {
+		return null;
+	}
+
+	const nick = typeof profile.nick === 'string' ? profile.nick.trim() : '';
+	const targetUnionId = typeof profile.unionId === 'string' ? profile.unionId.trim() : '';
+	if (!nick || !targetUnionId) {
+		return null;
+	}
+
+	let appAccessToken = '';
+	try {
+		appAccessToken = await getAppAccessToken();
+	} catch (err) {
+		winston.warn(`[sso-dingtalk] get app access token failed when resolving userId: ${err.message}`);
+		return null;
+	}
+
+	let userIds = [];
+	try {
+		const searchResult = await searchDingtalkUserIdsByNick(appAccessToken, nick);
+		userIds = searchResult.userIds;
+		if (searchResult.totalCount > 1) {
+			const mobile = typeof profile.mobile === 'string' ? profile.mobile.trim() : '';
+			if (mobile) {
+				const mobileUserIds = await getDingtalkUserIdsByMobile(appAccessToken, mobile);
+				if (mobileUserIds.length) {
+					userIds = mobileUserIds;
+				}
+			}
+		}
+	} catch (err) {
+		winston.warn(`[sso-dingtalk] resolve userId by nick failed: ${err.message}`);
+		return null;
+	}
+
+	for (const userId of userIds) {
+		try {
+			const detail = await getDingtalkUserByUserId(appAccessToken, userId);
+			const candidateUnionId = String(detail && detail.unionid || '').trim();
+			if (detail && candidateUnionId === targetUnionId) {
+				return { userId: String(userId), detail };
+			}
+		} catch (err) {
+			winston.warn(`[sso-dingtalk] resolve userId by unionId failed for userid ${userId}: ${err.message}`);
+		}
+	}
+
+	return null;
+}
+
+async function replaceAsync(string, regex, asyncReplacer) {
+	const matches = [];
+	string.replace(regex, (...args) => {
+		matches.push(args);
+		return args[0];
+	});
+	const replacements = await Promise.all(matches.map(args => asyncReplacer(...args)));
+	let index = 0;
+	return string.replace(regex, () => replacements[index++]);
+}
 
 async function createUser(userData) {
 	const username = await ensureUniqueUsername(userData.username);
