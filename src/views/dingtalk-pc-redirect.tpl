@@ -32,17 +32,40 @@
 			container.appendChild(notice);
 		}
 
+		function addCloseButton() {
+			var button = document.createElement('button');
+			button.type = 'button';
+			button.className = 'btn btn-secondary mt-3';
+			button.textContent = '关闭此页';
+			button.onclick = function () {
+				try {
+					window.close();
+				} catch (err) {
+					window.location.href = 'about:blank';
+				}
+			};
+			container.appendChild(button);
+		}
+
 		function showMinimalMessage() {
 			titleEl.textContent = '浏览器已打开';
-			messageEl.textContent = '页面已经尝试打开外部浏览器，您可以关闭此页面。';
+			messageEl.textContent = '页面已经尝试打开外部浏览器。若页面仍然保留，请点击“关闭此页”。';
 			redirectLink.style.display = 'none';
 			urlContainer.style.display = 'none';
+			addCloseButton();
 		}
 
 		if (isDingTalk) {
 			window.location.href = dingtalkUrl;
 			setTimeout(showFallbackNotice, 2000);
-			setTimeout(showMinimalMessage, 5000);
+			setTimeout(function () {
+				showMinimalMessage();
+				try {
+					window.close();
+				} catch (err) {
+					// ignore
+				}
+			}, 5000);
 		} else {
 			window.location.href = targetUrl;
 		}
