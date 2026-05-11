@@ -14,6 +14,9 @@ const db = require.main.require('./src/database');
 const plugins = require.main.require('./src/plugins');
 const posts = require.main.require('./src/posts');
 const topics = require.main.require('./src/topics');
+const privileges = require.main.require('./src/privileges');
+const utils = require.main.require('./src/utils');
+const SocketPlugins = require.main.require('./src/socket.io/plugins');
 
 const DINGTALK_AUTH_URL = 'https://login.dingtalk.com/oauth2/auth';
 const DINGTALK_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/userAccessToken';
@@ -21,6 +24,7 @@ const DINGTALK_APP_TOKEN_URL = 'https://api.dingtalk.com/v1.0/oauth2/accessToken
 const DINGTALK_USERINFO_URL = 'https://api.dingtalk.com/v1.0/contact/users/me';
 const DINGTALK_USER_SEARCH_URL = 'https://api.dingtalk.com/v1.0/contact/users/search';
 const DINGTALK_USER_DETAIL_URL = 'https://oapi.dingtalk.com/topapi/v2/user/get';
+const DINGTALK_USER_BY_UNIONID_URL = 'https://oapi.dingtalk.com/topapi/user/getbyunionid';
 const DINGTALK_USER_BY_MOBILE_URL = 'https://oapi.dingtalk.com/topapi/v2/user/getbymobile';
 const DINGTALK_ASYNC_SEND_URL = 'https://oapi.dingtalk.com/topapi/message/corpconversation/asyncsend_v2';
 const HTTP_TIMEOUT_MS = 10000;
@@ -300,7 +304,7 @@ DingTalkStrategy.prototype.authenticate = function (req, options) {
 const DingTalkPlugin = module.exports;
 
 DingTalkPlugin.init = async function (params) {
-	// No admin routes needed for this simple implementation
+	patchMentionsUserSearch();
 	winston.verbose('[sso-dingtalk] Plugin initialized');
 };
 
@@ -547,6 +551,75 @@ DingTalkPlugin.deleteUserData = async function (data) {
 const fullnameMentionRegex = /(^|\P{L})(@[\p{L}\d\-_.@]+(?<![.-]))/gu;
 const mentionAnchorRegex = /<a\b([^>]*class="[^"]*plugin-mentions-user[^"]*"[^>]*)href="([^"]*\/user\/([^"?/#]+)[^"]*)"([^>]*)>(@?)(<bdi>)([^<]*)(<\/bdi><\/a>)/gu;
 
+function patchMentionsUserSearch() {
+	if (!SocketPlugins.mentions || typeof SocketPlugins.mentions.userSearch !== 'function' || SocketPlugins.mentions.userSearch._dingtalkPatched) {
+		return;
+	}
+
+	const originalUserSearch = SocketPlugins.mentions.userSearch;
+	SocketPlugins.mentions.userSearch = async function (socket, data) {
+		const cid = await resolveMentionSearchCid(data);
+		if (!isMentionCategory(cid)) {
+			return await originalUserSearch(socket, data);
+		}
+		return await searchUsersForMentionByFullname(socket, data);
+	};
+	SocketPlugins.mentions.userSearch._dingtalkPatched = true;
+}
+
+async function resolveMentionSearchCid(data) {
+	if (data && data.composerObj) {
+		const directCid = parseInt(data.composerObj.cid, 10);
+		if (directCid > 0) {
+			return directCid;
+		}
+		const tid = parseInt(data.composerObj.tid, 10);
+		if (tid > 0) {
+			return parseInt(await topics.getTopicField(tid, 'cid'), 10) || 0;
+		}
+	}
+	return 0;
+}
+
+async function searchUsersForMentionByFullname(socket, data) {
+	const allowed = await privileges.global.can('search:users', socket.uid);
+	if (!allowed) {
+		throw new Error('[[error:no-privileges]]');
+	}
+
+	const searchOpts = {
+		uid: socket.uid,
+		query: data.query,
+		sortBy: 'postcount',
+		hardCap: 1000,
+		paginate: true,
+		resultsPerPage: 100,
+	};
+
+	const [byUsername, byFullname] = await Promise.all([
+		user.search({ ...searchOpts, searchBy: 'username' }),
+		user.search({ ...searchOpts, searchBy: 'fullname' }),
+	]);
+
+	const usersByUid = new Map();
+	byFullname.users.forEach((userData) => {
+		if (userData && userData.uid) {
+			usersByUid.set(String(userData.uid), userData);
+		}
+	});
+	byUsername.users.forEach((userData) => {
+		if (userData && userData.uid && !usersByUid.has(String(userData.uid))) {
+			usersByUid.set(String(userData.uid), userData);
+		}
+	});
+
+	const users = Array.from(usersByUid.values()).sort((a, b) => (b.postcount || 0) - (a.postcount || 0));
+	return users.map((userData) => ({
+		...userData,
+		fullname: String(userData.fullname || ''),
+	}));
+}
+
 async function resolveCategoryIdForComposerPayload(payload) {
 	const directCid = payload.post && payload.post.cid ? parseInt(payload.post.cid, 10) : parseInt(payload.data && payload.data.cid, 10);
 	if (directCid > 0) {
@@ -725,15 +798,13 @@ async function sendMentionNotificationsToDingTalk(notification, uids) {
 	const [topicData, fromUser, targetUsers] = await Promise.all([
 		topics.getTopicFields(postData.tid, ['title', 'cid']),
 		user.getUserFields(postData.uid, ['username', 'fullname']),
-		user.getUsersFields(uids, ['uid', 'dingtalk:userid']),
+		user.getUsersFields(uids, ['uid', 'dingtalk:userid', 'dingtalk:unionid']),
 	]);
 	if (!topicData || !isMentionCategory(topicData.cid)) {
 		return;
 	}
 
-	const userIds = Array.from(new Set(targetUsers
-		.map(userData => String(userData && userData['dingtalk:userid'] || '').trim())
-		.filter(Boolean)));
+	const userIds = Array.from(new Set((await Promise.all(targetUsers.map(resolveTargetDingtalkUserId))).filter(Boolean)));
 	if (!userIds.length) {
 		return;
 	}
@@ -766,6 +837,30 @@ async function sendWorkNoticeToUserIds(userIds, msg) {
 	);
 }
 
+async function resolveTargetDingtalkUserId(userData) {
+	const existingUserId = String(userData && userData['dingtalk:userid'] || '').trim();
+	if (existingUserId) {
+		return existingUserId;
+	}
+
+	const unionId = String(userData && userData['dingtalk:unionid'] || '').trim();
+	if (!unionId || !userData || !userData.uid) {
+		return '';
+	}
+
+	try {
+		const appAccessToken = await getAppAccessToken();
+		const userId = await getDingtalkUserIdByUnionId(appAccessToken, unionId);
+		if (userId) {
+			await user.setUserField(userData.uid, 'dingtalk:userid', userId);
+		}
+		return userId;
+	} catch (err) {
+		winston.warn(`[sso-dingtalk] resolve target userid failed for uid ${userData.uid}: ${err.message}`);
+		return '';
+	}
+}
+
 async function syncDingtalkIdentityFields(uid, profile) {
 	const fields = {};
 	if (profile && profile.unionId) {
@@ -780,25 +875,30 @@ async function syncDingtalkIdentityFields(uid, profile) {
 }
 
 async function syncDingtalkUserId(uid, profile) {
-	const dingtalkUserId = await getDingtalkUserIdByProfile(profile);
-	if (dingtalkUserId) {
-		await user.setUserField(uid, 'dingtalk:userid', dingtalkUserId);
+	const detail = await getDingtalkUserDetailByProfile(profile);
+	if (!detail) {
+		return;
+	}
+
+	const updates = {};
+	if (detail.userId) {
+		updates['dingtalk:userid'] = detail.userId;
+	}
+	if (detail.name) {
+		updates.fullname = detail.name;
+	}
+	if (Object.keys(updates).length) {
+		await user.setUserFields(uid, updates);
 	}
 }
 
-async function getDingtalkUserIdByProfile(profile) {
-	const match = await findDingtalkUserByUnionId(profile);
-	return match ? match.userId : '';
-}
-
-async function findDingtalkUserByUnionId(profile) {
+async function getDingtalkUserDetailByProfile(profile) {
 	if (!profile || typeof profile !== 'object') {
 		return null;
 	}
 
-	const nick = typeof profile.nick === 'string' ? profile.nick.trim() : '';
 	const targetUnionId = typeof profile.unionId === 'string' ? profile.unionId.trim() : '';
-	if (!nick || !targetUnionId) {
+	if (!targetUnionId) {
 		return null;
 	}
 
@@ -810,37 +910,24 @@ async function findDingtalkUserByUnionId(profile) {
 		return null;
 	}
 
-	let userIds = [];
 	try {
-		const searchResult = await searchDingtalkUserIdsByNick(appAccessToken, nick);
-		userIds = searchResult.userIds;
-		if (searchResult.totalCount > 1) {
-			const mobile = typeof profile.mobile === 'string' ? profile.mobile.trim() : '';
-			if (mobile) {
-				const mobileUserIds = await getDingtalkUserIdsByMobile(appAccessToken, mobile);
-				if (mobileUserIds.length) {
-					userIds = mobileUserIds;
-				}
-			}
+		const dingtalkUserId = await getDingtalkUserIdByUnionId(appAccessToken, targetUnionId);
+		if (!dingtalkUserId) {
+			return null;
 		}
+		const detail = await getDingtalkUserByUserId(appAccessToken, dingtalkUserId);
+		if (!detail) {
+			return null;
+		}
+		return {
+			userId: String(dingtalkUserId),
+			name: String(detail.name || '').trim(),
+			detail,
+		};
 	} catch (err) {
-		winston.warn(`[sso-dingtalk] resolve userId by nick failed: ${err.message}`);
+		winston.warn(`[sso-dingtalk] resolve user detail by unionId failed: ${err.message}`);
 		return null;
 	}
-
-	for (const userId of userIds) {
-		try {
-			const detail = await getDingtalkUserByUserId(appAccessToken, userId);
-			const candidateUnionId = String(detail && detail.unionid || '').trim();
-			if (detail && candidateUnionId === targetUnionId) {
-				return { userId: String(userId), detail };
-			}
-		} catch (err) {
-			winston.warn(`[sso-dingtalk] resolve userId by unionId failed for userid ${userId}: ${err.message}`);
-		}
-	}
-
-	return null;
 }
 
 async function replaceAsync(string, regex, asyncReplacer) {
@@ -967,7 +1054,7 @@ async function getDingtalkUserIdsByMobile(appAccessToken, mobile) {
 	const normalizedMobile = mobile.trim();
 	winston.info(`[sso-dingtalk][email-flow] call /v2/user/getbymobile mobile=${normalizedMobile}`);
 
-	const response = await postJson(
+	const response = await postForm(
 		`${DINGTALK_USER_BY_MOBILE_URL}?access_token=${encodeURIComponent(appAccessToken)}`,
 		{
 			mobile: normalizedMobile,
@@ -985,6 +1072,23 @@ async function getDingtalkUserIdsByMobile(appAccessToken, mobile) {
 	return exclusiveList.map(value => String(value)).filter(Boolean);
 }
 
+async function getDingtalkUserIdByUnionId(appAccessToken, unionId) {
+	if (!appAccessToken || !unionId) {
+		return '';
+	}
+
+	const response = await postForm(
+		`${DINGTALK_USER_BY_UNIONID_URL}?access_token=${encodeURIComponent(appAccessToken)}`,
+		{ unionid: String(unionId).trim() }
+	);
+
+	if (!response || String(response.errcode) !== '0' || !response.result || !response.result.userid) {
+		return '';
+	}
+
+	return String(response.result.userid).trim();
+}
+
 async function getDingtalkUserByUserId(appAccessToken, userId) {
 	if (!appAccessToken || !userId) {
 		winston.info('[sso-dingtalk][email-flow] skip /v2/user/get: missing appAccessToken or userId');
@@ -992,7 +1096,7 @@ async function getDingtalkUserByUserId(appAccessToken, userId) {
 	}
 	winston.info(`[sso-dingtalk][email-flow] call /v2/user/get userid=${userId}`);
 
-	const response = await postJson(
+	const response = await postForm(
 		`${DINGTALK_USER_DETAIL_URL}?access_token=${encodeURIComponent(appAccessToken)}`,
 		{ userid: userId }
 	);

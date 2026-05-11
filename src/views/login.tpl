@@ -87,7 +87,7 @@
 						{{{ each authentication }}}
 						{{{ if (./name == "dingtalk") }}}
 						<li class="{./name} mb-2">
-							<a class="btn btn-primary btn-lg d-flex align-items-center justify-content-center mx-auto" style="width: 50%;" rel="nofollow noopener noreferrer" target="_top" href="{config.relative_path}{./url}">
+							<a class="btn btn-primary btn-lg d-flex align-items-center justify-content-center mx-auto dingtalk-login-button" style="width: 50%;" rel="nofollow noopener noreferrer" target="_top" href="{config.relative_path}{./url}">
 								{{{ if ./icons.svg }}}
 								{./icons.svg}
 								{{{ else }}}
@@ -99,8 +99,30 @@
 						{{{ end }}}
 						{{{ end }}}
 					</ul>
-					</div>
+					<script>
+						(function () {
+							if (typeof navigator === 'undefined') {
+								return;
+							}
+							var ua = navigator.userAgent || '';
+							var isDingTalk = /DingTalk/i.test(ua);
+							var isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
+							if (!isDingTalk || isMobile) {
+								return;
+							}
+							var link = document.querySelector('.dingtalk-login-button');
+							if (!link) {
+								return;
+							}
+							link.setAttribute('target', '_blank');
+							link.addEventListener('click', function (event) {
+								event.preventDefault();
+								window.open(this.href, '_blank', 'noopener');
+							});
+						})();
+					</script>
 				</div>
+			</div>
 			</div>
 			{{{ end }}}
 		</div>
