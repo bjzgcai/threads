@@ -31,6 +31,7 @@ Controllers.accounts = require('./accounts');
 Controllers.authentication = require('./authentication');
 Controllers.api = require('./api');
 Controllers.admin = require('./admin');
+Controllers.dingtalk = require('./dingtalk');
 Controllers.globalMods = require('./globalmods');
 Controllers.mods = require('./mods');
 Controllers.sitemap = require('./sitemap');

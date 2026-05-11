@@ -79,6 +79,7 @@ _mounts.main = (app, middleware, controllers) => {
 	const loginRegisterMiddleware = [middleware.redirectToAccountIfLoggedIn];
 
 	setupPageRoute(app, '/login', loginRegisterMiddleware, controllers.login);
+	setupPageRoute(app, '/dingtalk/pc-redirect', [], controllers.dingtalk.pcRedirect);
 	setupPageRoute(app, '/compose', [], controllers.composer.get);
 	setupPageRoute(app, '/confirm/:code', [], controllers.confirmEmail);
 	setupPageRoute(app, '/outgoing', [], controllers.outgoing);
@@ -232,6 +233,7 @@ module.exports = async function (app, middleware) {
 			/^\/reset(?:\/|$)/,
 			/^\/confirm(?:\/|$)/,
 			/^\/email\/unsubscribe(?:\/|$)/,
+			/^\/dingtalk\/pc-redirect(?:\/|$)/,
 		];
 
 		if (publicPatterns.some(pattern => pattern.test(req.path))) {
