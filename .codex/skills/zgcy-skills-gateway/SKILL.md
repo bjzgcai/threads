@@ -321,6 +321,20 @@ Example:
 }
 ```
 
+### Natural-language tag handling
+
+When the user asks to create a topic and mentions tags in natural language, map those tags to `input.tags`.
+
+Examples:
+
+- "发帖到新闻自动投递，标签是 文心5.1、百度、成本革命" means `tags: ["文心5.1", "百度", "成本革命"]`.
+- "系统标签设置为 AI资讯 / 百度" means `tags: ["AI资讯", "百度"]`.
+- "把这些关键词作为论坛标签，不要写进正文" means put them in `input.tags` and omit the textual tag line from `content`.
+
+Do not append a plain text section like `【标签】 tag1 / tag2` to the post body when the user intends reusable forum tags.
+
+For topic creation, `tags` is optional and must be an array of tag strings. It is ignored for replies. The forum may reject or filter tags according to category permissions, category tag whitelist, and global tag length/count settings.
+
 ## Preferred authentication flow
 
 1. The human user logs in to ZGCY in the browser.
