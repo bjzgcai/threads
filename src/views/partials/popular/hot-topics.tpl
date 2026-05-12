@@ -11,13 +11,27 @@
 				target="_blank"
 				rel="noopener noreferrer"
 				data-ajaxify="false"
-				class="d-inline-flex align-items-center gap-2 rounded-pill border border-white text-white text-decoration-none fw-bold px-4 py-2"
+				class="d-inline-flex align-items-center gap-2 rounded-pill border border-white text-white text-decoration-none fw-bold px-4 py-2 ms-auto me-lg-5"
 				style="background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);"
 			>
 				<i class="fa fa-external-link"></i>
 				<span>智策云端</span>
 			</a>
 		</div>
+	</div>
+
+	<div class="px-3 py-3 bg-body-tertiary border-bottom">
+		<nav class="topic-list-header bg-body d-flex flex-nowrap p-0 border-0 rounded">
+			<div class="d-flex flex-row p-2 card card-header gap-1 border rounded w-100 align-items-center">
+				<div component="category/controls" class="d-flex flex-wrap align-items-stretch me-auto mb-0 gap-2">
+					<!-- IMPORT partials/topic-terms.tpl -->
+					<!-- IMPORT partials/topic-filters.tpl -->
+					<!-- IMPORT partials/category/filter-dropdown-left.tpl -->
+					<!-- IMPORT partials/tags/filter-dropdown-left.tpl -->
+					<!-- IMPORT partials/category/tools-dropdown-left.tpl -->
+				</div>
+			</div>
+		</nav>
 	</div>
 
 	{{{ if hotTopicsTop10.hasTopics }}}
@@ -43,7 +57,7 @@
 					</div>
 					<div class="fw-bold fs-6 text-break lh-sm">{./title}</div>
 					{{{ if ./hotExcerpt }}}
-					<div class="text-muted small mt-2 lh-base text-break line-clamp-3">
+					<div class="text-muted small mt-2 lh-base text-break line-clamp-3" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
 						{./hotExcerpt}
 					</div>
 					{{{ end }}}
