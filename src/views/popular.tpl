@@ -9,9 +9,9 @@
 <div class="row flex-fill">
 	<div class="popular {{{if widgets.sidebar.length }}}col-lg-9 col-sm-12{{{ else }}}col-lg-12{{{ end }}}">
 		<div class="category">
-			<!-- IMPORT partials/popular/hot-topics.tpl -->
+			<!-- IMPORT partials/category/hot-topics-today.tpl -->
 
-			{{{ if !hotTopicsTop10.hasTopics }}}
+			{{{ if !hotTopics.hasTopics }}}
 			<div class="alert alert-info" id="category-no-topics">[[recent:no-popular-topics]]</div>
 			{{{ end }}}
 		</div>

@@ -11,7 +11,7 @@
 				target="_blank"
 				rel="noopener noreferrer"
 				data-ajaxify="false"
-				class="d-inline-flex align-items-center gap-2 rounded-pill border border-white text-white text-decoration-none fw-bold px-4 py-2 ms-auto me-lg-5"
+				class="d-inline-flex align-items-center gap-2 rounded-pill border border-white text-white text-decoration-none fw-bold px-4 py-2 ms-auto"
 				style="background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);"
 			>
 				<i class="fa fa-external-link"></i>

@@ -6,7 +6,7 @@
 				<div class="text-uppercase fw-bold small mb-2" style="letter-spacing: 0.12em; opacity: 0.85;">Popular Upgrade</div>
 				<h2 class="fs-4 fw-bold mb-1">[[category:hot-topics]]</h2>
 			</div>
-			<div class="flex-grow-1 d-flex align-items-center justify-content-center py-2">
+			<div class="d-flex align-items-center justify-content-end ms-auto py-2">
 				<a
 					href="http://10.1.132.21:8080"
 					target="_blank"
@@ -54,7 +54,7 @@
 					</div>
 					<div class="fw-bold fs-6 text-break lh-sm">{./title}</div>
 					{{{ if ./teaser.content }}}
-					<div class="text-muted small mt-2 lh-base text-break">
+					<div class="text-muted small mt-2 lh-base text-break line-clamp-3" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
 						{./teaser.content}
 					</div>
 					{{{ end }}}

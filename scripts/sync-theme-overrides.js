@@ -18,6 +18,10 @@ const overrides = [
 		source: 'src/views/account/edit/username.tpl',
 		target: 'node_modules/nodebb-theme-harmony/templates/account/edit/username.tpl',
 	},
+	{
+		source: 'src/views/popular.tpl',
+		target: 'node_modules/nodebb-theme-harmony/templates/popular.tpl',
+	},
 ];
 
 function copyOverride(sourceRel, targetRel) {

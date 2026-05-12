@@ -9,11 +9,11 @@ const db = require('../database');
 const privileges = require('../privileges');
 const user = require('../user');
 const categories = require('../categories');
-const topics = require('../topics');
 const meta = require('../meta');
 const activitypub = require('../activitypub');
 const pagination = require('../pagination');
 const helpers = require('./helpers');
+const hotTopics = require('./hotTopics');
 const utils = require('../utils');
 const translator = require('../translator');
 const analytics = require('../analytics');
@@ -218,82 +218,11 @@ async function getHotTopics(cid, uid, userPrivileges, query) {
 		return null;
 	}
 
-	// Category 20 is a curated "hot topics" board with no native topics of its own,
-	// so source candidates from the global topic rankings instead of the category zset.
-	const topicCandidates = await getHotTopicCandidates(uid, cid, query);
-	if (!topicCandidates.length) {
-		return {
-			topics: [],
-			hasTopics: false,
-			hasMore: false,
-		};
-	}
-
-	const hotTopics = topicCandidates
-		.filter(topic => topic && !topic.scheduled)
-		.map((topic, index) => {
-			topic.rank = index + 1;
-			topic.heat = buildHeat(topic);
-			topic.isExtraHotTopic = index >= 10;
-			return topic;
-		})
-		.sort((a, b) => {
-			if (b.heat !== a.heat) {
-				return b.heat - a.heat;
-			}
-			return b.timestamp - a.timestamp;
-		})
-		.map((topic, index) => {
-			topic.rank = index + 1;
-			topic.isExtraHotTopic = index >= 10;
-			return topic;
-		})
-		.slice(0, 30);
-
-	return {
-		topics: hotTopics,
-		hasTopics: hotTopics.length > 0,
-		hasMore: hotTopics.length > 10,
-	};
-}
-
-function buildHeat(topic) {
-	const replies = Math.max(0, (parseInt(topic.postcount, 10) || 0) - 1);
-	const votes = Math.max(0, parseInt(topic.votes, 10) || 0);
-	const views = Math.max(0, parseInt(topic.viewcount, 10) || 0);
-	return replies + votes + views;
-}
-
-async function getHotTopicCandidates(uid, excludedCid, query) {
-	const candidateLimit = 200;
-	const term = helpers.terms[query.term || 'alltime'] || 'alltime';
-	const params = sort => ({
-		cids: query.cid,
-		tags: query.tag,
+	return await hotTopics.getHotTopics({
 		uid: uid,
-		start: 0,
-		stop: candidateLimit - 1,
-		filter: query.filter || '',
-		term: term,
-		sort: sort,
-		floatPinned: query.pinned,
 		query: query,
+		excludedCid: cid,
 	});
-	const [viewTopics, postTopics, voteTopics] = await Promise.all([
-		topics.getSortedTopics(params('views')),
-		topics.getSortedTopics(params('posts')),
-		topics.getSortedTopics(params('votes')),
-	]);
-
-	const seen = new Set();
-	return viewTopics.topics.concat(postTopics.topics, voteTopics.topics)
-		.filter((topic) => {
-			if (!topic || seen.has(String(topic.tid)) || String(topic.cid) === String(excludedCid)) {
-				return false;
-			}
-			seen.add(String(topic.tid));
-			return true;
-		});
 }
 
 async function buildBreadcrumbs(req, categoryData) {
