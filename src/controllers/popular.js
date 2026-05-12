@@ -46,10 +46,7 @@ popularController.get = async function (req, res, next) {
 	const start = Math.max(0, (page - 1) * settings.topicsPerPage);
 	const stop = start + settings.topicsPerPage;
 
-	data.hotTopicsTop10 = {
-		topics: weightedHotTopics.topics.slice(0, 10),
-		hasTopics: weightedHotTopics.topics.length > 0,
-	};
+	data.hotTopicsTop10 = buildHotTopicsDisplayData(weightedHotTopics.topics);
 	data.topics = weightedHotTopics.topics.slice(start, stop);
 	data.topicCount = weightedHotTopics.topics.length;
 	data.nextStart = stop;
@@ -67,6 +64,20 @@ popularController.get = async function (req, res, next) {
 	});
 	res.render('popular', data);
 };
+
+function buildHotTopicsDisplayData(topicData) {
+	const displayTopics = topicData.slice(0, 30).map((topic, index) => {
+		topic.rank = index + 1;
+		topic.isExtraHotTopic = index >= 10;
+		return topic;
+	});
+
+	return {
+		topics: displayTopics,
+		hasTopics: displayTopics.length > 0,
+		hasMore: displayTopics.length > 10,
+	};
+}
 
 async function getWeightedHotTopics(params) {
 	const { uid, query } = params;
@@ -176,5 +187,5 @@ function buildHotExcerpt(topic) {
 		return '';
 	}
 
-	return text.length > 110 ? `${text.slice(0, 110).trim()}...` : text;
+	return text.length > 260 ? `${text.slice(0, 260).trim()}...` : text;
 }
