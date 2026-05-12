@@ -152,7 +152,10 @@ categoryController.get = async function (req, res, next) {
 	categoryData.selectedTag = tagData.selectedTag;
 	categoryData.selectedTags = tagData.selectedTags;
 	categoryData.sortOptionLabel = `[[topic:${validator.escape(String(sort)).replace(/_/g, '-')}]]`;
-	categoryData.hotTopics = await getHotTopics(cid, req.uid, userPrivileges);
+	categoryData.hotTopics = await getHotTopics(cid, req.uid, userPrivileges, req.query);
+	if (categoryData.hotTopics) {
+		await addHotTopicControls(categoryData, req.query);
+	}
 
 	if (utils.isNumber(categoryData.cid) && !meta.config['feeds:disableRSS']) {
 		categoryData.rssFeedUrl = `${url}/category/${categoryData.cid}.rss`;
@@ -192,26 +195,46 @@ categoryController.get = async function (req, res, next) {
 	res.render('category', categoryData);
 };
 
-async function getHotTopics(cid, uid, userPrivileges) {
+async function addHotTopicControls(categoryData, query) {
+	const cleanQuery = { ...query };
+	delete cleanQuery.page;
+
+	const filter = query.filter || '';
+	const term = helpers.terms[query.term || 'alltime'] || 'alltime';
+	const baseUrl = `category/${categoryData.slug}`;
+	const selectedCategoryData = await helpers.getSelectedCategory(query.cid);
+
+	categoryData.allCategoriesUrl = baseUrl + helpers.buildQueryString(cleanQuery, 'cid', '');
+	categoryData.selectedCategory = selectedCategoryData.selectedCategory;
+	categoryData.selectedCids = selectedCategoryData.selectedCids;
+	categoryData.filters = helpers.buildFilters(baseUrl, filter, cleanQuery);
+	categoryData.selectedFilter = categoryData.filters.find(filterData => filterData && filterData.selected);
+	categoryData.terms = helpers.buildTerms(baseUrl, term, cleanQuery);
+	categoryData.selectedTerm = categoryData.terms.find(termData => termData && termData.selected);
+}
+
+async function getHotTopics(cid, uid, userPrivileges, query) {
 	if (!hotTopicsCategoryCid || String(cid) !== String(hotTopicsCategoryCid) || !userPrivileges.read) {
 		return null;
 	}
 
 	// Category 20 is a curated "hot topics" board with no native topics of its own,
 	// so source candidates from the global topic rankings instead of the category zset.
-	const tids = await getHotTopicCandidateTids(uid, cid);
-	if (!tids.length) {
+	const topicCandidates = await getHotTopicCandidates(uid, cid, query);
+	if (!topicCandidates.length) {
 		return {
 			topics: [],
 			hasTopics: false,
+			hasMore: false,
 		};
 	}
 
-	const topicsData = await topics.getTopics(tids, { uid: uid });
-	const hotTopics = topicsData
+	const hotTopics = topicCandidates
 		.filter(topic => topic && !topic.scheduled)
-		.map((topic) => {
-			topic.heat = (parseInt(topic.viewcount, 10) || 0) + (parseInt(topic.postcount, 10) || 0);
+		.map((topic, index) => {
+			topic.rank = index + 1;
+			topic.heat = buildHeat(topic);
+			topic.isExtraHotTopic = index >= 10;
 			return topic;
 		})
 		.sort((a, b) => {
@@ -220,33 +243,57 @@ async function getHotTopics(cid, uid, userPrivileges) {
 			}
 			return b.timestamp - a.timestamp;
 		})
-		.slice(0, 10);
+		.map((topic, index) => {
+			topic.rank = index + 1;
+			topic.isExtraHotTopic = index >= 10;
+			return topic;
+		})
+		.slice(0, 30);
 
 	return {
 		topics: hotTopics,
 		hasTopics: hotTopics.length > 0,
+		hasMore: hotTopics.length > 10,
 	};
 }
 
-async function getHotTopicCandidateTids(uid, excludedCid) {
+function buildHeat(topic) {
+	const replies = Math.max(0, (parseInt(topic.postcount, 10) || 0) - 1);
+	const votes = Math.max(0, parseInt(topic.votes, 10) || 0);
+	const views = Math.max(0, parseInt(topic.viewcount, 10) || 0);
+	return replies + votes + views;
+}
+
+async function getHotTopicCandidates(uid, excludedCid, query) {
 	const candidateLimit = 200;
-	const [viewTids, postTids] = await Promise.all([
-		db.getSortedSetRevRange('topics:views', 0, candidateLimit - 1),
-		db.getSortedSetRevRange('topics:posts', 0, candidateLimit - 1),
+	const term = helpers.terms[query.term || 'alltime'] || 'alltime';
+	const params = sort => ({
+		cids: query.cid,
+		tags: query.tag,
+		uid: uid,
+		start: 0,
+		stop: candidateLimit - 1,
+		filter: query.filter || '',
+		term: term,
+		sort: sort,
+		floatPinned: query.pinned,
+		query: query,
+	});
+	const [viewTopics, postTopics, voteTopics] = await Promise.all([
+		topics.getSortedTopics(params('views')),
+		topics.getSortedTopics(params('posts')),
+		topics.getSortedTopics(params('votes')),
 	]);
 
-	let tids = [...new Set(viewTids.concat(postTids))];
-	if (!tids.length) {
-		return [];
-	}
-
-	tids = await privileges.topics.filterTids('topics:read', tids, uid);
-	if (!tids.length) {
-		return [];
-	}
-
-	const topicCids = await topics.getTopicsFields(tids, ['cid']);
-	return tids.filter((tid, index) => String(topicCids[index] && topicCids[index].cid) !== String(excludedCid));
+	const seen = new Set();
+	return viewTopics.topics.concat(postTopics.topics, voteTopics.topics)
+		.filter((topic) => {
+			if (!topic || seen.has(String(topic.tid)) || String(topic.cid) === String(excludedCid)) {
+				return false;
+			}
+			seen.add(String(topic.tid));
+			return true;
+		});
 }
 
 async function buildBreadcrumbs(req, categoryData) {

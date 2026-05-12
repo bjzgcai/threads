@@ -42,6 +42,8 @@ define('forum/category', [
 
 		handleDescription();
 
+		handleHotTopicsMore();
+
 		categorySelector.init($('[component="category-selector"]'), {
 			privilege: 'find',
 			parentCid: ajaxify.data.cid,
@@ -123,6 +125,14 @@ define('forum/category', [
 		fadeEl.addEventListener('click', () => {
 			const state = fadeEl.classList.contains('line-clamp-4');
 			fadeEl.classList.toggle('line-clamp-4', !state);
+		});
+	}
+
+	function handleHotTopicsMore() {
+		$('[component="category/hot-topics-more"]').on('click', function () {
+			const btn = $(this);
+			$('[component="category/hot-topic-item"][data-extra="true"]').removeClass('d-none');
+			btn.closest('div').remove();
 		});
 	}
 

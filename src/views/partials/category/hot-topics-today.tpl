@@ -3,49 +3,79 @@
 	<div class="px-4 py-4 text-white" style="background: linear-gradient(135deg, #ff7a18 0%, #ffb347 55%, #ffd27d 100%);">
 		<div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
 			<div>
-				<div class="text-uppercase fw-bold small mb-2" style="letter-spacing: 0.12em; opacity: 0.85;">Trending Board</div>
+				<div class="text-uppercase fw-bold small mb-2" style="letter-spacing: 0.12em; opacity: 0.85;">Popular Upgrade</div>
 				<h2 class="fs-4 fw-bold mb-1">[[category:hot-topics]]</h2>
-				<p class="mb-0 small" style="opacity: 0.92;">按全站热度实时排序，抓取阅读和回复最能打的帖子。</p>
 			</div>
-			<div class="rounded-pill px-3 py-2 small fw-semibold text-dark" style="background: rgba(255, 255, 255, 0.88);">
-				<i class="fa fa-fire me-1 text-danger"></i>
-				[[category:hot-topics-score-label]]
+			<div class="flex-grow-1 d-flex align-items-center justify-content-center py-2">
+				<a
+					href="http://10.1.132.21:8080"
+					target="_blank"
+					rel="noopener noreferrer"
+					data-ajaxify="false"
+					class="d-inline-flex align-items-center gap-2 rounded-pill border border-white text-white text-decoration-none fw-bold px-4 py-2"
+					style="background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);"
+				>
+					<i class="fa fa-external-link"></i>
+					<span>智策云端</span>
+				</a>
 			</div>
 		</div>
+	</div>
+	<div class="px-3 py-3 bg-body-tertiary border-bottom">
+		<nav class="topic-list-header bg-body d-flex flex-nowrap p-0 border-0 rounded">
+			<div class="d-flex flex-row p-2 card card-header gap-1 border rounded w-100 align-items-center">
+				<div component="category/controls" class="d-flex flex-wrap align-items-stretch me-auto mb-0 gap-2">
+					<!-- IMPORT partials/topic-terms.tpl -->
+					<!-- IMPORT partials/topic-filters.tpl -->
+					<!-- IMPORT partials/category/filter-dropdown-left.tpl -->
+					<!-- IMPORT partials/tags/filter-dropdown-left.tpl -->
+					<!-- IMPORT partials/category/tools-dropdown-left.tpl -->
+				</div>
+			</div>
+		</nav>
 	</div>
 	{{{ if hotTopics.hasTopics }}}
 	<ol class="list-unstyled mb-0 px-2 py-2 bg-body-tertiary">
 		{{{ each hotTopics.topics }}}
-		<li class="mb-2">
+		<li class="mb-2 {{{ if ./isExtraHotTopic }}}d-none{{{ end }}}" component="category/hot-topic-item" data-extra="{./isExtraHotTopic}">
 			<a
-				class="d-flex gap-3 align-items-start text-reset text-decoration-none rounded-3 px-3 py-3 bg-body border shadow-sm-sm"
+				class="d-flex flex-wrap flex-lg-nowrap gap-3 align-items-start text-reset text-decoration-none rounded-3 px-3 py-3 bg-body border shadow-sm-sm"
 				href="{config.relative_path}/topic/{./slug}"
 				style="transition: transform 0.18s ease, box-shadow 0.18s ease;"
 			>
 				<span class="d-inline-flex align-items-center justify-content-center rounded-circle fw-bold flex-shrink-0" style="width: 2.4rem; height: 2.4rem; background: linear-gradient(135deg, #ff8a00 0%, #ffc14d 100%); color: #1f2937; box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);">
-					{increment(@index, "1")}
+					{./rank}
 				</span>
 				<div class="flex-grow-1 min-width-0">
-					<div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
-						<div class="min-width-0">
-							<div class="fw-bold fs-6 text-break lh-sm">{./title}</div>
-							<div class="d-flex flex-wrap gap-2 text-muted small mt-2">
-								<span class="rounded-pill px-2 py-1 border bg-light-subtle"><i class="fa fa-eye me-1"></i>{humanReadableNumber(./viewcount, 0)} 阅读</span>
-								<span class="rounded-pill px-2 py-1 border bg-light-subtle"><i class="fa fa-message me-1"></i>{humanReadableNumber(./postcount, 0)} 回复</span>
-							</div>
-						</div>
-						<div class="text-end flex-shrink-0">
-							<div class="small text-muted mb-1">热度值</div>
-							<div class="rounded-3 px-3 py-2 fw-bold text-dark" style="background: linear-gradient(135deg, #ffe8b8 0%, #ffd27d 100%); min-width: 5.5rem;">
-								<i class="fa fa-fire text-danger me-1"></i>{humanReadableNumber(./heat, 0)}
-							</div>
-						</div>
+					<div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+						{{{ if ./category }}}
+						{buildCategoryLabel(./category, "span", "border")}
+						{{{ end }}}
 					</div>
+					<div class="fw-bold fs-6 text-break lh-sm">{./title}</div>
+					{{{ if ./teaser.content }}}
+					<div class="text-muted small mt-2 lh-base text-break">
+						{./teaser.content}
+					</div>
+					{{{ end }}}
+				</div>
+				<div class="d-flex flex-row flex-lg-column gap-2 align-items-start align-items-lg-end flex-shrink-0 ms-lg-auto ps-lg-3">
+					<span class="rounded-pill px-2 py-1 border bg-light-subtle small text-nowrap"><i class="fa fa-message text-danger me-1"></i>{humanReadableNumber(./postcount, 0)} 回复</span>
+					<span class="rounded-pill px-2 py-1 border bg-light-subtle small text-nowrap"><i class="fa fa-thumbs-up text-primary me-1"></i>{humanReadableNumber(./votes, 0)} 点赞</span>
+					<span class="rounded-pill px-2 py-1 border bg-light-subtle small text-nowrap"><i class="fa fa-eye text-warning me-1"></i>{humanReadableNumber(./viewcount, 0)} 阅读</span>
 				</div>
 			</a>
 		</li>
 		{{{ end }}}
 	</ol>
+	{{{ if hotTopics.hasMore }}}
+	<div class="px-4 pb-4 pt-2 bg-body-tertiary text-center">
+		<button type="button" class="btn btn-light border fw-semibold" component="category/hot-topics-more">
+			查看更多
+			<i class="fa fa-chevron-down ms-1"></i>
+		</button>
+	</div>
+	{{{ end }}}
 	{{{ else }}}
 	<div class="px-4 py-4 text-muted">[[category:hot-topics-empty]]</div>
 	{{{ end }}}
