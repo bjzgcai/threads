@@ -197,7 +197,9 @@ async function getHotTopics(cid, uid, userPrivileges) {
 		return null;
 	}
 
-	const tids = await db.getSortedSetRevRange(`cid:${cid}:tids`, 0, -1);
+	// Category 20 is a curated "hot topics" board with no native topics of its own,
+	// so source candidates from the global topic rankings instead of the category zset.
+	const tids = await getHotTopicCandidateTids(uid, cid);
 	if (!tids.length) {
 		return {
 			topics: [],
@@ -224,6 +226,27 @@ async function getHotTopics(cid, uid, userPrivileges) {
 		topics: hotTopics,
 		hasTopics: hotTopics.length > 0,
 	};
+}
+
+async function getHotTopicCandidateTids(uid, excludedCid) {
+	const candidateLimit = 200;
+	const [viewTids, postTids] = await Promise.all([
+		db.getSortedSetRevRange('topics:views', 0, candidateLimit - 1),
+		db.getSortedSetRevRange('topics:posts', 0, candidateLimit - 1),
+	]);
+
+	let tids = [...new Set(viewTids.concat(postTids))];
+	if (!tids.length) {
+		return [];
+	}
+
+	tids = await privileges.topics.filterTids('topics:read', tids, uid);
+	if (!tids.length) {
+		return [];
+	}
+
+	const topicCids = await topics.getTopicsFields(tids, ['cid']);
+	return tids.filter((tid, index) => String(topicCids[index] && topicCids[index].cid) !== String(excludedCid));
 }
 
 async function buildBreadcrumbs(req, categoryData) {
