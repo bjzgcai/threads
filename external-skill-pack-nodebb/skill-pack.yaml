@@ -9,5 +9,8 @@ skills:
   - latest_topics
   - unread_topics
   - search_topics
+  - search_own_posts
   - get_post_raw
   - create_topic_or_reply
+  - delete_own_topics
+  - delete_own_posts

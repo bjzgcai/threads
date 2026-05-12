@@ -9,6 +9,7 @@ const db = require('../database');
 const privileges = require('../privileges');
 const user = require('../user');
 const categories = require('../categories');
+const topics = require('../topics');
 const meta = require('../meta');
 const activitypub = require('../activitypub');
 const pagination = require('../pagination');
@@ -24,6 +25,7 @@ const relative_path = nconf.get('relative_path');
 const validSorts = [
 	'recently_replied', 'recently_created', 'most_posts', 'most_votes', 'most_views',
 ];
+const hotTopicsCategoryCid = process.env.NODEBB_HOT_TOPICS_CATEGORY_CID;
 
 categoryController.get = async function (req, res, next) {
 	let cid = req.params.category_id;
@@ -150,6 +152,7 @@ categoryController.get = async function (req, res, next) {
 	categoryData.selectedTag = tagData.selectedTag;
 	categoryData.selectedTags = tagData.selectedTags;
 	categoryData.sortOptionLabel = `[[topic:${validator.escape(String(sort)).replace(/_/g, '-')}]]`;
+	categoryData.hotTopics = await getHotTopics(cid, req.uid, userPrivileges);
 
 	if (utils.isNumber(categoryData.cid) && !meta.config['feeds:disableRSS']) {
 		categoryData.rssFeedUrl = `${url}/category/${categoryData.cid}.rss`;
@@ -188,6 +191,40 @@ categoryController.get = async function (req, res, next) {
 
 	res.render('category', categoryData);
 };
+
+async function getHotTopics(cid, uid, userPrivileges) {
+	if (!hotTopicsCategoryCid || String(cid) !== String(hotTopicsCategoryCid) || !userPrivileges.read) {
+		return null;
+	}
+
+	const tids = await db.getSortedSetRevRange(`cid:${cid}:tids`, 0, -1);
+	if (!tids.length) {
+		return {
+			topics: [],
+			hasTopics: false,
+		};
+	}
+
+	const topicsData = await topics.getTopics(tids, { uid: uid });
+	const hotTopics = topicsData
+		.filter(topic => topic && !topic.scheduled)
+		.map((topic) => {
+			topic.heat = (parseInt(topic.viewcount, 10) || 0) + (parseInt(topic.postcount, 10) || 0);
+			return topic;
+		})
+		.sort((a, b) => {
+			if (b.heat !== a.heat) {
+				return b.heat - a.heat;
+			}
+			return b.timestamp - a.timestamp;
+		})
+		.slice(0, 10);
+
+	return {
+		topics: hotTopics,
+		hasTopics: hotTopics.length > 0,
+	};
+}
 
 async function buildBreadcrumbs(req, categoryData) {
 	const breadcrumbs = [

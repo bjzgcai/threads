@@ -70,9 +70,12 @@ function main() {
     path.join('examples', 'latest_topics.request.json'),
     path.join('examples', 'unread_topics.request.json'),
     path.join('examples', 'search_topics.request.json'),
+    path.join('examples', 'search_own_posts.request.json'),
     path.join('examples', 'get_post_raw.request.json'),
     path.join('examples', 'create_topic.request.json'),
     path.join('examples', 'create_reply.request.json'),
+    path.join('examples', 'delete_own_topics.request.json'),
+    path.join('examples', 'delete_own_posts.request.json'),
   ];
 
   const requiredSkillDocs = [
@@ -80,8 +83,11 @@ function main() {
     path.join('skills', 'latest_topics.md'),
     path.join('skills', 'unread_topics.md'),
     path.join('skills', 'search_topics.md'),
+    path.join('skills', 'search_own_posts.md'),
     path.join('skills', 'get_post_raw.md'),
     path.join('skills', 'create_topic_or_reply.md'),
+    path.join('skills', 'delete_own_topics.md'),
+    path.join('skills', 'delete_own_posts.md'),
   ];
 
   [...requiredFiles, ...requiredExamples, ...requiredSkillDocs].forEach(relativePath => {

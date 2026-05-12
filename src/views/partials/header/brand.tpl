@@ -2,7 +2,7 @@
 <div class="container-lg px-md-4 brand-container">
 	<div class="col-12 d-flex border-bottom pb-3 {{{ if config.theme.centerHeaderElements }}}justify-content-center{{{ end }}}">
 		{{{ if config.showSiteTitle }}}
-		<a component="brand/wrapper" class="d-flex align-items-center gap-3 p-2 rounded-1 align-content-stretch text-decoration-none" href="{relative_path}/" aria-label="{config.siteTitle}">
+		<a component="brand/wrapper" class="d-flex align-items-center gap-3 p-2 rounded-1 align-content-stretch text-decoration-none" href="{{{ if loggedIn }}}{relative_path}/{{{ else }}}{relative_path}/login{{{ end }}}" aria-label="{config.siteTitle}">
 			<div component="siteTitle" class="text-truncate align-self-stretch align-items-center d-flex gap-2">
 				<img src="{relative_path}/assets/images/logo.png" alt="诸葛菜园" style="width: 32px; height: 32px; object-fit: contain; flex-shrink: 0;" />
 				<h1 class="fs-6 fw-bold text-body mb-0">{config.siteTitle}</h1>

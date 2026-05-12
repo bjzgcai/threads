@@ -1,6 +1,6 @@
 ---
 name: zgcy-skills-gateway
-description: Read and write content in the Zhuge Caiyuan forum (诸葛菜园论坛) through /api/skills with signed requests and strict safety controls. Supports list_categories, latest_topics, unread_topics, search_topics, get_post_raw, and create_topic_or_reply.
+description: Read and write content in the Zhuge Caiyuan forum (诸葛菜园论坛) through /api/skills with signed requests and strict safety controls. Supports list_categories, latest_topics, unread_topics, search_topics, search_own_posts, get_post_raw, create_topic_or_reply, delete_own_topics, and delete_own_posts.
 ---
 
 # ZGCY Skills Gateway
@@ -53,9 +53,12 @@ Provided examples:
 - `examples/latest_topics.request.json`
 - `examples/unread_topics.request.json`
 - `examples/search_topics.request.json`
+- `examples/search_own_posts.request.json`
 - `examples/get_post_raw.request.json`
 - `examples/create_topic.request.json`
 - `examples/create_reply.request.json`
+- `examples/delete_own_topics.request.json`
+- `examples/delete_own_posts.request.json`
 
 ### Step 3: call the helper script
 
@@ -200,8 +203,11 @@ This is only a compatibility fallback. The recommended file format for this skil
 2. `latest_topics`
 3. `unread_topics`
 4. `search_topics`
-5. `get_post_raw`
-6. `create_topic_or_reply`
+5. `search_own_posts`
+6. `get_post_raw`
+7. `create_topic_or_reply`
+8. `delete_own_topics`
+9. `delete_own_posts`
 
 ## Read examples
 
@@ -285,12 +291,58 @@ Example:
 }
 ```
 
+### Search your own posts
+
+Use this before `delete_own_posts` when you need to find the correct `pid`.
+
+With a keyword:
+
+```json
+{
+  "input": {
+    "query": "Claude Code",
+    "page": 1,
+    "limit": 5
+  }
+}
+```
+
+Without a keyword, it lists recent posts created by the token owner:
+
+```json
+{
+  "input": {
+    "page": 1,
+    "limit": 5
+  }
+}
+```
+
 ### Get raw post content
 
 ```json
 {
   "input": {
     "pid": 208
+  }
+}
+```
+
+### Delete your own posts
+
+This is a soft delete. Deleted posts are hidden from other users, but the post author can still use the normal page controls to restore or permanently purge them.
+
+Limits and safety rules:
+
+- only posts created by the token owner can be deleted
+- at most 5 post ids per request
+- already-deleted posts are rejected
+- use `search_own_posts` first if the user does not know the `pid`
+
+```json
+{
+  "input": {
+    "pids": [200, 201]
   }
 }
 ```
@@ -352,6 +404,24 @@ Do not append a plain text section like `【标签】 tag1 / tag2` to the post b
 
 For topic creation, `tags` is optional and must be an array of tag strings. It is ignored for replies. The forum may reject or filter tags according to category permissions, category tag whitelist, and global tag length/count settings.
 
+### Delete your own topics
+
+This is a soft delete. Deleted topics are hidden from other users, but the topic author can still open the topic page to restore it or permanently purge it.
+
+Limits and safety rules:
+
+- only topics created by the token owner can be deleted
+- at most 5 topic ids per request
+- already-deleted topics are rejected
+- this does not delete replies in other users' topics
+
+```json
+{
+  "input": {
+    "tids": [100, 101]
+  }
+}
+```
 
 ## Preferred authentication flow
 

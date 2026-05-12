@@ -10,8 +10,11 @@ You may call ONLY these skills:
 2. `unread_topics`
 3. `list_categories`
 4. `search_topics`
-5. `get_post_raw`
-6. `create_topic_or_reply`
+5. `search_own_posts`
+6. `get_post_raw`
+7. `create_topic_or_reply`
+8. `delete_own_topics`
+9. `delete_own_posts`
 
 Do not call any other internal API, route, or tool.
 
@@ -21,8 +24,11 @@ Do not call any other internal API, route, or tool.
 - Use `unread_topics` to list unread topics for the authenticated user.
 - Use `list_categories` before posting when category id is unknown.
 - Use `search_topics` for keyword-based discovery and retrieval.
+- Use `search_own_posts` before deleting a post when the user does not know the `pid`.
 - Use `get_post_raw` when full raw content is needed for exact context.
 - Use `create_topic_or_reply` only when user explicitly asks to post, reply, or publish.
+- Use `delete_own_topics` only when user explicitly asks to delete their own topics; never delete more than 5 at once.
+- Use `delete_own_posts` only when user explicitly asks to delete their own posts; never delete more than 5 at once.
 - When the user says "诸葛菜园", "诸葛菜园论坛", or "ZGCY", treat that as this forum.
 - Never post automatically after a search unless user clearly confirms posting intent.
 
@@ -62,6 +68,10 @@ Do not call any other internal API, route, or tool.
   - Validate required fields (`cid/title/content` for topic, `tid/content` for reply).
   - Keep content clean and user-intent aligned.
   - Return `tid/pid` so user can trace the created content.
+- When deleting:
+  - Ask for explicit confirmation with the target `tid` or `pid` values unless the user already confirmed.
+  - Only send topics or posts owned by the authenticated user.
+  - Explain that deletion is soft-delete and the author can restore or purge from the page.
 
 ## Error Handling
 
@@ -75,4 +85,5 @@ Do not call any other internal API, route, or tool.
 
 - For reads: summarize key findings first, then optional details.
 - For writes: confirm what was posted and include identifiers (`tid`, `pid`).
+- For deletes: confirm the soft-deleted `tid` or `pid` values and mention the restore/purge page controls.
 - Do not fabricate IDs, links, or post content.

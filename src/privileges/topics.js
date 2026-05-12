@@ -130,12 +130,12 @@ privsTopics.filterUids = async function (privilege, tid, uids) {
 };
 
 privsTopics.canPurge = async function (tid, uid) {
-	const cid = await topics.getTopicField(tid, 'cid');
+	const topicData = await topics.getTopicFields(tid, ['uid', 'cid', 'deleted', 'deleterUid']);
 	let [purge, owner, isAdmin, isModerator] = await Promise.all([
-		privsCategories.isUserAllowedTo('purge', cid, uid),
+		privsCategories.isUserAllowedTo('purge', topicData.cid, uid),
 		topics.isOwner(tid, uid),
 		user.isAdministrator(uid),
-		user.isModerator(uid, cid),
+		user.isModerator(uid, topicData.cid),
 	]);
 
 	// Allow remote posts to purge themselves (as:Delete received)
@@ -143,7 +143,11 @@ privsTopics.canPurge = async function (tid, uid) {
 		purge = true;
 	}
 
-	return (purge && (owner || isModerator)) || isAdmin;
+	const selfDeletedOwnTopic = owner &&
+		parseInt(topicData.deleted, 10) === 1 &&
+		parseInt(topicData.deleterUid, 10) === parseInt(topicData.uid, 10);
+
+	return selfDeletedOwnTopic || (purge && (owner || isModerator)) || isAdmin;
 };
 
 privsTopics.canDelete = async function (tid, uid) {

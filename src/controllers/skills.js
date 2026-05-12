@@ -2,9 +2,11 @@
 
 const api = require('../api');
 const categories = require('../categories');
+const db = require('../database');
 const search = require('../search');
 const manifest = require('../skills/manifest');
 const skillTokens = require('../skills/tokens');
+const posts = require('../posts');
 const topics = require('../topics');
 const helpers = require('./helpers');
 const user = require('../user');
@@ -16,6 +18,8 @@ const TITLE_MAX = 200;
 const QUERY_MAX = 200;
 const TAG_MAX = 5;
 const LIST_LIMIT_MAX = 20;
+const DELETE_TOPICS_MAX = 5;
+const DELETE_POSTS_MAX = 5;
 const UNREAD_FILTERS = new Set(['', 'new', 'watched', 'unreplied']);
 
 function asPositiveInt(value, name) {
@@ -86,6 +90,48 @@ function normalizeListPaging(input) {
 		start: (page - 1) * limit,
 		stop: (page * limit) - 1,
 	};
+}
+
+function normalizeTopicIds(value) {
+	if (!Array.isArray(value)) {
+		throw new Error('tids-must-be-array');
+	}
+	if (!value.length) {
+		throw new Error('tids-must-not-be-empty');
+	}
+	if (value.length > DELETE_TOPICS_MAX) {
+		throw new Error('too-many-topics-to-delete');
+	}
+
+	return [...new Set(value.map(tid => asPositiveInt(tid, 'tid')))];
+}
+
+function normalizePostIds(value) {
+	if (!Array.isArray(value)) {
+		throw new Error('pids-must-be-array');
+	}
+	if (!value.length) {
+		throw new Error('pids-must-not-be-empty');
+	}
+	if (value.length > DELETE_POSTS_MAX) {
+		throw new Error('too-many-posts-to-delete');
+	}
+
+	return [...new Set(value.map(pid => asPositiveInt(pid, 'pid')))];
+}
+
+function normalizeOptionalQuery(value) {
+	if (value === undefined || value === null) {
+		return '';
+	}
+	if (typeof value !== 'string') {
+		throw new Error('query-must-be-string');
+	}
+	const query = value.trim();
+	if (query.length > QUERY_MAX) {
+		throw new Error('query-too-long');
+	}
+	return query;
 }
 
 function normalizeUnreadFilter(value) {
@@ -162,6 +208,26 @@ function mapCategorySummary(category) {
 	};
 }
 
+function mapPostSummary(post) {
+	if (!post) {
+		return null;
+	}
+
+	return {
+		pid: post.pid,
+		tid: post.tid,
+		uid: post.uid,
+		timestamp: post.timestamp,
+		deleted: !!post.deleted,
+		content: post.content,
+		topic: post.topic ? {
+			tid: post.topic.tid,
+			title: post.topic.title,
+			slug: post.topic.slug,
+		} : null,
+	};
+}
+
 function normalizeCategoryLookup(value) {
 	if (value === undefined || value === null) {
 		return '';
@@ -178,7 +244,9 @@ async function resolveCategoryId(input, uid) {
 		return cid;
 	}
 
-	const lookup = normalizeCategoryLookup(input.category || input.categoryName || input.categorySlug || input.categoryHandle);
+	const lookup = normalizeCategoryLookup(
+		input.category || input.categoryName || input.categorySlug || input.categoryHandle
+	);
 	if (!lookup) {
 		throw new Error('cid-required-for-topic');
 	}
@@ -348,6 +416,49 @@ Skills.execute = async (req, res) => {
 				} : null,
 			})),
 		};
+	} else if (skill === 'search_own_posts') {
+		const query = normalizeOptionalQuery(input.query);
+		const { page, limit, start, stop } = normalizeListPaging(input);
+		let result;
+
+		if (query) {
+			const username = await user.getUserField(actorUid, 'username');
+			result = await search.search({
+				uid: actorUid,
+				query,
+				page,
+				itemsPerPage: limit,
+				searchIn: 'posts',
+				postedBy: username,
+			});
+		} else {
+			let pids = await db.getSortedSetRevRange(`uid:${actorUid}:posts`, start, stop);
+			const postsFields = await posts.getPostsFields(pids, ['pid', 'tid', 'deleted']);
+			const tids = [...new Set(postsFields.map(post => post && post.tid).filter(Boolean))];
+			const topicsFields = await topics.getTopicsFields(tids, ['tid', 'deleted']);
+			const tidToTopic = Object.fromEntries(topicsFields.map(topic => [String(topic && topic.tid), topic]));
+			pids = postsFields.filter((post) => {
+				const topic = tidToTopic[String(post && post.tid)];
+				return post && !parseInt(post.deleted, 10) && topic && !parseInt(topic.deleted, 10);
+			}).map(post => post.pid);
+			const postsData = await posts.getPostSummaryByPids(pids, actorUid, {
+				extraFields: ['deleted'],
+			});
+			result = {
+				matchCount: await db.sortedSetCard(`uid:${actorUid}:posts`),
+				pageCount: 1,
+				posts: postsData,
+			};
+		}
+
+		response = {
+			query,
+			page,
+			limit,
+			matchCount: result.matchCount || 0,
+			pageCount: result.pageCount || 1,
+			posts: (result.posts || []).map(mapPostSummary).filter(Boolean),
+		};
 	} else if (skill === 'get_post_raw') {
 		const pid = asPositiveInt(input.pid, 'pid');
 		const content = await api.posts.getRaw(caller, { pid });
@@ -389,6 +500,62 @@ Skills.execute = async (req, res) => {
 				slug: topic.slug,
 			};
 		}
+	} else if (skill === 'delete_own_topics') {
+		const tids = normalizeTopicIds(input.tids);
+		const topicsData = await topics.getTopicsFields(tids, ['tid', 'uid', 'title', 'deleted']);
+		const missingTopic = topicsData.some(topic => !topic || !topic.tid);
+		if (missingTopic) {
+			return helpers.formatApiResponse(404, res, new Error('topic-not-found'));
+		}
+
+		const notOwnedTopic = topicsData.find(topic => parseInt(topic.uid, 10) !== parseInt(actorUid, 10));
+		if (notOwnedTopic) {
+			throw new Error('can-only-delete-own-topics');
+		}
+
+		const alreadyDeletedTopic = topicsData.find(topic => parseInt(topic.deleted, 10) === 1);
+		if (alreadyDeletedTopic) {
+			throw new Error('topic-already-deleted');
+		}
+
+		await api.topics.delete(caller, { tids });
+		response = {
+			mode: 'soft_delete',
+			limit: DELETE_TOPICS_MAX,
+			deletedCount: tids.length,
+			topics: topicsData.map(topic => ({
+				tid: topic.tid,
+				title: topic.title,
+			})),
+		};
+	} else if (skill === 'delete_own_posts') {
+		const pids = normalizePostIds(input.pids);
+		const postsData = await posts.getPostsFields(pids, ['pid', 'uid', 'tid', 'content', 'deleted']);
+		const missingPost = postsData.some(post => !post || !post.pid);
+		if (missingPost) {
+			return helpers.formatApiResponse(404, res, new Error('post-not-found'));
+		}
+
+		const notOwnedPost = postsData.find(post => parseInt(post.uid, 10) !== parseInt(actorUid, 10));
+		if (notOwnedPost) {
+			throw new Error('can-only-delete-own-posts');
+		}
+
+		const alreadyDeletedPost = postsData.find(post => parseInt(post.deleted, 10) === 1);
+		if (alreadyDeletedPost) {
+			throw new Error('post-already-deleted');
+		}
+
+		await Promise.all(pids.map(pid => api.posts.delete(caller, { pid })));
+		response = {
+			mode: 'soft_delete',
+			limit: DELETE_POSTS_MAX,
+			deletedCount: pids.length,
+			posts: postsData.map(post => ({
+				pid: post.pid,
+				tid: post.tid,
+			})),
+		};
 	} else {
 		return helpers.formatApiResponse(501, res, new Error('skill-not-implemented'));
 	}

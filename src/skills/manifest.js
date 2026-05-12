@@ -33,5 +33,20 @@ module.exports = {
 			riskLevel: 'high',
 			requiredScopes: ['post:write'],
 		},
+		search_own_posts: {
+			description: 'Search or list posts created by the current user',
+			riskLevel: 'low',
+			requiredScopes: ['post:read'],
+		},
+		delete_own_topics: {
+			description: 'Soft-delete up to 5 topics created by the current user',
+			riskLevel: 'high',
+			requiredScopes: ['post:write'],
+		},
+		delete_own_posts: {
+			description: 'Soft-delete up to 5 posts created by the current user',
+			riskLevel: 'high',
+			requiredScopes: ['post:write'],
+		},
 	},
 };

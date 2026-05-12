@@ -26,5 +26,8 @@
     "notwatching.message": "您未订阅此版块及其所有子版块的更新",
     "ignoring.message": "您正在忽略此版块及其所有子版块的更新",
     "watched-categories": "已关注的版块",
-    "x-more-categories": "还有 %1 个版块"
+    "x-more-categories": "还有 %1 个版块",
+    "hot-topics": "热度 Top10",
+    "hot-topics-score-label": "阅读 + 回复",
+    "hot-topics-empty": "暂时还没有帖子。"
 }

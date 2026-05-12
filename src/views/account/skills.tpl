@@ -49,8 +49,11 @@
 						<li><code>latest_topics</code>: [[skills:account.capability-latest-topics]]</li>
 						<li><code>unread_topics</code>: [[skills:account.capability-unread-topics]]</li>
 						<li><code>search_topics</code>: [[skills:account.capability-search-topics]]</li>
+						<li><code>search_own_posts</code>: [[skills:account.capability-search-own-posts]]</li>
 						<li><code>get_post_raw</code>: [[skills:account.capability-get-post-raw]]</li>
 						<li><code>create_topic_or_reply</code>: [[skills:account.capability-create-topic-or-reply]]</li>
+						<li><code>delete_own_topics</code>: [[skills:account.capability-delete-own-topics]]</li>
+						<li><code>delete_own_posts</code>: [[skills:account.capability-delete-own-posts]]</li>
 					</ul>
 				</div>
 			</div>
