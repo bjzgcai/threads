@@ -22,6 +22,11 @@ const overrides = [
 		source: 'src/views/popular.tpl',
 		target: 'node_modules/nodebb-theme-harmony/templates/popular.tpl',
 	},
+
+	{
+		source: 'src/views/partials/popular/hot-topics.tpl',
+		target: 'node_modules/nodebb-theme-harmony/templates/partials/popular/hot-topics.tpl',
+	},
 ];
 
 function copyOverride(sourceRel, targetRel) {
@@ -39,8 +44,7 @@ function copyOverride(sourceRel, targetRel) {
 }
 
 function main() {
-	const missingTheme = overrides.some(item => !fs.existsSync(path.join(rootDir, path.dirname(item.target))));
-	if (missingTheme) {
+	if (!fs.existsSync(path.join(rootDir, 'node_modules/nodebb-theme-harmony/templates'))) {
 		throw new Error('Harmony theme templates were not found under node_modules. Run dependency install first.');
 	}
 

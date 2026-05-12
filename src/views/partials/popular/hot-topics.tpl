@@ -6,17 +6,19 @@
 				<div class="text-uppercase fw-bold small mb-2" style="letter-spacing: 0.12em; opacity: 0.85;">Popular Upgrade</div>
 				<h2 class="fs-4 fw-bold mb-0">热度 Top 10</h2>
 			</div>
-			<a
-				href="http://10.1.132.21:8080"
-				target="_blank"
-				rel="noopener noreferrer"
-				data-ajaxify="false"
-				class="d-inline-flex align-items-center gap-2 rounded-pill border border-white text-white text-decoration-none fw-bold px-4 py-2 ms-auto"
-				style="background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);"
-			>
-				<i class="fa fa-external-link"></i>
-				<span>智策云端</span>
-			</a>
+
+			<div class="d-flex align-items-center gap-3 ms-auto me-lg-5 rounded-3 border border-white p-2 pe-3" style="background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);">
+				<img
+					src="data:image/png;base64,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"
+					alt="钉钉扫码查看和发帖"
+					class="rounded-2 bg-white p-1"
+					style="width: 5rem; height: 5rem;"
+				/>
+				<div class="fw-bold lh-sm">
+					<div>钉钉扫码查看</div>
+					<div>和发帖</div>
+				</div>
+			</div>
 		</div>
 	</div>
 
@@ -29,6 +31,14 @@
 					<!-- IMPORT partials/category/filter-dropdown-left.tpl -->
 					<!-- IMPORT partials/tags/filter-dropdown-left.tpl -->
 					<!-- IMPORT partials/category/tools-dropdown-left.tpl -->
+				</div>
+				<div class="d-flex gap-1 align-items-center ms-auto">
+					{{{ if canPost }}}
+					<!-- IMPORT partials/buttons/newTopic.tpl -->
+					{{{ end }}}
+					{{{ if (!loggedIn && !canPost) }}}
+					<a component="category/post/guest" href="{config.relative_path}/login" class="btn btn-sm btn-primary">[[category:guest-login-post]]</a>
+					{{{ end }}}
 				</div>
 			</div>
 		</nav>
@@ -63,9 +73,9 @@
 					{{{ end }}}
 				</div>
 				<div class="d-flex flex-row flex-lg-column gap-2 align-items-start align-items-lg-end flex-shrink-0 ms-lg-auto ps-lg-3">
-					<span class="rounded-pill px-2 py-1 border bg-light-subtle small text-nowrap"><i class="fa fa-message text-danger me-1"></i>{humanReadableNumber(./hotMetrics.replies, 0)} 回复</span>
-					<span class="rounded-pill px-2 py-1 border bg-light-subtle small text-nowrap"><i class="fa fa-thumbs-up text-primary me-1"></i>{humanReadableNumber(./hotMetrics.votes, 0)} 点赞</span>
-					<span class="rounded-pill px-2 py-1 border bg-light-subtle small text-nowrap"><i class="fa fa-eye text-warning me-1"></i>{humanReadableNumber(./hotMetrics.views, 0)} 阅读</span>
+					<span class="rounded-pill px-2 py-1 border bg-light-subtle small text-nowrap"><i class="fa fa-message text-danger me-1"></i>{humanReadableNumber(./hotMetrics.replies, 0)}</span>
+					<span class="rounded-pill px-2 py-1 border bg-light-subtle small text-nowrap"><i class="fa fa-thumbs-up text-primary me-1"></i>{humanReadableNumber(./hotMetrics.votes, 0)}</span>
+					<span class="rounded-pill px-2 py-1 border bg-light-subtle small text-nowrap"><i class="fa fa-eye text-warning me-1"></i>{humanReadableNumber(./hotMetrics.views, 0)}</span>
 				</div>
 			</a>
 		</li>
