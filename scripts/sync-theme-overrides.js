@@ -22,10 +22,9 @@ const overrides = [
 		source: 'src/views/popular.tpl',
 		target: 'node_modules/nodebb-theme-harmony/templates/popular.tpl',
 	},
-
 	{
-		source: 'src/views/partials/popular/hot-topics.tpl',
-		target: 'node_modules/nodebb-theme-harmony/templates/partials/popular/hot-topics.tpl',
+		source: 'src/views/partials/category/hot-topics-today.tpl',
+		target: 'node_modules/nodebb-theme-harmony/templates/partials/category/hot-topics-today.tpl',
 	},
 ];
 
