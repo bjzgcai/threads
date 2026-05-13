@@ -57,7 +57,12 @@ function buildHeat(topic) {
 	const replies = Math.max(0, (parseInt(topic.postcount, 10) || 0) - 1);
 	const votes = Math.max(0, parseInt(topic.votes, 10) || 0);
 	const views = Math.max(0, parseInt(topic.viewcount, 10) || 0);
-	return replies + votes + views;
+	const lastActiveAt = parseInt(topic.lastposttime, 10) || parseInt(topic.timestamp, 10) || 0;
+	const ageDays = Math.max(0, (Date.now() - lastActiveAt) / 86400000);
+	const ageBucket = Math.max(1, Math.ceil(ageDays));
+	const recencyWeight = 1 / ageBucket;
+
+	return ((replies * 5) + (votes * 3) + (views * 0.15)) * recencyWeight;
 }
 
 async function getHotTopicCandidates(params) {

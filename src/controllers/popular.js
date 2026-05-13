@@ -102,10 +102,10 @@ function buildHotMetrics(topic, now) {
 	const replies = Math.max(0, (parseInt(topic.postcount, 10) || 0) - 1);
 	const votes = Math.max(0, parseInt(topic.votes, 10) || 0);
 	const views = Math.max(0, parseInt(topic.viewcount, 10) || 0);
-	const createdAt = parseInt(topic.timestamp, 10) || parseInt(topic.lastposttime, 10) || 0;
-	const ageDays = Math.max(0, (now - createdAt) / 86400000);
+	const lastActiveAt = parseInt(topic.lastposttime, 10) || parseInt(topic.timestamp, 10) || 0;
+	const ageDays = Math.max(0, (now - lastActiveAt) / 86400000);
 	const recencyWeight = getRecencyWeight(ageDays);
-	const baseScore = (replies * 5) + (votes * 8) + (views * 0.15);
+	const baseScore = (replies * 5) + (votes * 3) + (views * 0.15);
 	const score = Math.round(baseScore * recencyWeight);
 
 	return {
