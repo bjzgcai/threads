@@ -3,7 +3,7 @@
 	<div class="px-3 px-md-4 py-3 py-md-4 text-white" style="background: linear-gradient(135deg, #ff7a18 0%, #ffb347 55%, #ffd27d 100%);">
 		<div class="d-flex flex-nowrap align-items-center justify-content-between gap-2 gap-md-3">
 			<img
-				src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23d96b28'/%3E%3Cpath d='M35.7 8.6c1.7 8.1-.6 13.3-4.6 17.2-2.1-4.9-5-8.8-9.5-12 1.7 9-2.6 14.4-6.8 19.5-3.1 3.8-5.5 8-5.5 13.3 0 8.4 7.3 14.4 16.4 14.4h12.1c9.7 0 16.9-6.3 16.9-15.2 0-7.2-4.3-12.6-9.8-17.4-4.2-3.7-8.4-7.9-9.2-19.8z' fill='%23ffe1c2'/%3E%3Cpath d='M32.5 58.4c6.1 0 10.7-4.1 10.7-9.6 0-4.2-2.5-7.4-5.8-10.3-2.5-2.3-5.1-4.8-5.6-12.1-4.2 7.1-12 11.2-12 22.2 0 5.8 5.1 9.8 12.7 9.8z' fill='%23fff5eb'/%3E%3C/svg%3E"
+				src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M35 6c2 9-2 15-7 20 0-7-3-12-7-16 1 13-10 18-10 32 0 10 8 17 21 17s21-7 21-18c0-12-11-18-18-35z' fill='%23ffe4cf'/%3E%3Cpath d='M35 29c0 5-3 8-7 12 0-5-2-8-5-11 0 9-6 12-6 20 0 6 6 10 15 10s15-4 15-11c0-8-7-12-12-20z' fill='%23fff8ef'/%3E%3C/svg%3E"
 				alt=""
 				class="flex-shrink-0"
 				style="width: 2.75rem; height: 2.75rem;"
