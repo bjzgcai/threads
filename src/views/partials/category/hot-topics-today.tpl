@@ -12,12 +12,12 @@
 				<div class="text-uppercase fw-bold mb-1 text-truncate" style="font-size: 0.68rem; letter-spacing: 0.12em; opacity: 0.85;">Popular Upgrade</div>
 				<h2 class="fw-bold mb-0 text-truncate" style="font-size: clamp(1.05rem, 4vw, 1.5rem);">[[category:hot-topics]]</h2>
 			</div>
-			<div class="d-flex align-items-center gap-2 flex-shrink-0 rounded-3 border border-white p-1 pe-2" style="background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);">
+			<div class="d-flex align-items-center gap-2 gap-md-3 flex-shrink-0 rounded-3 border border-white p-2 pe-3" style="background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);">
 				<img
 					src="data:image/png;base64,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"
 					alt="钉钉扫码查看发帖"
 					class="rounded-2 bg-white p-1"
-					style="width: 2.75rem; height: 2.75rem;"
+					style="width: 4.25rem; height: 4.25rem;"
 				/>
 				<div class="fw-bold lh-sm text-nowrap" style="font-size: 0.8rem;">钉钉扫码</div>
 			</div>
@@ -64,7 +64,7 @@
 					</div>
 					<div class="fw-bold fs-6 text-break lh-sm">{./title}</div>
 					{{{ if ./teaser.content }}}
-					<div class="text-muted small mt-2 lh-base text-break line-clamp-3" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+					<div class="text-muted small mt-2 lh-base text-break line-clamp-2" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
 						{./teaser.content}
 					</div>
 					{{{ end }}}

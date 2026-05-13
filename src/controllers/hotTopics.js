@@ -1,6 +1,7 @@
 'use strict';
 
 const topics = require('../topics');
+const posts = require('../posts');
 const helpers = require('./helpers');
 
 async function getHotTopics(params) {
@@ -45,12 +46,49 @@ async function getHotTopics(params) {
 			return topic;
 		})
 		.slice(0, 30);
+	await attachMainPostTeasers(hotTopics, uid);
 
 	return {
 		topics: hotTopics,
 		hasTopics: hotTopics.length > 0,
 		hasMore: hotTopics.length > 10,
 	};
+}
+
+async function attachMainPostTeasers(topicData, uid) {
+	if (!Array.isArray(topicData) || !topicData.length) {
+		return;
+	}
+
+	const mainPids = topicData
+		.map(topic => topic && topic.mainPid)
+		.filter(Boolean);
+	if (!mainPids.length) {
+		return;
+	}
+
+	const mainPosts = await posts.getPostSummaryByPids(mainPids, uid, { stripTags: true });
+	const tidToMainPost = {};
+	mainPosts.forEach((post) => {
+		if (post && post.tid) {
+			tidToMainPost[String(post.tid)] = post;
+		}
+	});
+
+	topicData.forEach((topic) => {
+		const mainPost = topic && tidToMainPost[String(topic.tid)];
+		if (!mainPost) {
+			return;
+		}
+
+		topic.teaser = Object.assign({}, topic.teaser, {
+			content: mainPost.content,
+			pid: mainPost.pid,
+			timestamp: mainPost.timestamp,
+			timestampISO: mainPost.timestampISO,
+			user: mainPost.user,
+		});
+	});
 }
 
 function buildHeat(topic) {
