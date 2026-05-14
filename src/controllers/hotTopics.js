@@ -2,6 +2,7 @@
 
 const topics = require('../topics');
 const posts = require('../posts');
+const utils = require('../utils');
 const helpers = require('./helpers');
 
 async function getHotTopics(params) {
@@ -88,7 +89,20 @@ async function attachMainPostTeasers(topicData, uid) {
 			timestampISO: mainPost.timestampISO,
 			user: mainPost.user,
 		});
+		topic.hotExcerpt = buildExcerpt(mainPost.content);
 	});
+}
+
+function buildExcerpt(content) {
+	const text = utils.stripHTMLTags(utils.decodeHTMLEntities(String(content || '')))
+		.replace(/\s+/g, ' ')
+		.trim();
+
+	if (!text) {
+		return '';
+	}
+
+	return text.length > 220 ? `${text.slice(0, 220).trim()}...` : text;
 }
 
 function buildHeat(topic) {

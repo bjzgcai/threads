@@ -49,7 +49,7 @@
 		{{{ each hotTopics.topics }}}
 		<li class="mb-2 {{{ if ./isExtraHotTopic }}}d-none{{{ end }}}" component="category/hot-topic-item" data-extra="{./isExtraHotTopic}">
 			<a
-				class="d-flex flex-wrap flex-lg-nowrap gap-3 align-items-start text-reset text-decoration-none rounded-3 px-3 py-3 bg-body border shadow-sm-sm"
+				class="d-flex flex-nowrap gap-3 align-items-start text-reset text-decoration-none rounded-3 px-3 py-3 bg-body border shadow-sm-sm"
 				href="{config.relative_path}/topic/{./slug}"
 				style="transition: transform 0.18s ease, box-shadow 0.18s ease;"
 			>
@@ -63,9 +63,9 @@
 						{{{ end }}}
 					</div>
 					<div class="fw-bold fs-6 text-break lh-sm">{./title}</div>
-					{{{ if ./teaser.content }}}
+					{{{ if ./hotExcerpt }}}
 					<div class="text-muted small mt-2 lh-base text-break line-clamp-2" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-						{./teaser.content}
+						{./hotExcerpt}
 					</div>
 					{{{ end }}}
 				</div>
