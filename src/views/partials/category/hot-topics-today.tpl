@@ -23,27 +23,6 @@
 			</div>
 		</div>
 	</div>
-	<div class="px-3 py-3 bg-body-tertiary border-bottom">
-		<nav class="topic-list-header bg-body d-flex flex-nowrap p-0 border-0 rounded">
-			<div class="d-flex flex-row p-2 card card-header gap-1 border rounded w-100 align-items-center">
-				<div component="category/controls" class="d-flex flex-wrap align-items-stretch me-auto mb-0 gap-2">
-					<!-- IMPORT partials/topic-terms.tpl -->
-					<!-- IMPORT partials/topic-filters.tpl -->
-					<!-- IMPORT partials/category/filter-dropdown-left.tpl -->
-					<!-- IMPORT partials/tags/filter-dropdown-left.tpl -->
-					<!-- IMPORT partials/category/tools-dropdown-left.tpl -->
-				</div>
-				<div class="d-flex gap-1 align-items-center ms-auto">
-					{{{ if canPost }}}
-					<!-- IMPORT partials/buttons/newTopic.tpl -->
-					{{{ end }}}
-					{{{ if (!loggedIn && !canPost) }}}
-					<a component="category/post/guest" href="{config.relative_path}/login" class="btn btn-sm btn-primary">[[category:guest-login-post]]</a>
-					{{{ end }}}
-				</div>
-			</div>
-		</nav>
-	</div>
 	{{{ if hotTopics.hasTopics }}}
 	<ol class="list-unstyled mb-0 px-2 py-2 bg-body-tertiary">
 		{{{ each hotTopics.topics }}}
