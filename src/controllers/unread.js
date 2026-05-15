@@ -18,12 +18,12 @@ unreadController.get = async function (req, res) {
 	const { cid, tag } = req.query;
 	const filter = req.query.filter || '';
 
-	const [categoryData, tagData, userSettings, canPost, isPrivileged] = await Promise.all([
+	const [categoryData, tagData, userSettings, canPost, isAdmin] = await Promise.all([
 		helpers.getSelectedCategory(cid),
 		helpers.getSelectedTag(tag),
 		user.getSettings(req.uid),
 		privileges.categories.canPostTopic(req.uid),
-		user.isPrivileged(req.uid),
+		user.isAdministrator(req.uid),
 	]);
 
 	const page = parseInt(req.query.page, 10) || 1;
@@ -63,8 +63,8 @@ unreadController.get = async function (req, res) {
 		return helpers.redirect(res, `/unread?${querystring.stringify(req.query)}`);
 	}
 	data.canPost = canPost;
-	data.showSelect = true;
-	data.showTopicTools = isPrivileged;
+	data.showSelect = isAdmin;
+	data.showTopicTools = isAdmin;
 	data.allCategoriesUrl = `${baseUrl}${helpers.buildQueryString(req.query, 'cid', '')}`;
 	data.selectedCategory = categoryData.selectedCategory;
 	data.selectedCids = categoryData.selectedCids;
