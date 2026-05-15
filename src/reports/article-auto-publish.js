@@ -23,6 +23,7 @@ const UID = parseInt(process.env.ARTICLE_AUTO_PUBLISH_UID, 10) || 1;
 const LOOKBACK_DAYS = Math.max(parseInt(process.env.ARTICLE_AUTO_PUBLISH_LOOKBACK_DAYS, 10) || 1, 1);
 const PAGE_SIZE = Math.min(Math.max(parseInt(process.env.ARTICLE_AUTO_PUBLISH_PAGE_SIZE, 10) || 100, 1), 100);
 const MAX_ARTICLES = Math.max(parseInt(process.env.ARTICLE_AUTO_PUBLISH_MAX_ARTICLES, 10) || 100, 1);
+const MAX_TITLE_LENGTH = Math.max(parseInt(process.env.ARTICLE_AUTO_PUBLISH_MAX_TITLE_LENGTH, 10) || 30, 1);
 const DIMENSION = String(process.env.ARTICLE_AUTO_PUBLISH_DIMENSION || '').trim();
 const SOURCE_IDS = String(process.env.ARTICLE_AUTO_PUBLISH_SOURCE_IDS || '').trim();
 const KEYWORD = String(process.env.ARTICLE_AUTO_PUBLISH_KEYWORD || '').trim();
@@ -85,6 +86,11 @@ publisher.publishDailyArticles = async function () {
 				skipped += 1;
 				continue;
 			}
+			if (!isTitleAllowed(brief.title)) {
+				skipped += 1;
+				winston.warn(`[article-auto-publish] skipped article ${articleId}: title too long (${getTitleLength(brief.title)} > ${MAX_TITLE_LENGTH})`);
+				continue;
+			}
 			if (await db.isSetMember(IMPORTED_SET, articleId)) {
 				skipped += 1;
 				continue;
@@ -92,7 +98,13 @@ publisher.publishDailyArticles = async function () {
 
 			try {
 				const detail = await fetchArticleDetail(articleId);
-				const payload = buildTopicPayload({ ...brief, ...detail, id: articleId });
+				const article = { ...brief, ...detail, id: articleId };
+				if (!isTitleAllowed(article.title)) {
+					skipped += 1;
+					winston.warn(`[article-auto-publish] skipped article ${articleId}: detail title too long (${getTitleLength(article.title)} > ${MAX_TITLE_LENGTH})`);
+					continue;
+				}
+				const payload = buildTopicPayload(article);
 				const result = await topics.post(payload);
 
 				await Promise.all([
@@ -238,6 +250,14 @@ function addTag(tags, value) {
 
 function getArticleId(article) {
 	return String((article && (article.id || article.url_hash)) || '').trim();
+}
+
+function isTitleAllowed(title) {
+	return getTitleLength(title) <= MAX_TITLE_LENGTH;
+}
+
+function getTitleLength(title) {
+	return Array.from(String(title || '').trim()).length;
 }
 
 function getDateWindow() {

@@ -33,13 +33,13 @@ recentController.getData = async function (req, url, sort, selectedTerm = 'allti
 	}
 	term = term || 'alltime';
 
-	const [settings, categoryData, tagData, rssToken, canPost, isPrivileged] = await Promise.all([
+	const [settings, categoryData, tagData, rssToken, canPost, isAdmin] = await Promise.all([
 		user.getSettings(req.uid),
 		helpers.getSelectedCategory(cid),
 		helpers.getSelectedTag(tag),
 		user.auth.getFeedToken(req.uid),
 		privileges.categories.canPostTopic(req.uid),
-		user.isPrivileged(req.uid),
+		user.isAdministrator(req.uid),
 	]);
 
 	const start = Math.max(0, (page - 1) * settings.topicsPerPage);
@@ -71,8 +71,8 @@ recentController.getData = async function (req, url, sort, selectedTerm = 'allti
 	const query = { ...req.query };
 	delete query.page;
 	data.canPost = canPost;
-	data.showSelect = isPrivileged;
-	data.showTopicTools = isPrivileged;
+	data.showSelect = isAdmin;
+	data.showTopicTools = isAdmin;
 	data.allCategoriesUrl = baseUrl + helpers.buildQueryString(query, 'cid', '');
 	data.selectedCategory = categoryData.selectedCategory;
 	data.selectedCids = categoryData.selectedCids;

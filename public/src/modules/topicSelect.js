@@ -66,6 +66,14 @@ define('topicSelect', ['components'], function (components) {
 		}
 	};
 
+	TopicSelect.selectAll = function () {
+		if (topicsContainer) {
+			topicsContainer.find('[component="category/topic"]').addClass('selected');
+			topicsContainer.find('[component="topic/select"]').toggleClass('fa-check-square-o', true).toggleClass('fa-square-o', false);
+			updateSelectedBadgeCount();
+		}
+	};
+
 	function selectRange(clickedTid) {
 		if (!lastSelectedTopic) {
 			lastSelectedTopic = $('[component="category/topic"]').first();

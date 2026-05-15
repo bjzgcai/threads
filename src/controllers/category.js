@@ -142,12 +142,14 @@ categoryController.get = async function (req, res, next) {
 		});
 	}
 
+	const isAdmin = await user.isAdministrator(req.uid);
+
 	categoryData.title = translator.escape(categoryData.name);
 	categoryData.selectCategoryLabel = '[[category:subcategories]]';
 	categoryData.description = translator.escape(categoryData.description);
 	categoryData.privileges = userPrivileges;
-	categoryData.showSelect = userPrivileges.editable;
-	categoryData.showTopicTools = userPrivileges.editable;
+	categoryData.showSelect = isAdmin;
+	categoryData.showTopicTools = isAdmin;
 	categoryData.topicIndex = topicIndex;
 	categoryData.selectedTag = tagData.selectedTag;
 	categoryData.selectedTags = tagData.selectedTags;

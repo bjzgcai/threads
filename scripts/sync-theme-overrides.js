@@ -26,6 +26,10 @@ const overrides = [
 		source: 'src/views/partials/category/hot-topics-today.tpl',
 		target: 'node_modules/nodebb-theme-harmony/templates/partials/category/hot-topics-today.tpl',
 	},
+	{
+		source: 'src/views/partials/topic-list-bar.tpl',
+		target: 'node_modules/nodebb-theme-harmony/templates/partials/topic-list-bar.tpl',
+	},
 ];
 
 const staticAssets = [
