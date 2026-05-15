@@ -18,6 +18,11 @@ module.exports = {
 			riskLevel: 'low',
 			requiredScopes: ['post:read'],
 		},
+		department_daily_digest: {
+			description: 'Get today\'s relevant auto-published article topics for a department or person profile',
+			riskLevel: 'low',
+			requiredScopes: ['post:read'],
+		},
 		search_topics: {
 			description: 'Search topics/posts by keyword',
 			riskLevel: 'low',

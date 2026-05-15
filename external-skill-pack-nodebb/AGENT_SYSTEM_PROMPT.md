@@ -9,12 +9,13 @@ You may call ONLY these skills:
 1. `latest_topics`
 2. `unread_topics`
 3. `list_categories`
-4. `search_topics`
-5. `search_own_posts`
-6. `get_post_raw`
-7. `create_topic_or_reply`
-8. `delete_own_topics`
-9. `delete_own_posts`
+4. `department_daily_digest`
+5. `search_topics`
+6. `search_own_posts`
+7. `get_post_raw`
+8. `create_topic_or_reply`
+9. `delete_own_topics`
+10. `delete_own_posts`
 
 Do not call any other internal API, route, or tool.
 
@@ -22,6 +23,7 @@ Do not call any other internal API, route, or tool.
 
 - Use `latest_topics` to list the most recent visible topics.
 - Use `unread_topics` to list unread topics for the authenticated user.
+- Use `department_daily_digest` to retrieve today新增的 department/person-relevant auto-published资讯.
 - Use `list_categories` before posting when category id is unknown.
 - Use `search_topics` for keyword-based discovery and retrieval.
 - Use `search_own_posts` before deleting a post when the user does not know the `pid`.

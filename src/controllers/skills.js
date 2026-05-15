@@ -10,6 +10,7 @@ const posts = require('../posts');
 const topics = require('../topics');
 const helpers = require('./helpers');
 const user = require('../user');
+const privileges = require('../privileges');
 
 const Skills = module.exports;
 
@@ -18,6 +19,8 @@ const TITLE_MAX = 200;
 const QUERY_MAX = 200;
 const TAG_MAX = 5;
 const LIST_LIMIT_MAX = 20;
+const DIGEST_LIMIT_MAX = 30;
+const DIGEST_SCAN_LIMIT_MAX = 500;
 const DELETE_TOPICS_MAX = 5;
 const DELETE_POSTS_MAX = 5;
 const UNREAD_FILTERS = new Set(['', 'new', 'watched', 'unreplied']);
@@ -134,6 +137,19 @@ function normalizeOptionalQuery(value) {
 	return query;
 }
 
+function normalizeOptionalStringList(value, name, maxItems = 20, maxLen = 80) {
+	if (value === undefined || value === null || value === '') {
+		return [];
+	}
+	const items = Array.isArray(value) ? value : String(value).split(/[,，、\n\r\t]/);
+	if (items.length > maxItems) {
+		throw new Error(`${name}-too-many-items`);
+	}
+	return items.map(item => String(item || '').trim())
+		.filter(Boolean)
+		.map(item => item.slice(0, maxLen));
+}
+
 function normalizeUnreadFilter(value) {
 	const filter = value === undefined || value === null ? '' : String(value).trim();
 	if (!UNREAD_FILTERS.has(filter)) {
@@ -208,6 +224,25 @@ function mapCategorySummary(category) {
 	};
 }
 
+function normalizeDigestPaging(input) {
+	const limit = input.limit ? Math.min(asPositiveInt(input.limit, 'limit'), DIGEST_LIMIT_MAX) : 10;
+	const scanLimit = input.scanLimit ?
+		Math.min(asPositiveInt(input.scanLimit, 'scanLimit'), DIGEST_SCAN_LIMIT_MAX) : 200;
+	return { limit, scanLimit };
+}
+
+function normalizeDigestCategoryIds(input) {
+	const explicit = normalizeCategoryIds(input.categories);
+	if (explicit && explicit.length) {
+		return explicit;
+	}
+
+	return [
+		parseInt(process.env.ARTICLE_AUTO_PUBLISH_CID, 10) || 0,
+		parseInt(process.env.WECHAT_AUTO_PUBLISH_CID, 10) || 0,
+	].filter(Boolean);
+}
+
 function mapPostSummary(post) {
 	if (!post) {
 		return null;
@@ -226,6 +261,64 @@ function mapPostSummary(post) {
 			slug: post.topic.slug,
 		} : null,
 	};
+}
+
+function buildTopicUrl(topic) {
+	if (!topic || !topic.slug) {
+		return '';
+	}
+	return `/topic/${topic.slug}`;
+}
+
+function startOfDayTimestamp(input) {
+	const dateInput = String(input.date || '').trim();
+	const date = dateInput && /^\d{4}-\d{2}-\d{2}$/.test(dateInput) ?
+		new Date(`${dateInput}T00:00:00`) : new Date();
+	date.setHours(0, 0, 0, 0);
+	return date.getTime();
+}
+
+function tokenizeForDigest(values) {
+	const tokens = new Set();
+	values.forEach((value) => {
+		String(value || '')
+			.split(/[\s,，、;；/|｜\n\r\t]+/)
+			.map(part => part.trim())
+			.filter(part => part.length >= 2)
+			.forEach(part => tokens.add(part.toLowerCase()));
+	});
+	return Array.from(tokens).slice(0, 40);
+}
+
+function getTextPreview(content, maxLen = 240) {
+	return String(content || '')
+		.replace(/<[^>]*>/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.slice(0, maxLen);
+}
+
+function scoreDigestTopic(topic, content, keywords) {
+	const haystack = [
+		topic.titleRaw || topic.title,
+		Array.isArray(topic.tags) ? topic.tags.map(tag => tag.value).join(' ') : '',
+		content,
+	].join(' ').toLowerCase();
+	const matched = [];
+	let score = 0;
+
+	keywords.forEach((keyword) => {
+		if (!keyword || !haystack.includes(keyword)) {
+			return;
+		}
+		matched.push(keyword);
+		score += String(topic.titleRaw || topic.title || '').toLowerCase().includes(keyword) ? 3 : 1;
+		if (Array.isArray(topic.tags) && topic.tags.some(tag => String(tag.value || '').toLowerCase() === keyword)) {
+			score += 2;
+		}
+	});
+
+	return { score, matched };
 }
 
 function normalizeCategoryLookup(value) {
@@ -382,6 +475,80 @@ Skills.execute = async (req, res) => {
 			filter,
 			matchCount: result.topicCount || 0,
 			topics: (result.topics || []).map(mapTopicSummary).filter(Boolean),
+		};
+	} else if (skill === 'department_daily_digest') {
+		const { limit, scanLimit } = normalizeDigestPaging(input);
+		const digestCategories = normalizeDigestCategoryIds(input);
+		if (!digestCategories.length) {
+			throw new Error('digest-categories-required');
+		}
+
+		const department = normalizeOptionalQuery(input.department);
+		const person = normalizeOptionalQuery(input.person || input.name);
+		const attributes = normalizeOptionalStringList(input.attributes || input.profile, 'attributes');
+		const keywords = tokenizeForDigest([
+			department,
+			person,
+			...attributes,
+			...normalizeOptionalStringList(input.keywords, 'keywords'),
+		]);
+		const start = startOfDayTimestamp(input);
+		const end = input.endTimestamp ? asPositiveInt(input.endTimestamp, 'endTimestamp') : Date.now();
+		const tids = await db.getSortedSetRevRangeByScore(
+			digestCategories.map(cid => `cid:${cid}:tids:create`),
+			0,
+			scanLimit,
+			end,
+			start
+		);
+		const visibleTids = await privileges.topics.filterTids('topics:read', tids, actorUid);
+		const topicData = await topics.getTopicsByTids(visibleTids, {
+			uid: actorUid,
+			tags: true,
+		});
+		const mainPids = topicData.map(topic => topic && topic.mainPid).filter(Boolean);
+		const mainPosts = await posts.getPostsFields(mainPids, ['pid', 'content']);
+		const pidToPost = Object.fromEntries(mainPosts.map(post => [String(post && post.pid), post]));
+		let items = topicData.map((topic) => {
+			const post = pidToPost[String(topic && topic.mainPid)] || {};
+			const relevance = keywords.length ? scoreDigestTopic(topic, post.content, keywords) : {
+				score: 1,
+				matched: [],
+			};
+			return {
+				tid: topic.tid,
+				cid: topic.cid,
+				title: topic.titleRaw || topic.title,
+				url: buildTopicUrl(topic),
+				timestamp: topic.timestamp,
+				timestampISO: topic.timestampISO,
+				category: topic.category ? {
+					cid: topic.category.cid,
+					name: topic.category.name,
+					slug: topic.category.slug,
+				} : null,
+				tags: Array.isArray(topic.tags) ? topic.tags.map(tag => tag.value).filter(Boolean) : [],
+				relevanceScore: relevance.score,
+				matchedKeywords: relevance.matched,
+				excerpt: getTextPreview(post.content),
+			};
+		}).filter(item => item && item.relevanceScore > 0);
+
+		items = items.sort((a, b) => (
+			b.relevanceScore - a.relevanceScore ||
+			b.timestamp - a.timestamp
+		)).slice(0, limit);
+
+		response = {
+			date: input.date || new Date(start).toISOString().slice(0, 10),
+			department,
+			person,
+			attributes,
+			keywords,
+			categories: digestCategories,
+			scannedCount: tids.length,
+			matchCount: items.length,
+			topics: items,
 		};
 	} else if (skill === 'search_topics') {
 		const query = asString(input.query, 'query', QUERY_MAX);

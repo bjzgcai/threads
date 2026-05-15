@@ -1,11 +1,11 @@
 {
   "name": "ZGCY Skills Gateway Config",
-  "baseUrl": "https://forum.example.com/api/skills",
+  "baseUrl": "http://10.1.132.5:4567/api/skills",
   "timeoutMs": 15000,
   "userAgent": "my-external-agent/1.0",
   "auth": {
     "bearerToken": "YOUR-PERSONAL-SKILLS-TOKEN",
-    "signingSecret": ""
+    "signingSecret": "a2546f5c8f0ff42a2f7e67db5adf5aa4644369f4c98fd6dcfee07ce0f8ac712e"
   },
   "notes": {
     "howToGetToken": "The user logs in to ZGCY and creates a personal token at /user/<userslug>/skills",

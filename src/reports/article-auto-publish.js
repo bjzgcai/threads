@@ -185,14 +185,12 @@ async function getJson(path, params = {}) {
 function buildTopicPayload(article) {
 	const sourceUrl = String(article.url || '').trim();
 	const content = pickContent(article);
+	const imageMarkdown = getArticleImageMarkdown(article);
 	const metaLines = [
-		article.source_id ? `Source: ${article.source_id}` : '',
-		article.dimension ? `Dimension: ${article.dimension}` : '',
 		article.author ? `Author: ${article.author}` : '',
-		article.published_at ? `Published at: ${formatDateTime(article.published_at)}` : '',
-		article.crawled_at ? `Crawled at: ${formatDateTime(article.crawled_at)}` : '',
 	].filter(Boolean);
 	const body = [
+		imageMarkdown,
 		content,
 		metaLines.length ? `\n---\n${metaLines.join('\n')}` : '',
 		INCLUDE_SOURCE_LINK && sourceUrl ? `\nOriginal URL: ${sourceUrl}` : '',
@@ -205,6 +203,47 @@ function buildTopicPayload(article) {
 		content: body,
 		tags: normalizeTags(article),
 	};
+}
+
+function getArticleImageMarkdown(article) {
+	const image = getArticleImage(article);
+	if (!image) {
+		return '';
+	}
+	return `![${escapeMarkdownAlt(image.alt || article.title || 'article image')}](${image.src})`;
+}
+
+function getArticleImage(article) {
+	const coverImageUrl = String(article.cover_image_url || '').trim();
+	if (isHttpUrl(coverImageUrl)) {
+		return { src: coverImageUrl, alt: article.title };
+	}
+
+	const extraImages = Array.isArray(article.extra && article.extra.images) ? article.extra.images : [];
+	for (const image of extraImages) {
+		const src = String((image && (image.src || image.url)) || '').trim();
+		if (isHttpUrl(src)) {
+			return { src, alt: image.alt || article.title };
+		}
+	}
+
+	return null;
+}
+
+function isHttpUrl(value) {
+	try {
+		const url = new URL(value);
+		return url.protocol === 'http:' || url.protocol === 'https:';
+	} catch (err) {
+		return false;
+	}
+}
+
+function escapeMarkdownAlt(value) {
+	return String(value || '')
+		.replace(/\[|\]|\n|\r/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
 }
 
 function pickContent(article) {
@@ -271,14 +310,6 @@ function getDateWindow() {
 		dateFrom: from.toISOString(),
 		dateTo: to.toISOString(),
 	};
-}
-
-function formatDateTime(value) {
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) {
-		return String(value);
-	}
-	return date.toLocaleString('zh-CN', { timeZone: TZ });
 }
 
 function looksLikeHtml(content) {

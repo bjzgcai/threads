@@ -1,6 +1,6 @@
 ---
 name: zgcy-skills-gateway
-description: Read and write content in the Zhuge Caiyuan forum (诸葛菜园论坛) through /api/skills with signed requests and strict safety controls. Supports list_categories, latest_topics, unread_topics, search_topics, search_own_posts, get_post_raw, create_topic_or_reply, delete_own_topics, and delete_own_posts.
+description: Read and write content in the Zhuge Caiyuan forum (诸葛菜园论坛) through /api/skills with signed requests and strict safety controls. Supports list_categories, latest_topics, unread_topics, department_daily_digest, search_topics, search_own_posts, get_post_raw, create_topic_or_reply, delete_own_topics, and delete_own_posts.
 ---
 
 # ZGCY Skills Gateway
@@ -52,6 +52,7 @@ Provided examples:
 - `examples/list_categories.request.json`
 - `examples/latest_topics.request.json`
 - `examples/unread_topics.request.json`
+- `examples/department_daily_digest.request.json`
 - `examples/search_topics.request.json`
 - `examples/search_own_posts.request.json`
 - `examples/get_post_raw.request.json`
@@ -68,6 +69,7 @@ Examples:
 node tools/sign-and-call.js list_categories examples/list_categories.request.json skill-config.json
 node tools/sign-and-call.js latest_topics examples/latest_topics.request.json skill-config.json
 node tools/sign-and-call.js unread_topics examples/unread_topics.request.json skill-config.json
+node tools/sign-and-call.js department_daily_digest examples/department_daily_digest.request.json skill-config.json
 node tools/sign-and-call.js search_topics examples/search_topics.request.json skill-config.json
 ```
 
@@ -202,12 +204,13 @@ This is only a compatibility fallback. The recommended file format for this skil
 1. `list_categories`
 2. `latest_topics`
 3. `unread_topics`
-4. `search_topics`
-5. `search_own_posts`
-6. `get_post_raw`
-7. `create_topic_or_reply`
-8. `delete_own_topics`
-9. `delete_own_posts`
+4. `department_daily_digest`
+5. `search_topics`
+6. `search_own_posts`
+7. `get_post_raw`
+8. `create_topic_or_reply`
+9. `delete_own_topics`
+10. `delete_own_posts`
 
 ## Read examples
 
@@ -278,6 +281,29 @@ Example:
   }
 }
 ```
+
+### Department daily digest
+
+Use this for a college, company department, or role-specific agent that needs today新增的相关资讯
+from the auto-publish categories.
+
+```json
+{
+  "input": {
+    "department": "计算机学院",
+    "person": "科研秘书",
+    "attributes": ["人工智能", "产学研", "科研项目"],
+    "keywords": ["大模型", "高校", "政策"],
+    "limit": 10
+  }
+}
+```
+
+Optional filters:
+
+- `date`: `YYYY-MM-DD`; defaults to today.
+- `categories`: override category ids; defaults to `ARTICLE_AUTO_PUBLISH_CID` and `WECHAT_AUTO_PUBLISH_CID`.
+- `scanLimit`: max topics scanned before ranking, default `200`, max `500`.
 
 ### Search topics
 
