@@ -28,6 +28,13 @@ const overrides = [
 	},
 ];
 
+const staticAssets = [
+	{
+		source: 'nodebb-local-qr2.png',
+		target: 'public/images/nodebb-local-qr2.png',
+	},
+];
+
 function copyOverride(sourceRel, targetRel) {
 	const source = path.join(rootDir, sourceRel);
 	const target = path.join(rootDir, targetRel);
@@ -48,6 +55,7 @@ function main() {
 	}
 
 	overrides.forEach(item => copyOverride(item.source, item.target));
+	staticAssets.forEach(item => copyOverride(item.source, item.target));
 }
 
 main();

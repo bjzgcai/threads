@@ -148,6 +148,24 @@ function getFontawesomeStyle() {
 	return styles.map(style => `@import "fontawesome/style-${style}";`).join('\n');
 }
 
+async function copyFileWithRetry(source, dest, retries = 5) {
+	/* eslint-disable no-await-in-loop */
+	for (let attempt = 1; attempt <= retries; attempt += 1) {
+		try {
+			await fs.promises.copyFile(source, dest);
+			return;
+		} catch (err) {
+			const retryable = ['EBUSY', 'EPERM'].includes(err.code);
+			if (!retryable || attempt === retries) {
+				throw err;
+			}
+
+			await new Promise(resolve => setTimeout(resolve, attempt * 200));
+		}
+	}
+	/* eslint-enable no-await-in-loop */
+}
+
 async function copyFontAwesomeFiles() {
 	await mkdirp(path.join(__dirname, '../../build/public/fontawesome/webfonts'));
 	const fonts = await fs.promises.opendir(path.join(utils.getFontawesomePath(), '/webfonts'));
@@ -155,7 +173,10 @@ async function copyFontAwesomeFiles() {
 	for await (const file of fonts) {
 		if (file.isFile() && file.name.match(/\.(woff2|ttf|eot)?$/)) { // there shouldn't be any legacy eot files, but just in case we'll allow it
 			copyOperations.push(
-				fs.promises.copyFile(path.join(fonts.path, file.name), path.join(__dirname, '../../build/public/fontawesome/webfonts/', file.name))
+				copyFileWithRetry(
+					path.join(fonts.path, file.name),
+					path.join(__dirname, '../../build/public/fontawesome/webfonts/', file.name)
+				)
 			);
 		}
 	}
