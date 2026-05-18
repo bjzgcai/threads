@@ -476,11 +476,18 @@ print(json.dumps(accounts, ensure_ascii=False))
 
 function pickContent(detail) {
 	if (detail.htmlContent && looksLikeHtml(detail.htmlContent)) {
-		return htmlToText(detail.htmlContent, {
+		const formatted = htmlToText(detail.htmlContent, {
 			wordwrap: false,
 			preserveNewlines: false,
+			formatters: {
+				wechatImageMarkdown: formatWechatImageMarkdown,
+			},
 			selectors: [
-				{ selector: 'img', format: 'skip' },
+				{
+					selector: 'img',
+					format: 'wechatImageMarkdown',
+					options: { leadingLineBreaks: 2, trailingLineBreaks: 2 },
+				},
 				{ selector: 'a', options: { hideLinkHrefIfSameAsText: true } },
 				{ selector: 'table', format: 'dataTable' },
 			],
@@ -489,8 +496,62 @@ function pickContent(detail) {
 			.replace(/\n{3,}/g, '\n\n')
 			.replace(/[ \t]{2,}/g, ' ')
 			.trim();
+		if (formatted) {
+			return formatted;
+		}
 	}
 	return String(detail.contentText || '无正文内容').trim();
+}
+
+function formatWechatImageMarkdown(elem, walk, builder, formatOptions) {
+	const src = getWechatImageSrc(elem);
+	if (!src) {
+		return;
+	}
+
+	const attribs = elem && elem.attribs ? elem.attribs : {};
+	const alt = escapeMarkdownAlt(attribs.alt || attribs.title || '文章图片') || '文章图片';
+	builder.openBlock({ leadingLineBreaks: formatOptions.leadingLineBreaks || 2 });
+	builder.addInline(`![${alt}](${src})`, { noWordTransform: true });
+	builder.closeBlock({ trailingLineBreaks: formatOptions.trailingLineBreaks || 2 });
+}
+
+function getWechatImageSrc(elem) {
+	const attribs = elem && elem.attribs ? elem.attribs : {};
+	const candidates = [
+		attribs['data-src'],
+		attribs.src,
+		attribs['data-lazy-src'],
+		attribs['data-actualsrc'],
+		attribs['data-original'],
+		attribs['data-orig-src'],
+		attribs['data-url'],
+	];
+
+	for (const candidate of candidates) {
+		const value = String(candidate || '').trim();
+		if (isHttpUrl(value)) {
+			return value;
+		}
+	}
+
+	return '';
+}
+
+function isHttpUrl(value) {
+	try {
+		const url = new URL(value);
+		return url.protocol === 'http:' || url.protocol === 'https:';
+	} catch (err) {
+		return false;
+	}
+}
+
+function escapeMarkdownAlt(value) {
+	return String(value || '')
+		.replace(/\[|\]|\n|\r/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
 }
 
 function getArticleId(article) {

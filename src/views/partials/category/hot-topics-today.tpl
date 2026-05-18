@@ -12,6 +12,7 @@
 				<div class="text-uppercase fw-bold mb-1 text-truncate" style="font-size: 0.68rem; letter-spacing: 0.12em; opacity: 0.85;">Popular Upgrade</div>
 				<h2 class="fw-bold mb-0 text-truncate" style="font-size: clamp(1.05rem, 4vw, 1.5rem);">[[category:hot-topics]]</h2>
 			</div>
+			{{{ if !template.popular }}}
 			<div class="d-flex align-items-center gap-2 gap-lg-3 flex-shrink-0 rounded-3 border border-white p-2 pe-3" style="background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);">
 				<img
 					src="{config.relative_path}/assets/images/nodebb-local-qr2.png"
@@ -21,6 +22,7 @@
 				/>
 				<div class="fw-bold lh-sm text-nowrap" style="font-size: clamp(0.82rem, 1.1vw, 1rem);">钉钉扫码</div>
 			</div>
+			{{{ end }}}
 		</div>
 	</div>
 	{{{ if hotTopics.hasTopics }}}
@@ -43,7 +45,7 @@
 					</div>
 					<div class="fw-bold fs-6 text-break lh-sm">{./title}</div>
 					{{{ if ./hotExcerpt }}}
-					<div class="text-muted small mt-2 lh-base text-break line-clamp-1" style="display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;">
+					<div class="text-muted small mt-2 lh-base text-break {{{ if (template.popular || (cid == "20")) }}}line-clamp-2{{{ else }}}line-clamp-1{{{ end }}}">
 						{./hotExcerpt}
 					</div>
 					{{{ end }}}
