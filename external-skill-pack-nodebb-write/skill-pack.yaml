@@ -1,0 +1,15 @@
+# External Skill Pack Metadata
+
+name: zgcy-forum-write
+version: 1.0.0
+entry: SKILL.md
+
+skills:
+  - create_topic_or_reply
+  - delete_own_topics
+  - delete_own_posts
+  - search_own_posts
+  - list_categories
+  - latest_topics
+  - search_topics
+  - get_post_raw

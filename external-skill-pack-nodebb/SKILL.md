@@ -9,7 +9,7 @@ This is the skill gateway for the Zhuge Caiyuan forum (诸葛菜园论坛).
 
 Use this skill when you need to read from or write to the Zhuge Caiyuan forum externally through the controlled gateway.
 
-Important: this skill only works by calling `POST /api/skills/{skill}/execute` with a Bearer token and the required signing headers when signing is enabled. Do not call normal forum APIs directly with the skills token.
+Important: public read skills call `POST /api/skills/{skill}/execute` without a personal Bearer token. Token-owned write skills still require `Authorization: Bearer <personal_skills_token>` and the required signing headers when signing is enabled. Do not call normal forum APIs directly with the skills token.
 
 ## Files to deliver to external users
 
@@ -39,11 +39,13 @@ Example:
   "timeoutMs": 15000,
   "userAgent": "my-external-agent/1.0",
   "auth": {
-    "bearerToken": "sk_xxx_replace_with_personal_skills_token",
+    "bearerToken": "",
     "signingSecret": ""
   }
 }
 ```
+
+Leave `auth.bearerToken` empty for public read skills. Fill it only when calling token-owned write skills.
 
 ### Step 2: choose a request template
 
@@ -77,12 +79,11 @@ If `skill-config.json` is in the same package root and your wrapper already know
 
 ## Required request flow
 
-To successfully call this skill gateway, the client must do all of the following:
+To successfully call public read skills (`list_categories`, `latest_topics`, `unread_topics`, `department_daily_digest`, `search_topics`, `get_post_raw`), the client must do all of the following:
 
 1. Send a `POST` request to `/api/skills/{skill}/execute`
-2. Send `Authorization: Bearer <personal_skills_token>`
-3. Send `Content-Type: application/json`
-4. Send a JSON body shaped as:
+2. Send `Content-Type: application/json`
+3. Send a JSON body shaped as:
 
 ```json
 {
@@ -90,12 +91,16 @@ To successfully call this skill gateway, the client must do all of the following
 }
 ```
 
-5. If signing is enabled on the server, also send:
+Token-owned write skills (`create_topic_or_reply`, `search_own_posts`, `delete_own_topics`, `delete_own_posts`) must also send:
+
+- `Authorization: Bearer <personal_skills_token>`
+
+If signing is enabled on the server for token-owned write skills, also send:
    - `x-skills-timestamp`
    - `x-skills-nonce`
    - `x-skills-signature`
 
-If you call normal forum APIs directly, or omit the Bearer token on the skills route, the server may respond with `not authorised` or `please log in`.
+If you call normal forum APIs directly, or omit the Bearer token for token-owned write skills, the server may respond with `not authorised` or `please log in`.
 
 ## Signing details
 

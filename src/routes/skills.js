@@ -24,6 +24,7 @@ module.exports = function () {
 	const safetyMiddlewares = [
 		middleware.autoLocale,
 		middleware.applyBlacklist,
+		skillMiddleware.requireTokenSkill(manifest),
 		skillMiddleware.requireBearerToken,
 		middleware.authenticateRequest,
 		middleware.maintenanceMode,
@@ -45,11 +46,30 @@ module.exports = function () {
 		skillMiddleware.requireSkillScopes(manifest),
 	];
 
+	const publicReadMiddlewares = [
+		middleware.autoLocale,
+		middleware.applyBlacklist,
+		middleware.authenticateRequest,
+		middleware.maintenanceMode,
+		middleware.registrationComplete,
+		middleware.pluginHooks,
+		middleware.logApiUsage,
+		skillMiddleware.auditSkillRequest,
+		skillMiddleware.requireEnabled,
+		skillMiddleware.requirePublicReadSkill(manifest),
+		skillMiddleware.requireJson,
+		skillMiddleware.enforceBodySize,
+		skillMiddleware.allowlistedIp,
+		skillMiddleware.extractExternalActor,
+		skillMiddleware.rateLimit,
+	];
+
 	router.get('/tokens', tokenManagementMiddlewares, helpers.tryRoute(controller.listTokens));
 	router.post('/tokens', tokenManagementMiddlewares, helpers.tryRoute(controller.createToken));
 	router.post('/tokens/:token/roll', tokenManagementMiddlewares, helpers.tryRoute(controller.rollToken));
 	router.delete('/tokens/:token', tokenManagementMiddlewares, helpers.tryRoute(controller.revokeToken));
 	router.get('/manifest', helpers.tryRoute(controller.getManifest));
+	router.post('/:skill/execute', publicReadMiddlewares, helpers.tryRoute(controller.execute));
 	router.post('/:skill/execute', safetyMiddlewares, helpers.tryRoute(controller.execute));
 
 	return router;

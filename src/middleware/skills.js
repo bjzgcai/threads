@@ -76,6 +76,32 @@ middleware.requireBearerToken = async (req, res, next) => {
 	next();
 };
 
+function getSkillDef(manifest, skillName) {
+	return manifest && manifest.skills ? manifest.skills[skillName] : null;
+}
+
+middleware.requirePublicReadSkill = manifest => async (req, res, next) => {
+	const skillDef = getSkillDef(manifest, req.params.skill);
+	if (!skillDef) {
+		return helpers.formatApiResponse(404, res, new Error('skill-not-found'));
+	}
+	if (skillDef.access !== 'public-read') {
+		return next('route');
+	}
+	next();
+};
+
+middleware.requireTokenSkill = manifest => async (req, res, next) => {
+	const skillDef = getSkillDef(manifest, req.params.skill);
+	if (!skillDef) {
+		return helpers.formatApiResponse(404, res, new Error('skill-not-found'));
+	}
+	if (skillDef.access === 'public-read') {
+		return next('route');
+	}
+	next();
+};
+
 middleware.requireIssuedSkillToken = async (req, res, next) => {
 	const required = String(process.env.SKILLS_REQUIRE_ISSUED_TOKENS || 'true').toLowerCase() === 'true';
 	if (!required) {
@@ -150,7 +176,7 @@ function getJson(url, headers) {
 		};
 		const req = https.request(options, (res) => {
 			let data = '';
-			res.on('data', chunk => { data += chunk; });
+			res.on('data', (chunk) => { data += chunk; });
 			res.on('end', () => {
 				try {
 					const json = JSON.parse(data);
@@ -246,14 +272,14 @@ middleware.verifySignature = async (req, res, next) => {
 	next();
 };
 
-middleware.requireSkillScopes = (manifest) => async (req, res, next) => {
+middleware.requireSkillScopes = manifest => async (req, res, next) => {
 	const enforceScopes = String(process.env.SKILLS_ENFORCE_SCOPES || 'false').toLowerCase() === 'true';
 	if (!enforceScopes) {
 		return next();
 	}
 
 	const skillName = req.params.skill;
-	const skillDef = manifest && manifest.skills ? manifest.skills[skillName] : null;
+	const skillDef = getSkillDef(manifest, skillName);
 	if (!skillDef) {
 		return helpers.formatApiResponse(404, res, new Error('skill-not-found'));
 	}
@@ -383,7 +409,7 @@ middleware.rateLimit = async (req, res, next) => {
 	const limit = Math.max(1, parseInt(process.env.SKILLS_RATE_LIMIT_PER_MINUTE || '60', 10));
 	const windowMs = 60 * 1000;
 	const authHeader = req.get('authorization') || '';
-	const key = `${authHeader}:${req.params.skill || ''}`;
+	const key = `${authHeader || getClientIp(req)}:${req.params.skill || ''}`;
 
 	const now = Date.now();
 	const current = rateLimitStore.get(key);

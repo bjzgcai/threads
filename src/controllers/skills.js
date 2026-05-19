@@ -459,20 +459,34 @@ Skills.execute = async (req, res) => {
 		const categories = normalizeCategoryIds(input.categories);
 		const tags = normalizeOptionalTags(input.tags);
 		const filter = normalizeUnreadFilter(input.filter);
-		const result = await topics.getUnreadTopics({
-			cid: categories,
-			tag: tags,
-			uid: actorUid,
-			start,
-			stop,
-			filter,
-			query: {},
-		});
+		const result = actorUid > 0 ?
+			await topics.getUnreadTopics({
+				cid: categories,
+				tag: tags,
+				uid: actorUid,
+				start,
+				stop,
+				filter,
+				query: {},
+			}) :
+			await topics.getSortedTopics({
+				cids: categories,
+				tags,
+				uid: actorUid,
+				start,
+				stop,
+				filter: '',
+				term: 'alltime',
+				sort: 'recent',
+				floatPinned: 0,
+				query: {},
+			});
 
 		response = {
 			page,
 			limit,
 			filter,
+			mode: actorUid > 0 ? 'unread' : 'public-latest',
 			matchCount: result.topicCount || 0,
 			topics: (result.topics || []).map(mapTopicSummary).filter(Boolean),
 		};

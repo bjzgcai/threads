@@ -1,0 +1,14 @@
+{
+  "name": "ZGCY Forum Read Config",
+  "baseUrl": "http://10.1.132.5:4567/api/skills",
+  "timeoutMs": 15000,
+  "userAgent": "zgcy-forum-read/1.0",
+  "auth": {
+    "bearerToken": "",
+    "signingSecret": ""
+  },
+  "notes": {
+    "auth": "Public read skills do not require a personal token or request signature. Server-side IP allowlisting may still apply.",
+    "delivery": "Deliver this directory to agents that only need to view forum content."
+  }
+}
