@@ -185,7 +185,7 @@ async function getJson(path, params = {}) {
 function buildTopicPayload(article) {
 	const sourceUrl = String(article.url || '').trim();
 	const content = pickContent(article);
-	const imageMarkdown = getArticleImageMarkdown(article);
+	const imageMarkdown = getArticleImageMarkdown(article, content);
 	const metaLines = [
 		article.author ? `Author: ${article.author}` : '',
 	].filter(Boolean);
@@ -205,12 +205,15 @@ function buildTopicPayload(article) {
 	};
 }
 
-function getArticleImageMarkdown(article) {
+function getArticleImageMarkdown(article, content = '') {
 	const image = getArticleImage(article);
 	if (!image) {
 		return '';
 	}
-	return `![${escapeMarkdownAlt(image.alt || article.title || 'article image')}](${image.src})`;
+	if (String(content).includes(`](${image.src})`)) {
+		return '';
+	}
+	return formatMarkdownImage(image.src, image.alt || article.title || 'article image');
 }
 
 function getArticleImage(article) {
@@ -244,6 +247,10 @@ function escapeMarkdownAlt(value) {
 		.replace(/\[|\]|\n|\r/g, ' ')
 		.replace(/\s+/g, ' ')
 		.trim();
+}
+
+function formatMarkdownImage(src, alt) {
+	return `![${escapeMarkdownAlt(alt)}](${src})`;
 }
 
 function pickContent(article) {
@@ -320,8 +327,15 @@ function formatHtmlContent(html) {
 	const text = htmlToText(html, {
 		wordwrap: false,
 		preserveNewlines: false,
+		formatters: {
+			articleImageMarkdown: formatArticleImageMarkdown,
+		},
 		selectors: [
-			{ selector: 'img', format: 'skip' },
+			{
+				selector: 'img',
+				format: 'articleImageMarkdown',
+				options: { leadingLineBreaks: 2, trailingLineBreaks: 2 },
+			},
 			{ selector: 'a', options: { hideLinkHrefIfSameAsText: true } },
 			{ selector: 'table', format: 'dataTable' },
 		],
@@ -333,4 +347,39 @@ function formatHtmlContent(html) {
 		.replace(/\n{3,}/g, '\n\n')
 		.replace(/[ \t]{2,}/g, ' ')
 		.trim();
+}
+
+function formatArticleImageMarkdown(elem, walk, builder, formatOptions) {
+	const src = getHtmlImageSrc(elem);
+	if (!src) {
+		return;
+	}
+
+	const attribs = elem && elem.attribs ? elem.attribs : {};
+	const alt = attribs.alt || attribs.title || 'article image';
+	builder.openBlock({ leadingLineBreaks: formatOptions.leadingLineBreaks || 2 });
+	builder.addInline(formatMarkdownImage(src, alt), { noWordTransform: true });
+	builder.closeBlock({ trailingLineBreaks: formatOptions.trailingLineBreaks || 2 });
+}
+
+function getHtmlImageSrc(elem) {
+	const attribs = elem && elem.attribs ? elem.attribs : {};
+	const candidates = [
+		attribs['data-src'],
+		attribs.src,
+		attribs['data-lazy-src'],
+		attribs['data-actualsrc'],
+		attribs['data-original'],
+		attribs['data-orig-src'],
+		attribs['data-url'],
+	];
+
+	for (const candidate of candidates) {
+		const value = String(candidate || '').trim();
+		if (isHttpUrl(value)) {
+			return value;
+		}
+	}
+
+	return '';
 }

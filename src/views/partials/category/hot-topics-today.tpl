@@ -15,7 +15,7 @@
 			{{{ if !template.popular }}}
 			<div class="d-flex align-items-center gap-2 gap-lg-3 flex-shrink-0 rounded-3 border border-white p-2 pe-3" style="background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);">
 				<img
-					src="{config.relative_path}/assets/images/nodebb-local-qr2.png"
+					src="{config.relative_path}/assets/images/nodebb-local-qr.png"
 					alt="钉钉扫码"
 					class="rounded-2 bg-white p-1"
 					style="width: clamp(4.75rem, 7vw, 7rem); height: clamp(4.75rem, 7vw, 7rem);"

@@ -34,8 +34,8 @@ const overrides = [
 
 const staticAssets = [
 	{
-		source: 'nodebb-local-qr2.png',
-		target: 'public/images/nodebb-local-qr2.png',
+		source: 'nodebb-local-qr.png',
+		target: 'public/images/nodebb-local-qr.png',
 	},
 ];
 
