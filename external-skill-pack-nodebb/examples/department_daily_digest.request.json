@@ -1,9 +1,9 @@
 {
   "input": {
-    "department": "计算机学院",
-    "person": "科研秘书",
-    "attributes": ["人工智能", "产学研", "科研项目"],
-    "keywords": ["大模型", "高校", "政策"],
+    "department": "Computer Science School",
+    "person": "Research Secretary",
+    "attributes": ["AI", "industry research", "research projects"],
+    "keywords": ["large model", "university", "policy"],
     "limit": 10
   }
 }

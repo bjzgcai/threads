@@ -59,7 +59,7 @@ report.buildDailySummaryData = async function () {
 	const now = new Date();
 	const dayStart = new Date(now);
 	dayStart.setHours(0, 0, 0, 0);
-	const yesterdayStart = new Date(dayStart.getTime() - 24 * 60 * 60 * 1000);
+	const yesterdayStart = new Date(dayStart.getTime() - (24 * 60 * 60 * 1000));
 	const todayStartTs = dayStart.getTime();
 	const dateLabel = formatDate(yesterdayStart);
 
@@ -71,6 +71,9 @@ report.buildDailySummaryData = async function () {
 		uniqueVisitors,
 		logins,
 		global,
+		actualUserCount,
+		actualTopicCount,
+		actualPostCount,
 	] = await Promise.all([
 		getYesterdayAnalyticsValue('analytics:registrations', todayStartTs),
 		getYesterdayAnalyticsValue('analytics:topics', todayStartTs),
@@ -79,6 +82,9 @@ report.buildDailySummaryData = async function () {
 		getYesterdayAnalyticsValue('analytics:uniquevisitors', todayStartTs),
 		getYesterdayAnalyticsValue('analytics:logins', todayStartTs),
 		db.getObjectFields('global', ['userCount', 'topicCount', 'postCount', 'loginCount']),
+		db.sortedSetCard('users:joindate'),
+		db.sortedSetCard('topics:tid'),
+		db.sortedSetCard('posts:pid'),
 	]);
 
 	const metrics = {
@@ -90,9 +96,9 @@ report.buildDailySummaryData = async function () {
 		logins,
 	};
 	const totals = {
-		userCount: toInt(global.userCount),
-		topicCount: toInt(global.topicCount),
-		postCount: toInt(global.postCount),
+		userCount: Math.max(toInt(global.userCount), toInt(actualUserCount)),
+		topicCount: Math.max(toInt(global.topicCount), toInt(actualTopicCount)),
+		postCount: Math.max(toInt(global.postCount), toInt(actualPostCount)),
 		loginCount: toInt(global.loginCount),
 	};
 
@@ -179,7 +185,7 @@ function postJson(url, body) {
 			},
 		}, (res) => {
 			let data = '';
-			res.on('data', chunk => { data += chunk; });
+			res.on('data', (chunk) => { data += chunk; });
 			res.on('end', () => {
 				if (res.statusCode >= 400) {
 					return reject(new Error(`HTTP ${res.statusCode}: ${data}`));

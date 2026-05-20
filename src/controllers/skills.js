@@ -238,9 +238,10 @@ function normalizeDigestCategoryIds(input) {
 	}
 
 	return [
+		2,
 		parseInt(process.env.ARTICLE_AUTO_PUBLISH_CID, 10) || 0,
 		parseInt(process.env.WECHAT_AUTO_PUBLISH_CID, 10) || 0,
-	].filter(Boolean);
+	].filter(Boolean).filter((cid, index, cids) => cids.indexOf(cid) === index);
 }
 
 function mapPostSummary(post) {
