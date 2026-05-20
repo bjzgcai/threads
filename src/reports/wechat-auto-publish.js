@@ -25,18 +25,20 @@ const CID = parseInt(process.env.WECHAT_AUTO_PUBLISH_CID, 10) || 0;
 const CATEGORY_NAME = String(process.env.WECHAT_AUTO_PUBLISH_CATEGORY_NAME || '公众号精选').trim();
 const CATEGORY_PARENT_CID = parseInt(process.env.WECHAT_AUTO_PUBLISH_PARENT_CID, 10) || 0;
 const UID = parseInt(process.env.WECHAT_AUTO_PUBLISH_UID, 10) || 1;
-const KEY = String(process.env.WECHAT_AUTO_PUBLISH_JZLKEY || '').trim();
-const VERIFY_CODE = String(process.env.WECHAT_AUTO_PUBLISH_VERIFY_CODE || '').trim();
-const EXCEL_PATH = path.resolve(__dirname, '..', '..', process.env.WECHAT_AUTO_PUBLISH_EXCEL_PATH || 'wechat_config.xlsx');
+const EXCEL_PATH = path.resolve(__dirname, '..', '..', process.env.WECHAT_AUTO_PUBLISH_EXCEL_PATH || 'docs/account.csv');
 const ACCOUNTS = parseAccounts(process.env.WECHAT_AUTO_PUBLISH_ACCOUNTS || '');
-const LOOKBACK_HOURS = Math.max(parseInt(process.env.WECHAT_AUTO_PUBLISH_LOOKBACK_HOURS, 10) || 24, 1);
-const MAX_HISTORY_PAGES = Math.max(parseInt(process.env.WECHAT_AUTO_PUBLISH_MAX_HISTORY_PAGES, 10) || 10, 1);
-const MAX_COMMENT_PAGES = Math.max(parseInt(process.env.WECHAT_AUTO_PUBLISH_MAX_COMMENT_PAGES, 10) || 0, 0);
-const INCLUDE_INTERACTION = /^1|true|yes$/i.test(String(process.env.WECHAT_AUTO_PUBLISH_INCLUDE_INTERACTION || 'true'));
-const INCLUDE_COMMENTS = /^1|true|yes$/i.test(String(process.env.WECHAT_AUTO_PUBLISH_INCLUDE_COMMENTS || 'false'));
 const RESPECT_EXCEL_HOURS = /^1|true|yes$/i.test(String(process.env.WECHAT_AUTO_PUBLISH_RESPECT_EXCEL_HOURS || 'false'));
 const MAX_ARTICLES = Math.max(parseInt(process.env.WECHAT_AUTO_PUBLISH_MAX_ARTICLES, 10) || 50, 1);
 const TIMEOUT_MS = Math.max(parseInt(process.env.WECHAT_AUTO_PUBLISH_TIMEOUT_MS, 10) || 15000, 1000);
+const TASK_API_BASE = String(process.env.WECHAT_AUTO_PUBLISH_TASK_API_BASE || 'http://223.93.145.203:31588').replace(/\/+$/, '');
+const TASK_POLL_INTERVAL_MS = Math.max(
+	parseInt(process.env.WECHAT_AUTO_PUBLISH_TASK_POLL_INTERVAL_MS, 10) || 10000,
+	1000
+);
+const TASK_MAX_POLL_ATTEMPTS = Math.max(
+	parseInt(process.env.WECHAT_AUTO_PUBLISH_TASK_MAX_POLL_ATTEMPTS, 10) || 60,
+	1
+);
 const IMPORTED_SET = 'wechat-auto-publish:imported';
 const RUN_LOCK = 'wechat-auto-publish:running';
 const RUN_LOCK_STALE_MS = 2 * 60 * 60 * 1000;
@@ -46,10 +48,6 @@ let job = null;
 publisher.startJobs = function () {
 	if (!ENABLED) {
 		winston.verbose('[wechat-auto-publish] disabled by WECHAT_AUTO_PUBLISH_ENABLED');
-		return;
-	}
-	if (!KEY) {
-		winston.warn('[wechat-auto-publish] missing WECHAT_AUTO_PUBLISH_JZLKEY, job skipped');
 		return;
 	}
 	if (!ACCOUNTS.length) {
@@ -88,23 +86,31 @@ publisher.publishDailyWechatArticles = async function () {
 	await db.setObject(RUN_LOCK, { timestamp: Date.now() });
 	try {
 		const cid = await ensureCategory();
-		const { startTs, endTs } = getTimeWindow();
+		const window = getYesterdayTimeWindow();
 		let imported = 0;
 		let skipped = 0;
 
 		for (const account of ACCOUNTS) {
+			if (!account.category) {
+				skipped += 1;
+				winston.warn(`[wechat-auto-publish] skipped account "${account.name}" because category is empty`);
+				continue;
+			}
 			if (!shouldRunAccountNow(account)) {
 				winston.info(`[wechat-auto-publish] skipped account "${account.name}" because current hour is not in ${JSON.stringify(account.hoursList)}`);
 				continue;
 			}
 
-			const accountWindow = getTimeWindow(account.timeRangeType);
-			const history = await fetchAccountHistory(
-				account,
-				accountWindow.startTs || startTs,
-				accountWindow.endTs || endTs
-			);
-			for (const brief of history.slice(0, MAX_ARTICLES)) {
+			let articles = [];
+			try {
+				articles = await fetchAccountArticles(account, window);
+			} catch (err) {
+				skipped += 1;
+				winston.error(`[wechat-auto-publish] account "${account.name}" failed: ${err.stack || err.message}`);
+				continue;
+			}
+
+			for (const brief of articles.slice(0, MAX_ARTICLES)) {
 				const articleId = getArticleId(brief);
 				if (!articleId || await db.isSetMember(IMPORTED_SET, articleId)) {
 					skipped += 1;
@@ -112,17 +118,14 @@ publisher.publishDailyWechatArticles = async function () {
 				}
 
 				try {
-					const detail = await fetchArticleDetail(brief.original_url);
+					const detail = buildArticleDetail(brief);
 					if (!detail.contentText && !detail.htmlContent) {
 						skipped += 1;
 						continue;
 					}
 
-					const includeInteraction = account.needInteract === undefined ? INCLUDE_INTERACTION : account.needInteract;
-					const includeComments = account.needComment === undefined ? INCLUDE_COMMENTS : account.needComment;
-					const interaction = includeInteraction ? await fetchInteraction(brief.original_url) : null;
-					const comments = includeComments && interaction && interaction.comment_count > 0 ?
-						await fetchComments(brief.original_url) : [];
+					const interaction = normalizeEngagement(brief.engagement_data);
+					const comments = normalizeComments(brief.comments);
 					const payload = buildTopicPayload(cid, account, brief, detail, interaction, comments);
 					const result = await topics.post(payload);
 
@@ -134,6 +137,7 @@ publisher.publishDailyWechatArticles = async function () {
 							importedAt: Date.now(),
 							sourceUrl: brief.original_url,
 							account: account.name,
+							category: account.category,
 						}),
 					]);
 					imported += 1;
@@ -180,138 +184,90 @@ async function ensureCategory() {
 	return parseInt(category.cid, 10);
 }
 
-async function fetchAccountHistory(account, startTs, endTs) {
-	const articles = [];
-	let isOver = false;
-
-	for (let page = 1; page <= MAX_HISTORY_PAGES && !isOver; page += 1) {
-		const response = await postJson('https://www.dajiala.com/fbmain/monitor/v3/post_history', {
-			biz: account.biz || '',
-			url: '',
-			name: account.name,
-			page,
-			key: KEY,
-			verifycode: VERIFY_CODE,
-		});
-
-		if (response.code === 105) {
-			winston.warn(`[wechat-auto-publish] account not found: ${account.name}`);
-			break;
-		}
-		if (response.code !== 0) {
-			throw new Error(`post_history code=${response.code}, msg=${response.msg || ''}`);
-		}
-
-		for (const article of (Array.isArray(response.data) ? response.data : [])) {
-			const postTime = parseInt(article.post_time, 10) || 0;
-			if (postTime < startTs) {
-				isOver = true;
-				break;
-			}
-			if (postTime > endTs) {
-				continue;
-			}
-			if (String(article.is_deleted || '0') !== '0' || parseInt(article.msg_status, 10) !== 2) {
-				continue;
-			}
-			const url = String(article.url || '').trim();
-			const articleId = getArticleId({ original_url: url });
-			if (!articleId) {
-				continue;
-			}
-			articles.push({
-				article_id: articleId,
-				original_url: url,
-				title: String(article.title || '').trim(),
-				post_time: postTime,
-				post_time_str: String(article.post_time_str || '').trim(),
-				cover_url: String(article.cover_url || '').trim(),
-			});
-		}
+async function fetchAccountArticles(account, window) {
+	const submitResponse = await postJson(`${TASK_API_BASE}/submit_task`, {
+		account_name: account.name,
+		start_time: window.startTime,
+		end_time: window.endTime,
+		category: account.category,
+	});
+	const taskId = String((submitResponse && submitResponse.task_id) || '').trim();
+	if (!taskId) {
+		throw new Error(`submit_task missing task_id for account="${account.name}" category="${account.category}"`);
 	}
 
-	return articles;
+	const result = await queryTaskUntilDone(taskId, account);
+	const articles = result && Array.isArray(result.articles) ? result.articles : [];
+	winston.info(`[wechat-auto-publish] task ${taskId} account="${account.name}" category="${account.category}" articles=${articles.length}`);
+	return articles.map(article => normalizeTaskArticle(article, account));
 }
 
-async function fetchArticleDetail(articleUrl) {
-	const response = await getJson('https://www.dajiala.com/fbmain/monitor/v3/article_detail', {
-		url: articleUrl,
-		key: KEY,
-		mode: 2,
-		verifycode: VERIFY_CODE,
-	});
-	if (response.code === 101) {
-		return {};
+async function queryTaskUntilDone(taskId, account) {
+	for (let attempt = 1; attempt <= TASK_MAX_POLL_ATTEMPTS; attempt += 1) {
+		const response = await postJson(`${TASK_API_BASE}/query_task`, { task_id: taskId });
+		const status = String((response && response.status) || '').toUpperCase();
+		if (status === 'SUCCESS') {
+			return response.result || {};
+		}
+		if (status === 'FAILURE') {
+			throw new Error(`query_task failed task_id=${taskId}: ${response.error || response.message || 'unknown error'}`);
+		}
+		if (attempt < TASK_MAX_POLL_ATTEMPTS) {
+			await sleep(TASK_POLL_INTERVAL_MS);
+		}
 	}
-	if (response.code !== 0) {
-		throw new Error(`article_detail code=${response.code}, msg=${response.msg || ''}`);
-	}
+	throw new Error(`query_task timed out task_id=${taskId} account="${account.name}" category="${account.category}"`);
+}
+
+function normalizeTaskArticle(article, account) {
+	const content = article && article.content && typeof article.content === 'object' ? article.content : {};
+	const publishTime = parseInt(article?.publish_time, 10) || 0;
+	const originalUrl = String(article?.original_url || '').trim();
 	return {
-		ghid: String(response.user_name || '').trim(),
-		biz: String(response.biz || '').trim(),
-		accountName: String(response.nick_name || '').trim(),
-		contentText: String(response.content || '').trim(),
-		htmlContent: String(response.content_multi_text || '').trim(),
-		author: String(response.author || '').trim(),
+		article_id: String(article?.article_id || '').trim(),
+		source_account: String(article?.source_account || account.name).trim(),
+		category: String(article?.category || account.category).trim(),
+		title: String(article?.title || '').trim(),
+		author: String(article?.author || '').trim(),
+		publish_time: publishTime,
+		post_time_str: publishTime ? formatUnixTime(publishTime) : '',
+		fetch_time: parseInt(article?.fetch_time, 10) || 0,
+		original_url: originalUrl,
+		content,
+		engagement_data: article?.engagement_data,
+		comments: Array.isArray(article?.comments) ? article.comments : [],
 	};
 }
 
-async function fetchInteraction(articleUrl) {
-	const response = await postJson('https://www.dajiala.com/fbmain/monitor/v3/read_zan_pro', {
-		url: articleUrl,
-		key: KEY,
-		mode: 1,
-		verifycode: VERIFY_CODE,
-	});
-	if (response.code === 101) {
-		return zeroInteraction();
-	}
-	if (response.code !== 0) {
-		throw new Error(`read_zan_pro code=${response.code}, msg=${response.msg || ''}`);
-	}
-	const data = response.data || {};
+function buildArticleDetail(article) {
 	return {
-		read_count: parseInt(data.read, 10) || 0,
-		like_count: parseInt(data.zan, 10) || 0,
-		wow_count: parseInt(data.looking, 10) || 0,
-		forward_count: parseInt(data.share_num, 10) || 0,
-		comment_count: parseInt(data.comment_count, 10) || 0,
+		accountName: article.source_account,
+		contentText: String((article.content && article.content.text) || '').trim(),
+		htmlContent: String((article.content && article.content.html) || '').trim(),
+		author: article.author,
 	};
 }
 
-async function fetchComments(articleUrl) {
-	const comments = [];
-	let buffer = '';
-
-	for (let page = 1; page <= MAX_COMMENT_PAGES; page += 1) {
-		const response = await postForm('https://www.dajiala.com/fbmain/monitor/v3/article_comment2', {
-			url: articleUrl,
-			buffer,
-			key: KEY,
-			verifycode: VERIFY_CODE,
-		});
-		if (response.code === 101) {
-			break;
-		}
-		if (response.code !== 0) {
-			throw new Error(`article_comment2 code=${response.code}, msg=${response.msg || ''}`);
-		}
-		const data = Array.isArray(response.data) ? response.data : [];
-		data.forEach((item) => {
-			comments.push({
-				user_nickname: String(item.nick_name || '').trim(),
-				comment_text: String(item.content || '').trim(),
-				like_count: parseInt(item.like_num, 10) || 0,
-				publish_time: parseInt(item.create_time_stamp, 10) || 0,
-			});
-		});
-		if (!response.continue_flag || data.length < 100) {
-			break;
-		}
-		buffer = String(response.buffer || '');
+function normalizeEngagement(data) {
+	if (!data || typeof data !== 'object') {
+		return null;
 	}
+	return {
+		read_count: numberFromAny(data.read_count, data.read, data.read_num),
+		like_count: numberFromAny(data.like_count, data.like, data.zan),
+		wow_count: numberFromAny(data.wow_count, data.looking, data.watch_count),
+		forward_count: numberFromAny(data.forward_count, data.share_count, data.share_num),
+		comment_count: numberFromAny(data.comment_count, data.comments_count),
+	};
+}
 
-	return comments;
+function normalizeComments(comments) {
+	return (Array.isArray(comments) ? comments : []).map(comment => ({
+		user_nickname: String(comment?.user_nickname || comment?.nick_name || '').trim(),
+		comment_text: String(comment?.comment_text || comment?.content || '').trim(),
+		like_count: numberFromAny(comment?.like_count, comment?.like_num),
+		publish_time: parseInt(comment?.publish_time, 10) || 0,
+	})).filter(comment => comment.comment_text || comment.user_nickname);
 }
 
 function buildTopicPayload(cid, account, brief, detail, interaction, comments) {
@@ -338,31 +294,11 @@ function buildTopicPayload(cid, account, brief, detail, interaction, comments) {
 	};
 }
 
-async function getJson(url, params = {}) {
-	const requestUrl = new URL(url);
-	Object.entries(params).forEach(([key, value]) => {
-		if (value !== undefined && value !== null && value !== '') {
-			requestUrl.searchParams.set(key, value);
-		}
-	});
-	return await requestJson(requestUrl, { method: 'GET' });
-}
-
 async function postJson(url, body) {
 	return await requestJson(url, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify(body),
-	});
-}
-
-async function postForm(url, data) {
-	const body = new URLSearchParams();
-	Object.entries(data).forEach(([key, value]) => body.set(key, value || ''));
-	return await requestJson(url, {
-		method: 'POST',
-		headers: { 'content-type': 'application/x-www-form-urlencoded' },
-		body: body.toString(),
 	});
 }
 
@@ -380,17 +316,22 @@ async function requestJson(url, options) {
 }
 
 function parseAccounts(raw) {
+	const excelAccounts = loadAccountsFromExcel(EXCEL_PATH);
+	if (excelAccounts.length) {
+		return excelAccounts;
+	}
+
 	const value = String(raw || '').trim();
 	if (!value) {
-		return loadAccountsFromExcel(EXCEL_PATH);
+		return [];
 	}
 	if (value.startsWith('[')) {
 		try {
 			const parsed = JSON.parse(value);
 			return parsed.map(account => ({
 				name: String(account.name || '').trim(),
-				biz: String(account.biz || '').trim(),
 				category: String(account.category || '').trim(),
+				hoursList: parseHours(account.hours || account.hoursList),
 			})).filter(account => account.name);
 		} catch (err) {
 			winston.warn(`[wechat-auto-publish] invalid WECHAT_AUTO_PUBLISH_ACCOUNTS JSON: ${err.message}`);
@@ -398,13 +339,16 @@ function parseAccounts(raw) {
 		}
 	}
 	return value.split(',')
-		.map(name => ({ name: name.trim(), biz: '', category: '' }))
+		.map(name => ({ name: name.trim(), category: '' }))
 		.filter(account => account.name);
 }
 
 function loadAccountsFromExcel(excelPath) {
 	if (!fs.existsSync(excelPath)) {
 		return [];
+	}
+	if (path.extname(excelPath).toLowerCase() === '.csv') {
+		return loadAccountsFromCsv(excelPath);
 	}
 
 	const script = `
@@ -413,14 +357,28 @@ import sys
 import openpyxl
 
 path = sys.argv[1]
+
+def clean(value):
+    return str(value or '').replace('\\ufeff', '').strip()
+
 wb = openpyxl.load_workbook(path, data_only=True)
 ws = wb.active
-headers = [cell.value for cell in ws[1]]
+headers = [clean(cell.value) for cell in ws[1]]
+rows = list(ws.iter_rows(min_row=2, values_only=True))
 
 def get(row, name):
     if name not in headers:
         return None
     return row[headers.index(name)]
+
+def get_any(row, names, fallback_index=None):
+    for name in names:
+        value = get(row, name)
+        if value:
+            return value
+    if fallback_index is not None and fallback_index < len(row):
+        return row[fallback_index]
+    return None
 
 def parse_bool(value):
     if isinstance(value, bool):
@@ -440,19 +398,16 @@ def parse_hours(value):
     return result
 
 accounts = []
-for row in ws.iter_rows(min_row=2, values_only=True):
+for row in rows:
     if not row or all(cell is None for cell in row):
         continue
-    name = get(row, '公众号名称')
+    name = get_any(row, ['账号名称', '公众号名称'], 0)
     if not name:
         continue
+    category = get_any(row, ['分类', '类别(category)'], 1)
     accounts.append({
         'name': str(name).strip(),
-        'biz': '',
-        'category': str(get(row, '类别(category)') or '').strip(),
-        'timeRangeType': str(get(row, '时间范围类型') or '').strip(),
-        'needInteract': parse_bool(get(row, '是否获取互动数据')),
-        'needComment': parse_bool(get(row, '是否获取评论数据')),
+        'category': str(category or '').strip(),
         'hoursList': parse_hours(get(row, '采集时间点')),
     })
 
@@ -472,6 +427,75 @@ print(json.dumps(accounts, ensure_ascii=False))
 		winston.warn(`[wechat-auto-publish] failed to load Excel config ${excelPath}: ${err.message}`);
 		return [];
 	}
+}
+
+function loadAccountsFromCsv(csvPath) {
+	try {
+		const lines = fs.readFileSync(csvPath, 'utf8')
+			.replace(/^\uFEFF/, '')
+			.split(/\r?\n/)
+			.filter(line => line.trim());
+		if (lines.length < 2) {
+			return [];
+		}
+
+		const headers = parseCsvLine(lines[0]).map(cleanCsvCell);
+		const accounts = lines.slice(1).map((line) => {
+			const row = parseCsvLine(line).map(cleanCsvCell);
+			const name = getCsvValue(row, headers, ['账号名称', '公众号名称'], 0);
+			const category = getCsvValue(row, headers, ['分类', '类别(category)'], 1);
+			const hours = getCsvValue(row, headers, ['采集时间点'], -1);
+			return {
+				name,
+				category,
+				hoursList: parseHours(hours),
+			};
+		}).filter(account => account.name);
+
+		winston.info(`[wechat-auto-publish] loaded ${accounts.length} account(s) from ${csvPath}`);
+		return accounts;
+	} catch (err) {
+		winston.warn(`[wechat-auto-publish] failed to load CSV config ${csvPath}: ${err.message}`);
+		return [];
+	}
+}
+
+function parseCsvLine(line) {
+	const cells = [];
+	let current = '';
+	let quoted = false;
+
+	for (let index = 0; index < line.length; index += 1) {
+		const char = line[index];
+		const next = line[index + 1];
+		if (char === '"' && quoted && next === '"') {
+			current += '"';
+			index += 1;
+		} else if (char === '"') {
+			quoted = !quoted;
+		} else if (char === ',' && !quoted) {
+			cells.push(current);
+			current = '';
+		} else {
+			current += char;
+		}
+	}
+	cells.push(current);
+	return cells;
+}
+
+function cleanCsvCell(value) {
+	return String(value || '').replace(/^\uFEFF/, '').trim();
+}
+
+function getCsvValue(row, headers, names, fallbackIndex) {
+	for (const name of names) {
+		const index = headers.indexOf(name);
+		if (index !== -1 && row[index]) {
+			return row[index];
+		}
+	}
+	return fallbackIndex >= 0 && fallbackIndex < row.length ? row[fallbackIndex] : '';
 }
 
 function pickContent(detail) {
@@ -562,20 +586,13 @@ function getArticleId(article) {
 	return String(rawArticleId || (match && match[1]) || url).trim();
 }
 
-function getTimeWindow(timeRangeType) {
-	const endTs = Math.floor(Date.now() / 1000);
-	if (String(timeRangeType || '').trim() === '当天') {
-		const start = new Date();
-		start.setHours(0, 0, 0, 0);
-		return {
-			startTs: Math.floor(start.getTime() / 1000),
-			endTs,
-		};
-	}
-
+function getYesterdayTimeWindow() {
+	const now = new Date(new Date().toLocaleString('en-US', { timeZone: TZ }));
+	const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
+	const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
 	return {
-		startTs: endTs - (LOOKBACK_HOURS * 60 * 60),
-		endTs,
+		startTime: formatDateTime(start),
+		endTime: formatDateTime(end),
 	};
 }
 
@@ -619,12 +636,47 @@ function looksLikeHtml(content) {
 	return /<\/?[a-z][\s\S]*>/i.test(content);
 }
 
-function zeroInteraction() {
-	return {
-		read_count: 0,
-		like_count: 0,
-		wow_count: 0,
-		forward_count: 0,
-		comment_count: 0,
-	};
+function numberFromAny(...values) {
+	for (const value of values) {
+		const parsed = parseInt(value, 10);
+		if (!Number.isNaN(parsed)) {
+			return parsed;
+		}
+	}
+	return 0;
+}
+
+function parseHours(value) {
+	if (Array.isArray(value)) {
+		return value.map(hour => parseInt(hour, 10)).filter(hour => hour >= 0 && hour <= 23);
+	}
+	return String(value || '')
+		.replace(/，/g, ',')
+		.split(',')
+		.map(hour => parseInt(hour.trim(), 10))
+		.filter(hour => hour >= 0 && hour <= 23);
+}
+
+function formatUnixTime(timestamp) {
+	if (!timestamp) {
+		return '';
+	}
+	return formatDateTime(new Date(timestamp * 1000));
+}
+
+function formatDateTime(date) {
+	const pad = value => String(value).padStart(2, '0');
+	return [
+		date.getFullYear(),
+		pad(date.getMonth() + 1),
+		pad(date.getDate()),
+	].join('-') + ' ' + [
+		pad(date.getHours()),
+		pad(date.getMinutes()),
+		pad(date.getSeconds()),
+	].join(':');
+}
+
+function sleep(ms) {
+	return new Promise(resolve => setTimeout(resolve, ms));
 }
