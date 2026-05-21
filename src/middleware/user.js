@@ -47,7 +47,7 @@ module.exports = function (middleware) {
 			return true;
 		}
 
-		if (res.locals.isAPI && (req.loggedIn || !req.headers.hasOwnProperty('authorization'))) {
+		if (res.locals.isAPI && !req.skipApiCsrf && (req.loggedIn || !req.headers.hasOwnProperty('authorization'))) {
 			// If authenticated via cookie (express-session), protect routes with CSRF checking
 			await middleware.applyCSRFasync(req, res);
 		}
