@@ -4,17 +4,24 @@
 
 require('../load-env')();
 
+const crypto = require('crypto');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { CronJob } = require('cron');
 const { htmlToText } = require('html-to-text');
+const mime = require('mime');
+const nconf = require('nconf');
 const { request } = require('undici');
 const winston = require('winston');
 
 const categories = require('../categories');
 const db = require('../database');
+const file = require('../file');
+const image = require('../image');
 const topics = require('../topics');
+const user = require('../user');
 
 const publisher = module.exports;
 
@@ -42,8 +49,20 @@ const TASK_MAX_POLL_ATTEMPTS = Math.max(
 const IMPORTED_SET = 'wechat-auto-publish:imported';
 const RUN_LOCK = 'wechat-auto-publish:running';
 const RUN_LOCK_STALE_MS = 2 * 60 * 60 * 1000;
+const RUN_LOCK_CLEANUP_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGQUIT'];
+const WECHAT_IMAGE_SRC_ATTRS = [
+	'data-src',
+	'src',
+	'data-lazy-src',
+	'data-actualsrc',
+	'data-original',
+	'data-orig-src',
+	'data-url',
+];
 
 let job = null;
+let shutdownHooksInstalled = false;
+let runLockCleanupPromise = null;
 
 publisher.startJobs = function () {
 	if (!ENABLED) {
@@ -55,6 +74,7 @@ publisher.startJobs = function () {
 		return;
 	}
 
+	installShutdownHooks();
 	job = new CronJob(CRON_EXPR, async () => {
 		try {
 			await publisher.publishDailyWechatArticles();
@@ -83,7 +103,7 @@ publisher.publishDailyWechatArticles = async function () {
 		winston.warn('[wechat-auto-publish] clearing stale run lock');
 	}
 
-	await db.setObject(RUN_LOCK, { timestamp: Date.now() });
+	await db.setObject(RUN_LOCK, { timestamp: Date.now(), pid: process.pid });
 	try {
 		const cid = await ensureCategory();
 		const window = getYesterdayTimeWindow();
@@ -112,13 +132,22 @@ publisher.publishDailyWechatArticles = async function () {
 
 			for (const brief of articles.slice(0, MAX_ARTICLES)) {
 				const articleId = getArticleId(brief);
-				if (!articleId || await db.isSetMember(IMPORTED_SET, articleId)) {
+				if (!articleId) {
+					skipped += 1;
+					continue;
+				}
+				if (await shouldSkipImportedArticle(articleId)) {
 					skipped += 1;
 					continue;
 				}
 
 				try {
-					const detail = buildArticleDetail(brief);
+					let detail = buildArticleDetail(brief);
+					detail = await localizeArticleImages(detail, {
+						accountName: account.name,
+						articleId,
+						sourceUrl: brief.original_url,
+					});
 					if (!detail.contentText && !detail.htmlContent) {
 						skipped += 1;
 						continue;
@@ -151,9 +180,80 @@ publisher.publishDailyWechatArticles = async function () {
 		winston.info(`[wechat-auto-publish] imported=${imported} skipped=${skipped} cid=${cid}`);
 		return { imported, skipped };
 	} finally {
-		await db.delete(RUN_LOCK);
+		await deleteRunLockIfOwned('job completion');
 	}
 };
+
+function installShutdownHooks() {
+	if (shutdownHooksInstalled) {
+		return;
+	}
+	shutdownHooksInstalled = true;
+
+	RUN_LOCK_CLEANUP_SIGNALS.forEach((signal) => {
+		process.once(signal, () => {
+			void deleteRunLockIfOwned(`signal ${signal}`);
+		});
+	});
+}
+
+async function deleteRunLockIfOwned(reason) {
+	if (runLockCleanupPromise) {
+		return await runLockCleanupPromise;
+	}
+
+	runLockCleanupPromise = (async () => {
+		try {
+			const runLock = await db.getObject(RUN_LOCK);
+			if (!runLock) {
+				return false;
+			}
+
+			const lockPid = parseInt(runLock.pid, 10) || 0;
+			if (lockPid && lockPid !== process.pid) {
+				winston.verbose(`[wechat-auto-publish] skip run lock cleanup on ${reason}, owner pid=${lockPid}`);
+				return false;
+			}
+
+			await db.delete(RUN_LOCK);
+			winston.info(`[wechat-auto-publish] cleared run lock on ${reason}`);
+			return true;
+		} catch (err) {
+			winston.warn(`[wechat-auto-publish] failed to clear run lock on ${reason}: ${err.message}`);
+			return false;
+		} finally {
+			runLockCleanupPromise = null;
+		}
+	})();
+
+	return await runLockCleanupPromise;
+}
+
+async function shouldSkipImportedArticle(articleId) {
+	const imported = await db.isSetMember(IMPORTED_SET, articleId);
+	if (!imported) {
+		return false;
+	}
+
+	const mappingKey = `wechat-auto-publish:article:${articleId}`;
+	const mapping = await db.getObject(mappingKey);
+	const tid = parseInt(mapping && mapping.tid, 10) || 0;
+	if (!tid) {
+		return true;
+	}
+
+	const topic = await topics.getTopicFields(tid, ['tid', 'deleted']);
+	if (topic && topic.tid && !parseInt(topic.deleted, 10)) {
+		return true;
+	}
+
+	winston.info(`[wechat-auto-publish] clearing stale imported marker article=${articleId} tid=${tid || 'unknown'}`);
+	await Promise.all([
+		db.setRemove(IMPORTED_SET, articleId),
+		db.delete(mappingKey),
+	]);
+	return false;
+}
 
 async function ensureCategory() {
 	if (CID) {
@@ -245,6 +345,71 @@ function buildArticleDetail(article) {
 		contentText: String((article.content && article.content.text) || '').trim(),
 		htmlContent: String((article.content && article.content.html) || '').trim(),
 		author: article.author,
+		imagePaths: [],
+	};
+}
+
+async function localizeArticleImages(detail, context) {
+	if (!detail.htmlContent || !looksLikeHtml(detail.htmlContent)) {
+		return detail;
+	}
+
+	const matches = Array.from(detail.htmlContent.matchAll(/<img\b[^>]*>/gi));
+	if (!matches.length) {
+		return detail;
+	}
+
+	const cache = new Map();
+	const imagePaths = [];
+	let localizedHtml = '';
+	let lastIndex = 0;
+	let imageIndex = 0;
+
+	for (const match of matches) {
+		const tag = match[0];
+		const index = match.index || 0;
+
+		localizedHtml += detail.htmlContent.slice(lastIndex, index);
+		lastIndex = index + tag.length;
+
+		const remoteUrl = getWechatImageSrcFromTag(tag);
+		if (!remoteUrl) {
+			localizedHtml += tag;
+			continue;
+		}
+
+		imageIndex += 1;
+		let upload = cache.get(remoteUrl);
+		if (!upload && !cache.has(remoteUrl)) {
+			try {
+				upload = await downloadWechatImage(remoteUrl, {
+					...context,
+					imageIndex,
+				});
+			} catch (err) {
+				upload = null;
+				winston.warn(`[wechat-auto-publish] image import failed account="${context.accountName}" article="${context.articleId}" url="${remoteUrl}": ${err.message}`);
+			}
+			cache.set(remoteUrl, upload);
+		}
+
+		if (!upload) {
+			localizedHtml += tag;
+			continue;
+		}
+
+		if (!imagePaths.includes(upload.relativePath)) {
+			imagePaths.push(upload.relativePath);
+		}
+
+		localizedHtml += rewriteImageTagSources(tag, upload.url);
+	}
+
+	localizedHtml += detail.htmlContent.slice(lastIndex);
+	return {
+		...detail,
+		htmlContent: localizedHtml,
+		imagePaths,
 	};
 }
 
@@ -291,6 +456,7 @@ function buildTopicPayload(cid, account, brief, detail, interaction, comments) {
 		title: normalizeTitle(brief.title),
 		content: [content, '', '---', ...metaLines, ...commentLines].join('\n').trim(),
 		tags: normalizeTags([account.category, detail.accountName || account.name, '公众号']),
+		thumbs: detail.imagePaths && detail.imagePaths.length ? [detail.imagePaths[0]] : [],
 	};
 }
 
@@ -542,24 +708,71 @@ function formatWechatImageMarkdown(elem, walk, builder, formatOptions) {
 
 function getWechatImageSrc(elem) {
 	const attribs = elem && elem.attribs ? elem.attribs : {};
-	const candidates = [
-		attribs['data-src'],
-		attribs.src,
-		attribs['data-lazy-src'],
-		attribs['data-actualsrc'],
-		attribs['data-original'],
-		attribs['data-orig-src'],
-		attribs['data-url'],
-	];
-
-	for (const candidate of candidates) {
-		const value = String(candidate || '').trim();
-		if (isHttpUrl(value)) {
+	for (const name of WECHAT_IMAGE_SRC_ATTRS) {
+		const value = normalizeRenderableImageUrl(attribs[name]);
+		if (value) {
 			return value;
 		}
 	}
 
 	return '';
+}
+
+function getWechatImageSrcFromTag(tag) {
+	for (const name of WECHAT_IMAGE_SRC_ATTRS) {
+		const value = getHtmlAttributeValue(tag, name);
+		const normalized = normalizeHttpUrl(value);
+		if (normalized) {
+			return normalized;
+		}
+	}
+	return '';
+}
+
+function getHtmlAttributeValue(tag, name) {
+	const pattern = new RegExp(`${escapeRegex(name)}\\s*=\\s*(["'])(.*?)\\1`, 'i');
+	const quoted = tag.match(pattern);
+	if (quoted) {
+		return quoted[2];
+	}
+
+	const barePattern = new RegExp(`${escapeRegex(name)}\\s*=\\s*([^\\s"'=<>` + '`' + `]+)`, 'i');
+	const bare = tag.match(barePattern);
+	return bare ? bare[1] : '';
+}
+
+function rewriteImageTagSources(tag, localUrl) {
+	let updated = tag;
+	for (const name of WECHAT_IMAGE_SRC_ATTRS) {
+		updated = replaceHtmlAttributeValue(updated, name, localUrl);
+	}
+
+	if (!new RegExp(`\\bsrc\\s*=`, 'i').test(updated)) {
+		updated = updated.replace(/<img\b/i, `<img src="${escapeHtmlAttribute(localUrl)}"`);
+	}
+
+	return updated;
+}
+
+function replaceHtmlAttributeValue(tag, name, value) {
+	const escapedValue = escapeHtmlAttribute(value);
+	const pattern = new RegExp(`(${escapeRegex(name)}\\s*=\\s*)(["'])(.*?)\\2`, 'gi');
+	let updated = tag.replace(pattern, (match, prefix, quote, currentValue) => {
+		if (!normalizeHttpUrl(currentValue)) {
+			return match;
+		}
+		return `${prefix}${quote}${escapedValue}${quote}`;
+	});
+
+	const barePattern = new RegExp(`(${escapeRegex(name)}\\s*=\\s*)([^\\s"'=<>` + '`' + `]+)`, 'gi');
+	updated = updated.replace(barePattern, (match, prefix, currentValue) => {
+		if (!normalizeHttpUrl(currentValue)) {
+			return match;
+		}
+		return `${prefix}"${escapedValue}"`;
+	});
+
+	return updated;
 }
 
 function isHttpUrl(value) {
@@ -571,11 +784,116 @@ function isHttpUrl(value) {
 	}
 }
 
+function normalizeHttpUrl(value) {
+	let normalized = String(value || '').trim().replace(/&amp;/g, '&');
+	if (normalized.startsWith('//')) {
+		normalized = `https:${normalized}`;
+	}
+	return isHttpUrl(normalized) ? normalized : '';
+}
+
+function normalizeRenderableImageUrl(value) {
+	const normalized = String(value || '').trim().replace(/&amp;/g, '&');
+	const relativePath = String(nconf.get('relative_path') || '');
+	const uploadUrl = String(nconf.get('upload_url') || '/assets/uploads');
+
+	if (normalized.startsWith(uploadUrl) || (relativePath && normalized.startsWith(`${relativePath}${uploadUrl}`))) {
+		return normalized;
+	}
+
+	return normalizeHttpUrl(normalized);
+}
+
 function escapeMarkdownAlt(value) {
 	return String(value || '')
 		.replace(/\[|\]|\n|\r/g, ' ')
 		.replace(/\s+/g, ' ')
 		.trim();
+}
+
+function escapeHtmlAttribute(value) {
+	return String(value || '')
+		.replace(/&/g, '&amp;')
+		.replace(/"/g, '&quot;');
+}
+
+function escapeRegex(value) {
+	return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function downloadWechatImage(imageUrl, context) {
+	const { statusCode, headers, body } = await request(imageUrl, {
+		method: 'GET',
+		maxRedirections: 3,
+		headersTimeout: TIMEOUT_MS,
+		bodyTimeout: TIMEOUT_MS,
+		headers: {
+			accept: 'image/*,*/*;q=0.8',
+			referer: isHttpUrl(context.sourceUrl) ? context.sourceUrl : TASK_API_BASE,
+			'user-agent': 'Mozilla/5.0 (compatible; NodeBB WeChat Auto Publish/1.0)',
+		},
+	});
+	if (statusCode >= 400) {
+		throw new Error(`HTTP ${statusCode}`);
+	}
+
+	const contentType = String(headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+	const extension = resolveImageExtension(imageUrl, contentType);
+	const tempPath = path.join(
+		os.tmpdir(),
+		`wechat-auto-publish-${crypto.randomUUID()}${extension}`
+	);
+
+	try {
+		const buffer = Buffer.from(await body.arrayBuffer());
+		if (!buffer.length) {
+			throw new Error('empty image body');
+		}
+
+		await fs.promises.writeFile(tempPath, buffer);
+		await image.isFileTypeAllowed(tempPath);
+		await image.stripEXIF({ path: tempPath, type: contentType });
+
+		const filename = buildWechatImageFilename(context.articleId, context.imageIndex, imageUrl, extension);
+		const upload = await file.saveFileToLocal(filename, 'files', tempPath);
+		const relativePath = upload.url.replace(`${nconf.get('upload_url')}`, '');
+		await user.associateUpload(UID, relativePath);
+
+		return {
+			url: upload.url,
+			relativePath,
+		};
+	} finally {
+		await file.delete(tempPath);
+	}
+}
+
+function resolveImageExtension(imageUrl, contentType) {
+	const byType = mime.getExtension(contentType || '');
+	if (byType) {
+		return `.${byType}`;
+	}
+
+	try {
+		const pathname = new URL(imageUrl).pathname;
+		const extension = path.extname(pathname || '').toLowerCase();
+		if (extension) {
+			return extension;
+		}
+	} catch (err) {
+		// ignore malformed URLs and fall back to a safe default
+	}
+
+	return '.jpg';
+}
+
+function buildWechatImageFilename(articleId, imageIndex, imageUrl, extension) {
+	const safeArticleId = String(articleId || 'article')
+		.replace(/[^a-zA-Z0-9_-]+/g, '-')
+		.replace(/^-+|-+$/g, '')
+		.slice(0, 48) || 'article';
+	const hash = crypto.createHash('md5').update(String(imageUrl || '')).digest('hex').slice(0, 10);
+	return `wechat-${safeArticleId}-${imageIndex}-${hash}${extension}`;
 }
 
 function getArticleId(article) {

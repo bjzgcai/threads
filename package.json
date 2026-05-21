@@ -13,6 +13,8 @@
         "start": "node loader.js",
         "dev": "npx grunt",
         "start:dev": "node ./nodebb dev",
+        "postinstall": "node scripts/apply-local-overrides.js",
+        "apply:local-overrides": "node scripts/apply-local-overrides.js",
         "sync:theme-overrides": "node scripts/sync-theme-overrides.js",
         "lint": "eslint --cache ./nodebb .",
         "test": "nyc --reporter=html --reporter=text-summary mocha",

@@ -88,6 +88,9 @@ middleware.requirePublicReadSkill = manifest => async (req, res, next) => {
 	if (skillDef.access !== 'public-read') {
 		return next('route');
 	}
+	// Public-read skills use POST for external clients, so they must be able
+	// to opt out of browser CSRF enforcement when no bearer token is present.
+	req.skipApiCsrf = true;
 	next();
 };
 

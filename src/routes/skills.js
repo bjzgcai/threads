@@ -49,6 +49,7 @@ module.exports = function () {
 	const publicReadMiddlewares = [
 		middleware.autoLocale,
 		middleware.applyBlacklist,
+		skillMiddleware.requirePublicReadSkill(manifest),
 		middleware.authenticateRequest,
 		middleware.maintenanceMode,
 		middleware.registrationComplete,
@@ -56,7 +57,6 @@ module.exports = function () {
 		middleware.logApiUsage,
 		skillMiddleware.auditSkillRequest,
 		skillMiddleware.requireEnabled,
-		skillMiddleware.requirePublicReadSkill(manifest),
 		skillMiddleware.requireJson,
 		skillMiddleware.enforceBodySize,
 		skillMiddleware.allowlistedIp,
