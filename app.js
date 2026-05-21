@@ -20,6 +20,7 @@
 'use strict';
 
 require('./require-main');
+require('./src/load-env')();
 
 const nconf = require('nconf');
 

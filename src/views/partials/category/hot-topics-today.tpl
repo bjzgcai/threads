@@ -1,0 +1,74 @@
+{{{ if hotTopics }}}
+<section class="card border-0 shadow-sm overflow-hidden mb-4" component="category/hot-topics-today">
+	<div class="px-3 px-md-4 py-3 py-md-4 text-white" style="background: linear-gradient(135deg, #ff7a18 0%, #ffb347 55%, #ffd27d 100%);">
+		<div class="d-flex flex-nowrap align-items-center justify-content-between gap-2 gap-md-3">
+			<img
+				src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M35 6c2 9-2 15-7 20 0-7-3-12-7-16 1 13-10 18-10 32 0 10 8 17 21 17s21-7 21-18c0-12-11-18-18-35z' fill='%23ffe4cf'/%3E%3Cpath d='M35 29c0 5-3 8-7 12 0-5-2-8-5-11 0 9-6 12-6 20 0 6 6 10 15 10s15-4 15-11c0-8-7-12-12-20z' fill='%23fff8ef'/%3E%3C/svg%3E"
+				alt=""
+				class="flex-shrink-0"
+				style="width: 2.75rem; height: 2.75rem;"
+			/>
+			<div class="min-width-0 flex-grow-1">
+				<div class="text-uppercase fw-bold mb-1 text-truncate" style="font-size: 0.68rem; letter-spacing: 0.12em; opacity: 0.85;">Popular Upgrade</div>
+				<h2 class="fw-bold mb-0 text-truncate" style="font-size: clamp(1.05rem, 4vw, 1.5rem);">[[category:hot-topics]]</h2>
+			</div>
+			{{{ if !template.popular }}}
+			<div class="d-flex align-items-center gap-2 gap-lg-3 flex-shrink-0 rounded-3 border border-white p-2 pe-3" style="background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);">
+				<img
+					src="{config.relative_path}/assets/images/nodebb-local-qr.png"
+					alt="钉钉扫码"
+					class="rounded-2 bg-white p-1"
+					style="width: clamp(4.75rem, 7vw, 7rem); height: clamp(4.75rem, 7vw, 7rem);"
+				/>
+				<div class="fw-bold lh-sm text-nowrap" style="font-size: clamp(0.82rem, 1.1vw, 1rem);">钉钉扫码</div>
+			</div>
+			{{{ end }}}
+		</div>
+	</div>
+	{{{ if hotTopics.hasTopics }}}
+	<ol class="list-unstyled mb-0 px-2 py-2 bg-body-tertiary">
+		{{{ each hotTopics.topics }}}
+		<li class="mb-2 {{{ if ./isExtraHotTopic }}}d-none{{{ end }}}" component="category/hot-topic-item" data-extra="{./isExtraHotTopic}">
+			<a
+				class="d-flex flex-nowrap gap-3 align-items-start text-reset text-decoration-none rounded-3 px-3 py-3 bg-body border shadow-sm-sm"
+				href="{config.relative_path}/topic/{./slug}"
+				style="transition: transform 0.18s ease, box-shadow 0.18s ease;"
+			>
+				<span class="d-inline-flex align-items-center justify-content-center rounded-circle fw-bold flex-shrink-0" style="width: 2.4rem; height: 2.4rem; background: linear-gradient(135deg, #ff8a00 0%, #ffc14d 100%); color: #1f2937; box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);">
+					{./rank}
+				</span>
+				<div class="flex-grow-1 min-width-0">
+					<div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+						{{{ if ./category }}}
+						{buildCategoryLabel(./category, "span", "border")}
+						{{{ end }}}
+					</div>
+					<div class="fw-bold fs-6 text-break lh-sm">{./title}</div>
+					{{{ if ./hotExcerpt }}}
+					<div class="text-muted small mt-2 lh-base text-break {{{ if (template.popular || (cid == "20")) }}}line-clamp-2{{{ else }}}line-clamp-1{{{ end }}}">
+						{./hotExcerpt}
+					</div>
+					{{{ end }}}
+				</div>
+				<div class="d-flex flex-column gap-1 gap-md-2 align-items-end flex-shrink-0 ms-auto ps-1 ps-md-3">
+					<span class="rounded-pill px-2 py-1 border bg-light-subtle small text-nowrap"><i class="fa fa-message text-danger me-1"></i>{humanReadableNumber(./postcount, 0)}</span>
+					<span class="rounded-pill px-2 py-1 border bg-light-subtle small text-nowrap"><i class="fa fa-thumbs-up text-primary me-1"></i>{humanReadableNumber(./votes, 0)}</span>
+					<span class="rounded-pill px-2 py-1 border bg-light-subtle small text-nowrap"><i class="fa fa-eye text-warning me-1"></i>{humanReadableNumber(./viewcount, 0)}</span>
+				</div>
+			</a>
+		</li>
+		{{{ end }}}
+	</ol>
+	{{{ if hotTopics.hasMore }}}
+	<div class="px-4 pb-4 pt-2 bg-body-tertiary text-center">
+		<button type="button" class="btn btn-light border fw-semibold" component="category/hot-topics-more">
+			查看更多
+			<i class="fa fa-chevron-down ms-1"></i>
+		</button>
+	</div>
+	{{{ end }}}
+	{{{ else }}}
+	<div class="px-4 py-4 text-muted">[[category:hot-topics-empty]]</div>
+	{{{ end }}}
+</section>
+{{{ end }}}

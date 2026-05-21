@@ -1,0 +1,17 @@
+# External Skill Pack Metadata
+
+name: zgcy-skills-gateway
+version: 1.0.0
+entry: SKILL.md
+
+skills:
+  - list_categories
+  - latest_topics
+  - unread_topics
+  - department_daily_digest
+  - search_topics
+  - search_own_posts
+  - get_post_raw
+  - create_topic_or_reply
+  - delete_own_topics
+  - delete_own_posts

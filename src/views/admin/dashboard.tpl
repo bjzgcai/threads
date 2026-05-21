@@ -53,32 +53,6 @@
 	<div class="col-lg-4 col-xl-3">
 		<div class="card mb-3">
 			<div class="card-body">
-				<div class="text-sm shadow-sm alert {{{ if lookupFailed }}}alert-danger{{{ else }}}{{{ if upgradeAvailable }}}alert-warning{{{ else }}}{{{ if currentPrerelease }}}alert-info{{{ else }}}alert-success{{{ end }}}{{{ end }}}{{{ end }}} version-check">
-					<p class="">[[admin/dashboard:running-version, {version}]]</p>
-					<p class="mb-0">
-					{{{ if lookupFailed }}}
-					[[admin/dashboard:latest-lookup-failed]]
-					{{{ else }}}
-						{{{ if upgradeAvailable }}}
-							{{{ if currentPrerelease }}}
-							[[admin/dashboard:prerelease-upgrade-available, {latestVersion}]]
-							{{{ else }}}
-							[[admin/dashboard:upgrade-available, {latestVersion}]]
-							{{{ end }}}
-						{{{ else }}}
-							{{{ if currentPrerelease }}}
-							[[admin/dashboard:prerelease-warning]]
-							{{{ else }}}
-							[[admin/dashboard:up-to-date]]
-							{{{ end }}}
-						{{{ end }}}
-					{{{ end }}}
-					</p>
-				</div>
-				<p class="form-text">
-					[[admin/dashboard:keep-updated]]
-				</p>
-				<hr/>
 				{{{ if showSystemControls }}}
 
 				<a href="{config.relative_path}/admin/settings/advanced" class="d-block mb-2 btn btn-info btn-sm" data-bs-placement="bottom" data-bs-toggle="tooltip" title="[[admin/dashboard:maintenance-mode-title]]">[[admin/dashboard:maintenance-mode]]</a>

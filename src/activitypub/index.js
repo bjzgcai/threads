@@ -499,15 +499,19 @@ ActivityPub.buildRecipients = async function (object, options) {
 	}
 
 	let targets = new Set();
-	if (options.targets) {
-		targets = new Set([...followers, ...to, ...cc]);
+		if (options.targets) {
+			targets = new Set([...followers, ...to, ...cc]);
 
-		// Remove local uris, public addresses, and any ids that aren't asserted actors
-		targets.forEach((address) => {
-			if (address.startsWith(nconf.get('url'))) {
-				targets.delete(address);
-			}
-		});
+			// Remove local uris, public addresses, and any ids that aren't asserted actors
+			targets.forEach((address) => {
+				if (typeof address !== 'string') {
+					targets.delete(address);
+					return;
+				}
+				if (address.startsWith(nconf.get('url'))) {
+					targets.delete(address);
+				}
+			});
 		ActivityPub._constants.acceptablePublicAddresses.forEach((address) => {
 			targets.delete(address);
 		});

@@ -1,0 +1,8 @@
+{
+  "input": {
+    "cid": 1,
+    "title": "Hello from external agent",
+    "content": "This topic is created via skill gateway",
+    "tags": ["api", "agent"]
+  }
+}

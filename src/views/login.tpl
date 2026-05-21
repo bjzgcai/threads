@@ -99,8 +99,8 @@
 						{{{ end }}}
 						{{{ end }}}
 					</ul>
-					</div>
 				</div>
+			</div>
 			</div>
 			{{{ end }}}
 		</div>

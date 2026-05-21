@@ -40,6 +40,9 @@ start.start = async function () {
 			require('./plugins').startJobs();
 			require('./topics').scheduled.startJobs();
 			require('./activitypub').jobs.start();
+			require('./reports/dingtalk-daily').startJobs();
+			require('./reports/article-auto-publish').startJobs();
+			require('./reports/wechat-auto-publish').startJobs();
 			await db.delete('locks');
 		}
 

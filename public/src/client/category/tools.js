@@ -36,6 +36,18 @@ define('forum/category/tools', [
 			return false;
 		});
 
+		components.get('topic/select-all').on('click', function () {
+			topicSelect.selectAll();
+			updateDropdownOptions();
+			return false;
+		});
+
+		components.get('topic/select-none').on('click', function () {
+			topicSelect.unselectAll();
+			updateDropdownOptions();
+			return false;
+		});
+
 		components.get('topic/lock').on('click', function () {
 			categoryCommand('put', '/lock', 'lock', onCommandComplete);
 			return false;

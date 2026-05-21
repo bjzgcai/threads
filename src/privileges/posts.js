@@ -222,6 +222,7 @@ privsPosts.canMove = async function (pid, uid) {
 };
 
 privsPosts.canPurge = async function (pid, uid) {
+	const postData = await posts.getPostFields(pid, ['uid', 'deleted', 'deleterUid']);
 	const cid = await posts.getCidByPid(pid);
 	const results = await utils.promiseParallel({
 		purge: privsCategories.isUserAllowedTo('purge', cid, uid),
@@ -235,7 +236,11 @@ privsPosts.canPurge = async function (pid, uid) {
 		results.purge = true;
 	}
 
-	return (results.purge && (results.owner || results.isModerator)) || results.isAdmin;
+	const selfDeletedOwnPost = results.owner &&
+		parseInt(postData.deleted, 10) === 1 &&
+		parseInt(postData.deleterUid, 10) === parseInt(postData.uid, 10);
+
+	return selfDeletedOwnPost || (results.purge && (results.owner || results.isModerator)) || results.isAdmin;
 };
 
 async function isAdminOrMod(pid, uid) {

@@ -1,0 +1,99 @@
+<!-- IMPORT partials/breadcrumbs-json-ld.tpl -->
+{{{ if config.theme.enableBreadcrumbs }}}
+<!-- IMPORT partials/breadcrumbs.tpl -->
+{{{ end }}}
+
+<div class="category-header d-flex flex-column gap-2">
+	<div class="d-flex gap-3 align-items-center mb-1 {{{ if config.theme.centerHeaderElements }}}justify-content-center flex-column{{{ end }}}">
+		{buildCategoryIcon(@value, "60px", "rounded-1 flex-shrink-0")}
+		<div class="d-flex flex-column gap-1">
+			<h1 class="tracking-tight fs-3 fw-semibold mb-0">{./name}</h1>
+			<div class="d-flex flex-wrap gap-2 align-items-center {{{ if config.theme.centerHeaderElements }}}justify-content-center{{{ end }}}">
+				<span class="badge text-body border border-gray-300 stats text-xs">
+					<span title="{formattedNumber(totalTopicCount)}" class="fw-bold">{humanReadableNumber(totalTopicCount)}</span>
+					<span class="text-lowercase fw-normal">[[global:topics]]</span>
+				</span>
+				<span class="badge text-body border border-gray-300 stats text-xs">
+					<span title="{formattedNumber(totalPostCount)}" class="fw-bold">{humanReadableNumber(totalPostCount)}</span>
+					<span class="text-lowercase fw-normal">[[global:posts]]</span>
+				</span>
+				{{{ if !isNumber(cid) }}}
+				<a href="{./url}" class="badge text-body border border-gray-300 text-xs" data-ajaxify="false">
+					<span class="fw-normal">View Original</span>
+					<i class="fa fa-external-link"></i>
+				</a>
+				{{{ end }}}
+				{{{ if (!feeds:disableRSS && rssFeedUrl) }}}
+				<a class="badge text-body text-decoration-none border border-gray-300 d-flex align-items-center align-self-stretch" target="_blank" href="{rssFeedUrl}" itemprop="item" title="[[global:rss-feed]]"><i class="fa fa-rss fa-sm text-muted lh-1"></i></a>
+				{{{ end }}}
+			</div>
+		</div>
+	</div>
+	{{{ if ./descriptionParsed }}}
+	<div class="description text-secondary text-sm w-100 {{{ if config.theme.centerHeaderElements }}}text-center{{{ end }}} line-clamp-4 clamp-fade-sm-4">
+		{./descriptionParsed}
+	</div>
+	{{{ end }}}
+	{{{ if ./handleFull }}}
+	<p class="text-secondary text-sm fst-italic mb-0 {{{ if config.theme.centerHeaderElements }}}text-center{{{ end }}}">
+		[[category:handle.description, {handleFull}]]
+		<a href="#" class="link-secondary" data-action="copy" data-clipboard-text="{handleFull}"><i class="fa fa-fw fa-copy" aria-hidden="true"></i></a>
+	</p>
+	{{{ end }}}
+</div>
+
+{{{ if widgets.header.length }}}
+<div data-widget-area="header">
+	{{{ each widgets.header }}}
+	{{widgets.header.html}}
+	{{{ end }}}
+</div>
+{{{ end }}}
+
+<div class="row flex-fill mt-3">
+	<div class="category d-flex flex-column {{{if widgets.sidebar.length }}}col-lg-9 col-sm-12{{{ else }}}col-lg-12{{{ end }}}">
+		<!-- IMPORT partials/category/subcategory.tpl -->
+		<!-- IMPORT partials/category/hot-topics-today.tpl -->
+		{{{ if !hotTopics }}}
+		{{{ if (topics.length || privileges.topics:create) }}}
+		<!-- IMPORT partials/topic-list-bar.tpl -->
+		{{{ end }}}
+
+		{{{ if (./inbox && (./hasFollowers == false)) }}}
+		<div class="alert alert-warning mb-4" id="category-no-followers" data-bs-toggle="dropdown" data-bs-target='[component="topic/watch"] button' aria-hidden="true">
+			<i class="fa fa-triangle-exclamation pe-2"></i>
+			[[category:no-followers]]
+			<a href="#" class="stretched-link"></a>
+		</div>
+		{{{ end }}}
+
+		{{{ if (!topics.length && privileges.topics:create) }}}
+		<div class="alert alert-info" id="category-no-topics">
+			[[category:no-topics]]
+		</div>
+		{{{ end }}}
+
+		<!-- IMPORT partials/topics_list.tpl -->
+
+		{{{ if config.usePagination }}}
+		<!-- IMPORT partials/paginator.tpl -->
+		{{{ end }}}
+		{{{ end }}}
+	</div>
+	<div data-widget-area="sidebar" class="col-lg-3 col-sm-12 {{{ if !widgets.sidebar.length }}}hidden{{{ end }}}">
+		{{{ each widgets.sidebar }}}
+		{{widgets.sidebar.html}}
+		{{{ end }}}
+	</div>
+</div>
+<div data-widget-area="footer">
+	{{{each widgets.footer}}}
+	{{widgets.footer.html}}
+	{{{end}}}
+</div>
+
+{{{ if !config.usePagination }}}
+<noscript>
+	<!-- IMPORT partials/paginator.tpl -->
+</noscript>
+{{{ end }}}

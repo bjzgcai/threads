@@ -13,17 +13,16 @@ const plugins = require('../plugins');
 const authRoutes = require('./authentication');
 const writeRoutes = require('./write');
 const helpers = require('./helpers');
+const ipMatcher = require('../utils/ip-matcher');
 
 const { setupPageRoute } = helpers;
 const SAFE_MOUNT_REGEX = /^[a-z0-9][a-z0-9-]*$/i;
-const BEARER_TOKEN_ALLOWED_IPS = new Set(
-	(process.env.NODEBB_BEARER_ALLOWED_IPS || '10.100.11.202,127.0.0.1,::1')
-		.split(',')
-		.map(ip => ip.trim())
-		.filter(Boolean)
+const BEARER_TOKEN_ALLOWED_IPS = ipMatcher.parseList(
+	process.env.NODEBB_BEARER_ALLOWED_IPS || '10.100.11.202,127.0.0.1,::1'
 );
-const BEARER_TOKEN_ALLOWED_METHOD = 'POST';
-const BEARER_TOKEN_ALLOWED_PATH = '/api/v3/topics';
+const BEARER_TOKEN_ALLOWED_ROUTES = parseBearerRouteRules(
+	process.env.NODEBB_BEARER_ALLOWED_ROUTES || 'POST:/api/v3/topics,POST:/api/skills/*'
+);
 
 function isBearerRequest(req) {
 	const authHeader = req.get('authorization') || '';
@@ -34,7 +33,36 @@ function getClientIp(req) {
 	const forwarded = (req.get('x-forwarded-for') || '').split(',')[0].trim();
 	const realIp = (req.get('x-real-ip') || '').trim();
 	const rawIp = forwarded || realIp || req.ip || req.socket?.remoteAddress || '';
-	return String(rawIp).replace(/^::ffff:/, '');
+	return ipMatcher.normalizeIp(rawIp);
+}
+
+function parseBearerRouteRules(input) {
+	return String(input || '')
+		.split(',')
+		.map(rule => rule.trim())
+		.filter(Boolean)
+		.map((rule) => {
+			const [method, ...pathParts] = rule.split(':');
+			const routePath = pathParts.join(':').trim();
+			return {
+				method: String(method || '').trim().toUpperCase(),
+				path: routePath,
+				isPrefix: routePath.endsWith('*'),
+			};
+		})
+		.filter(rule => rule.method && rule.path);
+}
+
+function isBearerRouteAllowed(req) {
+	return BEARER_TOKEN_ALLOWED_ROUTES.some((rule) => {
+		if (req.method !== rule.method) {
+			return false;
+		}
+		if (rule.isPrefix) {
+			return req.path.startsWith(rule.path.slice(0, -1));
+		}
+		return req.path === rule.path;
+	});
 }
 
 const _mounts = {
@@ -51,6 +79,7 @@ _mounts.main = (app, middleware, controllers) => {
 	const loginRegisterMiddleware = [middleware.redirectToAccountIfLoggedIn];
 
 	setupPageRoute(app, '/login', loginRegisterMiddleware, controllers.login);
+	setupPageRoute(app, '/dingtalk/pc-redirect', [], controllers.dingtalk.pcRedirect);
 	setupPageRoute(app, '/compose', [], controllers.composer.get);
 	setupPageRoute(app, '/confirm/:code', [], controllers.confirmEmail);
 	setupPageRoute(app, '/outgoing', [], controllers.outgoing);
@@ -168,8 +197,8 @@ module.exports = async function (app, middleware) {
 		}
 
 		const clientIp = getClientIp(req);
-		const isAllowedIp = BEARER_TOKEN_ALLOWED_IPS.has(clientIp);
-		const isAllowedEndpoint = req.method === BEARER_TOKEN_ALLOWED_METHOD && req.path === BEARER_TOKEN_ALLOWED_PATH;
+		const isAllowedIp = ipMatcher.matchesAny(clientIp, BEARER_TOKEN_ALLOWED_IPS);
+		const isAllowedEndpoint = isBearerRouteAllowed(req);
 		if (!isAllowedIp || !isAllowedEndpoint) {
 			winston.warn(`[api-guard] blocked bearer request method=${req.method} path=${req.path} ip=${clientIp}`);
 			return controllerHelpers.notAllowed(req, res);
@@ -190,6 +219,7 @@ module.exports = async function (app, middleware) {
 			/^\/api\/?$/,
 			/^\/api\/config\/?$/,
 			/^\/api\/login\/?$/,
+			/^\/api\/skills(?:\/|$)/,
 			/^\/api\/v3\/ping\/?$/,
 			/^\/api\/v3\/utilities\/login\/?$/,
 			/^\/assets(?:\/|$)/,
@@ -204,6 +234,7 @@ module.exports = async function (app, middleware) {
 			/^\/reset(?:\/|$)/,
 			/^\/confirm(?:\/|$)/,
 			/^\/email\/unsubscribe(?:\/|$)/,
+			/^\/dingtalk\/pc-redirect(?:\/|$)/,
 		];
 
 		if (publicPatterns.some(pattern => pattern.test(req.path))) {

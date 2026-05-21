@@ -13,6 +13,7 @@ const meta = require('../meta');
 const activitypub = require('../activitypub');
 const pagination = require('../pagination');
 const helpers = require('./helpers');
+const hotTopics = require('./hotTopics');
 const utils = require('../utils');
 const translator = require('../translator');
 const analytics = require('../analytics');
@@ -24,6 +25,7 @@ const relative_path = nconf.get('relative_path');
 const validSorts = [
 	'recently_replied', 'recently_created', 'most_posts', 'most_votes', 'most_views',
 ];
+const hotTopicsCategoryCid = process.env.NODEBB_HOT_TOPICS_CATEGORY_CID;
 
 categoryController.get = async function (req, res, next) {
 	let cid = req.params.category_id;
@@ -140,16 +142,22 @@ categoryController.get = async function (req, res, next) {
 		});
 	}
 
+	const isAdmin = await user.isAdministrator(req.uid);
+
 	categoryData.title = translator.escape(categoryData.name);
 	categoryData.selectCategoryLabel = '[[category:subcategories]]';
 	categoryData.description = translator.escape(categoryData.description);
 	categoryData.privileges = userPrivileges;
-	categoryData.showSelect = userPrivileges.editable;
-	categoryData.showTopicTools = userPrivileges.editable;
+	categoryData.showSelect = isAdmin;
+	categoryData.showTopicTools = isAdmin;
 	categoryData.topicIndex = topicIndex;
 	categoryData.selectedTag = tagData.selectedTag;
 	categoryData.selectedTags = tagData.selectedTags;
 	categoryData.sortOptionLabel = `[[topic:${validator.escape(String(sort)).replace(/_/g, '-')}]]`;
+	categoryData.hotTopics = await getHotTopics(cid, req.uid, userPrivileges, req.query);
+	if (categoryData.hotTopics) {
+		await addHotTopicControls(categoryData, req.query);
+	}
 
 	if (utils.isNumber(categoryData.cid) && !meta.config['feeds:disableRSS']) {
 		categoryData.rssFeedUrl = `${url}/category/${categoryData.cid}.rss`;
@@ -188,6 +196,36 @@ categoryController.get = async function (req, res, next) {
 
 	res.render('category', categoryData);
 };
+
+async function addHotTopicControls(categoryData, query) {
+	const cleanQuery = { ...query };
+	delete cleanQuery.page;
+
+	const filter = query.filter || '';
+	const term = helpers.terms[query.term || 'alltime'] || 'alltime';
+	const baseUrl = `category/${categoryData.slug}`;
+	const selectedCategoryData = await helpers.getSelectedCategory(query.cid);
+
+	categoryData.allCategoriesUrl = baseUrl + helpers.buildQueryString(cleanQuery, 'cid', '');
+	categoryData.selectedCategory = selectedCategoryData.selectedCategory;
+	categoryData.selectedCids = selectedCategoryData.selectedCids;
+	categoryData.filters = helpers.buildFilters(baseUrl, filter, cleanQuery);
+	categoryData.selectedFilter = categoryData.filters.find(filterData => filterData && filterData.selected);
+	categoryData.terms = helpers.buildTerms(baseUrl, term, cleanQuery);
+	categoryData.selectedTerm = categoryData.terms.find(termData => termData && termData.selected);
+}
+
+async function getHotTopics(cid, uid, userPrivileges, query) {
+	if (!hotTopicsCategoryCid || String(cid) !== String(hotTopicsCategoryCid) || !userPrivileges.read) {
+		return null;
+	}
+
+	return await hotTopics.getHotTopics({
+		uid: uid,
+		query: query,
+		excludedCid: cid,
+	});
+}
 
 async function buildBreadcrumbs(req, categoryData) {
 	const breadcrumbs = [

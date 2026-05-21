@@ -1,5 +1,7 @@
 'use strict';
 
+require('./src/load-env')();
+
 const nconf = require('nconf');
 const fs = require('fs');
 const path = require('path');

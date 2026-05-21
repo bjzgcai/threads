@@ -13,6 +13,7 @@ const accountsController = {
 	notifications: require('./accounts/notifications'),
 	chats: require('./accounts/chats'),
 	sessions: require('./accounts/sessions'),
+	skills: require('./accounts/skills'),
 	blocks: require('./accounts/blocks'),
 	uploads: require('./accounts/uploads'),
 	consent: require('./accounts/consent'),

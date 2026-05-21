@@ -1,0 +1,13 @@
+# External Skill Pack Metadata
+
+name: zgcy-forum-read
+version: 1.0.0
+entry: SKILL.md
+
+skills:
+  - list_categories
+  - latest_topics
+  - unread_topics
+  - department_daily_digest
+  - search_topics
+  - get_post_raw

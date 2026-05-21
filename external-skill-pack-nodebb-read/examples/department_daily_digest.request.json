@@ -1,0 +1,9 @@
+{
+  "input": {
+    "department": "Computer Science School",
+    "person": "Research Secretary",
+    "attributes": ["AI", "industry research", "research projects"],
+    "keywords": ["large model", "university", "policy"],
+    "limit": 10
+  }
+}

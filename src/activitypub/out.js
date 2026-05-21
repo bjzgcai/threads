@@ -569,38 +569,42 @@ Out.undo.flag = enabledCheck(async (uid, flag) => {
 	await db.sortedSetRemove(`flag:${flag.flagId}:remote`, uid);
 });
 
-Out.undo.announce = enabledCheck(async (type, id, tid) => {
-	if (!utils.isNumber(id) || !['uid', 'cid'].includes(type)) {
-		throw new Error('[[error:invalid-data]]');
-	}
+	Out.undo.announce = enabledCheck(async (type, id, tid) => {
+		if (!utils.isNumber(id) || !['uid', 'cid'].includes(type)) {
+			return;
+		}
 
-	const exists = await Promise.all([
-		topics.exists(tid),
-		type === 'uid' ? user.exists(id) : categories.exists(id),
-	]);
-	if (!exists.every(Boolean)) {
-		throw new Error('[[error:invalid-data]]');
-	}
+		const [scopeExists, topicData] = await Promise.all([
+			type === 'uid' ? user.exists(id) : categories.exists(id),
+			topics.getTopicFields(tid, ['uid', 'mainPid']),
+		]);
+		if (!scopeExists || !topicData || !topicData.mainPid) {
+			return;
+		}
 
-	const baseUrl = `${nconf.get('url')}/${type === 'uid' ? 'uid' : 'category'}/${id}`;
-	const { uid, mainPid: pid } = await topics.getTopicFields(tid, ['uid', 'mainPid']);
-	const allowed = await privileges.topics.can('topics:read', tid, activitypub._constants.uid);
-	if (!allowed) {
-		activitypub.helpers.log(`[activitypub/api] Not federating announce of pid ${pid} to the fediverse due to privileges.`);
-		return;
-	}
+		const baseUrl = `${nconf.get('url')}/${type === 'uid' ? 'uid' : 'category'}/${id}`;
+		const { uid, mainPid: pid } = topicData;
+		const allowed = await privileges.topics.can('topics:read', tid, activitypub._constants.uid);
+		if (!allowed) {
+			activitypub.helpers.log(`[activitypub/api] Not federating announce of pid ${pid} to the fediverse due to privileges.`);
+			return;
+		}
 
-	const { to, cc, targets } = await activitypub.buildRecipients({
-		id: pid,
-		to: [activitypub._constants.publicAddress],
-		cc: [`${baseUrl}/followers`, uid],
-	}, {
-		uid: type === 'uid' && id,
-		cid: type === 'cid' && id,
-	});
+		const { to, cc, targets } = await activitypub.buildRecipients({
+			id: pid,
+			to: [activitypub._constants.publicAddress],
+			cc: [`${baseUrl}/followers`],
+		}, {
+			uid: type === 'uid' && id,
+			cid: type === 'cid' && id,
+		});
+		if (!utils.isNumber(uid)) {
+			cc.push(uid);
+			targets.add(uid);
+		}
 
 
-	// Just undo the announce.
+		// Just undo the announce.
 	await activitypub.send(type, id, Array.from(targets), {
 		id: `${nconf.get('url')}/post/${encodeURIComponent(pid)}#activity/undo:announce/${type}/${id}`,
 		type: 'Undo',

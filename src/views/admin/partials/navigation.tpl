@@ -16,6 +16,7 @@
 				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/dashboard/users">[[admin/menu:dashboard/users]]</a>
 				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/dashboard/topics">[[admin/menu:dashboard/topics]]</a>
 				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/dashboard/searches">[[admin/menu:dashboard/searches]]</a>
+				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/dashboard/daily-report">[[admin/menu:dashboard/daily-report]]</a>
 			</div>
 		</div>
 	</div>
@@ -52,6 +53,7 @@
 				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/manage/registration">[[admin/menu:manage/registration]]</a>
 				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/manage/uploads">[[admin/menu:manage/uploads]]</a>
 				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/manage/digest">[[admin/menu:manage/digest]]</a>
+				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/manage/skills">[[skills:admin.title]]</a>
 				<hr/>
 				<h6 class="text-xs ps-4">[[pages:moderator-tools]]</h6>
 				<a class="btn btn-ghost btn-sm text-start" target="_top" href="{relative_path}/flags">[[admin/menu:manage/flagged-content]] <i class="fa fa-external-link"></i></a>

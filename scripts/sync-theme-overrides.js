@@ -18,6 +18,25 @@ const overrides = [
 		source: 'src/views/account/edit/username.tpl',
 		target: 'node_modules/nodebb-theme-harmony/templates/account/edit/username.tpl',
 	},
+	{
+		source: 'src/views/popular.tpl',
+		target: 'node_modules/nodebb-theme-harmony/templates/popular.tpl',
+	},
+	{
+		source: 'src/views/partials/category/hot-topics-today.tpl',
+		target: 'node_modules/nodebb-theme-harmony/templates/partials/category/hot-topics-today.tpl',
+	},
+	{
+		source: 'src/views/partials/topic-list-bar.tpl',
+		target: 'node_modules/nodebb-theme-harmony/templates/partials/topic-list-bar.tpl',
+	},
+];
+
+const staticAssets = [
+	{
+		source: 'nodebb-local-qr.png',
+		target: 'public/images/nodebb-local-qr.png',
+	},
 ];
 
 function copyOverride(sourceRel, targetRel) {
@@ -35,12 +54,12 @@ function copyOverride(sourceRel, targetRel) {
 }
 
 function main() {
-	const missingTheme = overrides.some(item => !fs.existsSync(path.join(rootDir, path.dirname(item.target))));
-	if (missingTheme) {
+	if (!fs.existsSync(path.join(rootDir, 'node_modules/nodebb-theme-harmony/templates'))) {
 		throw new Error('Harmony theme templates were not found under node_modules. Run dependency install first.');
 	}
 
 	overrides.forEach(item => copyOverride(item.source, item.target));
+	staticAssets.forEach(item => copyOverride(item.source, item.target));
 }
 
 main();
