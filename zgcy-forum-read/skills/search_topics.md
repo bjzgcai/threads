@@ -53,7 +53,7 @@ Search NodeBB topics/posts by keyword.
 }
 ```
 
-`topic.url` is the user-facing topic path. `topic.fullUrl` is included when the server has a public forum base configured.
+`topic.url` is the user-facing topic path. `topic.fullUrl` is included when the server has a public forum base configured. In the current internal deployment, if `topic.fullUrl` is empty, build the final link as `http://10.1.132.5:4567` + `topic.url`.
 
 输出说明：`matchCount` 是命中的帖子总数，`posts` 是当前页返回的结果；`pid` 是帖子 id，`tid` 是主题 id，`topic.slug` 是主题路径片段。
 

@@ -16,7 +16,8 @@ This forum is used in the Beijing Zhongguancun Academy and Zhongguancun Academy 
 
 - 适合查看分类、最新帖子、搜索帖子、读取原文、生成部门日报
 - 不适合发帖、回帖、删帖，涉及这些操作时应切换到 `zgcy-forum-write`
-- 论坛链接应优先使用返回结果中的 `url` 或 `fullUrl`，不要从 skill gateway 地址自行拼接
+- 论坛链接应优先使用返回结果中的 `fullUrl`
+- 如果 `fullUrl` 为空，在当前内网部署下可使用论坛前缀 `http://10.1.132.5:4567` 与返回的 `url` 路径拼接完整链接，例如 `http://10.1.132.5:4567/topic/1247/...`
 
 ## When To Use
 
