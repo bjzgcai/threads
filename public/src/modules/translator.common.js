@@ -542,14 +542,14 @@ module.exports = function (utils, load, warn) {
 			}
 
 			if (!(typeof text === 'string' || text instanceof String) || text === '') {
-				if (cb) {
+				if (typeof cb === 'function') {
 					return setTimeout(cb, 0, '');
 				}
 				return '';
 			}
 
 			return Translator.create(lang).translate(text).then(function (output) {
-				if (cb) {
+				if (typeof cb === 'function') {
 					setTimeout(cb, 0, output);
 				}
 				return output;
@@ -624,6 +624,10 @@ module.exports = function (utils, load, warn) {
 		},
 
 		switchTimeagoLanguage: function switchTimeagoLanguage(langCode, callback) {
+			if (!Array.isArray(config.timeagoCodes) || !config.timeagoCodes.includes(langCode)) {
+				warn('Invalid timeago language code "' + langCode + '" for language "' + config.userLang + '"');
+				return;
+			}
 			// Delete the cached shorthand strings if present
 			delete adaptor.timeagoShort;
 			import(/* webpackChunkName: "timeago/[request]" */ 'timeago/locales/jquery.timeago.' + langCode).then(callback);

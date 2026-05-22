@@ -45,7 +45,7 @@ ajaxify.widgets = { render: render };
 
 		const internalLink = utils.isInternalURI(urlObj, window.location, config.relative_path);
 
-		const hrefEmpty = href => href === undefined || href === '' || href === 'javascript:;';
+		const hrefEmpty = href => href === undefined || href === '';
 
 		if (item instanceof Element) {
 			if (item.getAttribute('data-ajaxify') === 'false') {
@@ -56,7 +56,7 @@ ajaxify.widgets = { render: render };
 				return null;
 			}
 
-			if (hrefEmpty(urlObj.href) || urlObj.protocol === 'javascript:' || pathname === '#' || pathname === '') {
+			if (hrefEmpty(urlObj.href) || !['http:', 'https:'].includes(urlObj.protocol) || pathname === '#' || pathname === '') {
 				return null;
 			}
 		}
@@ -234,7 +234,7 @@ ajaxify.widgets = { render: render };
 					window.location.href = data.responseJSON.external;
 				} else if (typeof data.responseJSON === 'string') {
 					ajaxifyTimer = undefined;
-					if (data.responseJSON.startsWith('http://') || data.responseJSON.startsWith('https://')) {
+					if (isHttpUrl(data.responseJSON)) {
 						window.location.href = data.responseJSON;
 					} else {
 						ajaxify.go(data.responseJSON.slice(1), callback, quiet);
@@ -501,6 +501,14 @@ ajaxify.widgets = { render: render };
 		});
 	};
 
+	function isHttpUrl(url) {
+		try {
+			return ['http:', 'https:'].includes(new URL(url).protocol);
+		} catch (err) {
+			return false;
+		}
+	}
+
 	ajaxify.cleanup = (url, tpl_url) => {
 		app.leaveCurrentRoom();
 		$(window).off('scroll');
@@ -581,7 +589,7 @@ $(document).ready(function () {
 						} else if (config.useOutgoingLinksPage) {
 							const safeUrls = config.outgoingLinksWhitelist.trim().split(/[\s,]+/g).filter(Boolean);
 							const href = this.href;
-							if (!safeUrls.length || !safeUrls.some(function (url) { return href.indexOf(url) !== -1; })) {
+							if (!safeUrls.length || !safeUrls.some(function (url) { return isUrlAllowedByWhitelist(href, url); })) {
 								ajaxify.go('outgoing?url=' + encodeURIComponent(href));
 								e.preventDefault();
 							}
@@ -624,6 +632,17 @@ $(document).ready(function () {
 				// default is default browser behaviour
 			}
 		});
+	}
+
+	function isUrlAllowedByWhitelist(href, allowed) {
+		try {
+			const hrefUrl = new URL(href);
+			const allowedUrl = allowed.includes('://') ? new URL(allowed) : new URL(`https://${allowed}`);
+			return hrefUrl.hostname === allowedUrl.hostname &&
+				(!allowedUrl.pathname || allowedUrl.pathname === '/' || hrefUrl.pathname.startsWith(allowedUrl.pathname));
+		} catch (err) {
+			return false;
+		}
 	}
 
 	if (window.history && window.history.pushState) {
