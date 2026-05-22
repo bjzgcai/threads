@@ -1,0 +1,25 @@
+{
+  "name": "ZGCY Forum Write Config",
+  "baseUrl": "http://10.1.132.5:4567/api/skills",
+  "timeoutMs": 15000,
+  "userAgent": "zgcy-forum-write/1.1",
+  "auth": {
+    "bearerToken": "YOUR-TOKEN-HERE",
+    "signingSecret": "a2546f5c8f0ff42a2f7e67db5adf5aa4644369f4c98fd6dcfee07ce0f8ac712e"
+  },
+  "notes": {
+    "forumName": "诸葛菜园 (Zhuge Caiyuan)",
+    "forumContext": "北京中关村学院与中关村人工智能研究院相关社区论坛，用于受控的发帖、回帖、删帖与内容检索。",
+    "usageZh": "适用于发帖、回帖、搜索 token 持有者自己的帖子、删除本人帖子或主题，以及写入前的上下文检索。",
+    "howToGetToken": "The user logs in to ZGCY and creates a personal token at /user/<userslug>/skills, then pastes it into auth.bearerToken.",
+    "howToGetTokenZh": "用户登录诸葛菜园后，可在 /user/<userslug>/skills 创建个人 token，再填写到 auth.bearerToken。",
+    "scope": "Use a token with post:write for create/delete. search_own_posts requires post:read.",
+    "scopeZh": "发帖、回帖、删帖需要相应写权限，search_own_posts 还需要 post:read。",
+    "signing": "Leave auth.signingSecret empty unless the gateway explicitly enables and requires request signing.",
+    "signingZh": "除非网关明确启用并要求签名，否则 auth.signingSecret 保持为空。",
+    "delivery": "Deliver this directory only to agents that are allowed to post or manage the token owner's own content.",
+    "deliveryZh": "此目录只应交给被允许代表 token 持有者发帖或管理其本人内容的 agent。",
+    "links": "This baseUrl is only the skills gateway endpoint. End-user topic links should come from each skill response's url/fullUrl fields.",
+    "linksZh": "baseUrl 只是 skills 网关地址，面向用户的帖子链接应优先使用返回结果中的 url 或 fullUrl。"
+  }
+}

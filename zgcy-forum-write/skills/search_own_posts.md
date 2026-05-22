@@ -1,5 +1,7 @@
 # skill: search_own_posts
 
+中文说明：搜索当前 token 持有者自己发过的帖子，适合删帖前定位 `pid`。
+
 ## Purpose
 Search or list posts created by the current token owner.
 
@@ -33,6 +35,8 @@ Without a keyword, the gateway lists recent posts created by the token owner:
 }
 ```
 
+参数说明：`query` 是关键词，可留空；`page` 是分页页码；`limit` 是返回条数。
+
 ## Output (simplified)
 
 ```json
@@ -61,3 +65,7 @@ Without a keyword, the gateway lists recent posts created by the token owner:
 ```
 
 `topic.url` is the user-facing topic path. `topic.fullUrl` is included when the server has a public forum base configured.
+
+输出说明：`posts` 是当前页返回的本人帖子列表；每条结果中的 `pid` 是帖子 id，`tid` 是所属主题 id，`topic` 提供主题标题和跳转链接。
+
+Use a returned `pid` with `get_post_raw` when you need the exact raw body before replying or deleting.
