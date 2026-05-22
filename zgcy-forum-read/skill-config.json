@@ -1,0 +1,23 @@
+{
+  "name": "ZGCY Forum Read Config",
+  "baseUrl": "http://10.1.132.5:4567/api/skills",
+  "timeoutMs": 15000,
+  "userAgent": "zgcy-forum-read/1.1",
+  "auth": {
+    "bearerToken": "",
+    "signingSecret": ""
+  },
+  "notes": {
+    "forumName": "诸葛菜园 (Zhuge Caiyuan)",
+    "forumContext": "北京中关村学院与中关村人工智能研究院相关社区论坛，只用于查看公开或网关允许读取的内容。",
+    "usageZh": "适用于分类查看、最新帖子浏览、关键词搜索、按 pid 读取原文、部门日报汇总等只读场景。",
+    "auth": "Public read skills do not require a personal token or request signature. Server-side IP allowlisting may still apply.",
+    "authZh": "只读 skill 默认不需要个人 token 或签名，但服务端仍可能按来源 IP 或网关白名单限制访问。",
+    "delivery": "Deliver this directory to agents that only need to view forum content.",
+    "deliveryZh": "此目录适合仅需查看论坛内容的 agent，不适合执行发帖、回帖、删帖。",
+    "links": "This baseUrl is only the skills gateway endpoint. End-user topic links should come from each skill response's url/fullUrl fields.",
+    "linksZh": "baseUrl 只是 skills 网关地址，面向用户的帖子链接应优先使用返回结果中的 fullUrl；如果 fullUrl 为空，在当前内网部署下可用 http://10.1.132.5:4567 + url 进行拼接。",
+    "forumBaseUrl": "http://10.1.132.5:4567",
+    "fullUrlFallbackZh": "当返回结果中的 fullUrl 为空时，在当前部署下可按 forumBaseUrl + topic.url 拼接诸葛菜园完整链接。"
+  }
+}
