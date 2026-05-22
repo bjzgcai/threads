@@ -57,6 +57,7 @@ Optional fields:
           "cid": 2,
           "title": "AI policy update",
           "url": "/topic/123/ai-policy-update",
+          "fullUrl": "https://forum.example.com/topic/123/ai-policy-update",
           "timestampISO": "2026-05-15T08:00:00.000Z",
           "category": { "cid": 2, "name": "News" },
           "tags": ["AI", "university"],
@@ -69,3 +70,5 @@ Optional fields:
   }
 }
 ```
+
+`url` is the user-facing topic path. `fullUrl` is included when the server has a public forum base configured.

@@ -1,6 +1,6 @@
 {
   "name": "ZGCY Forum Write Config",
-  "baseUrl": "http://10.1.132.5:4567/api/skills",
+  "baseUrl": "https://forum.example.com/api/skills",
   "timeoutMs": 15000,
   "userAgent": "zgcy-forum-write/1.0",
   "auth": {
@@ -10,6 +10,7 @@
   "notes": {
     "howToGetToken": "The user logs in to ZGCY and creates a personal token at /user/<userslug>/skills.",
     "scope": "Use a token with post:write for create/delete. search_own_posts requires post:read.",
-    "delivery": "Deliver this directory only to agents that are allowed to post or manage the token owner's own content."
+    "delivery": "Deliver this directory only to agents that are allowed to post or manage the token owner's own content.",
+    "links": "This baseUrl is only the skills gateway endpoint. End-user topic links should come from each skill response's url/fullUrl fields."
   }
 }

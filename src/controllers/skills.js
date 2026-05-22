@@ -3,6 +3,7 @@
 const api = require('../api');
 const categories = require('../categories');
 const db = require('../database');
+const nconf = require('nconf');
 const search = require('../search');
 const manifest = require('../skills/manifest');
 const skillTokens = require('../skills/tokens');
@@ -163,12 +164,16 @@ function mapTopicSummary(topic) {
 		return null;
 	}
 
+	const topicLinks = buildTopicLinks(topic);
+
 	return {
 		tid: topic.tid,
 		cid: topic.cid,
 		uid: topic.uid,
 		title: topic.title,
 		slug: topic.slug,
+		url: topicLinks.url,
+		fullUrl: topicLinks.fullUrl,
 		timestamp: topic.timestamp,
 		lastposttime: topic.lastposttime,
 		postcount: topic.postcount,
@@ -244,10 +249,96 @@ function normalizeDigestCategoryIds(input) {
 	].filter(Boolean).filter((cid, index, cids) => cids.indexOf(cid) === index);
 }
 
+function trimTrailingSlash(value) {
+	return String(value || '').replace(/\/+$/, '');
+}
+
+function getRelativePath() {
+	return trimTrailingSlash(nconf.get('relative_path') || '');
+}
+
+function looksPrivateHost(hostname) {
+	if (!hostname) {
+		return true;
+	}
+
+	const normalized = String(hostname).toLowerCase();
+	if (['localhost', '::1', '[::1]'].includes(normalized) || normalized.endsWith('.local')) {
+		return true;
+	}
+
+	if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(normalized)) {
+		return (
+			normalized.startsWith('10.') ||
+			normalized.startsWith('127.') ||
+			normalized.startsWith('192.168.') ||
+			/^172\.(1[6-9]|2\d|3[0-1])\./.test(normalized)
+		);
+	}
+
+	return false;
+}
+
+function getPublicForumOrigin() {
+	const relativePath = getRelativePath();
+	const configured = trimTrailingSlash(
+		process.env.SKILLS_PUBLIC_URL ||
+		process.env.SKILLS_PUBLIC_BASE_URL ||
+		nconf.get('url') ||
+		''
+	);
+	if (!configured) {
+		return '';
+	}
+
+	try {
+		const parsed = new URL(configured);
+		if (looksPrivateHost(parsed.hostname)) {
+			return '';
+		}
+
+		let base = trimTrailingSlash(parsed.origin + parsed.pathname);
+		if (base.endsWith('/api/skills')) {
+			base = base.slice(0, -'/api/skills'.length);
+		}
+		if (relativePath && base.endsWith(relativePath)) {
+			base = base.slice(0, -relativePath.length);
+		}
+		return trimTrailingSlash(base);
+	} catch (err) {
+		return '';
+	}
+}
+
+function buildTopicUrl(topic) {
+	if (!topic || !topic.slug) {
+		return '';
+	}
+	return `${getRelativePath()}/topic/${topic.slug}`;
+}
+
+function buildTopicFullUrl(topic) {
+	const origin = getPublicForumOrigin();
+	const url = buildTopicUrl(topic);
+	if (!origin || !url) {
+		return '';
+	}
+	return `${origin}${url}`;
+}
+
+function buildTopicLinks(topic) {
+	return {
+		url: buildTopicUrl(topic),
+		fullUrl: buildTopicFullUrl(topic),
+	};
+}
+
 function mapPostSummary(post) {
 	if (!post) {
 		return null;
 	}
+
+	const topicLinks = buildTopicLinks(post.topic);
 
 	return {
 		pid: post.pid,
@@ -260,15 +351,10 @@ function mapPostSummary(post) {
 			tid: post.topic.tid,
 			title: post.topic.title,
 			slug: post.topic.slug,
+			url: topicLinks.url,
+			fullUrl: topicLinks.fullUrl,
 		} : null,
 	};
-}
-
-function buildTopicUrl(topic) {
-	if (!topic || !topic.slug) {
-		return '';
-	}
-	return `/topic/${topic.slug}`;
 }
 
 function startOfDayTimestamp(input) {
@@ -530,11 +616,13 @@ Skills.execute = async (req, res) => {
 				score: 1,
 				matched: [],
 			};
+			const topicLinks = buildTopicLinks(topic);
 			return {
 				tid: topic.tid,
 				cid: topic.cid,
 				title: topic.titleRaw || topic.title,
-				url: buildTopicUrl(topic),
+				url: topicLinks.url,
+				fullUrl: topicLinks.fullUrl,
 				timestamp: topic.timestamp,
 				timestampISO: topic.timestampISO,
 				category: topic.category ? {
@@ -585,18 +673,23 @@ Skills.execute = async (req, res) => {
 			limit: itemsPerPage,
 			matchCount: result.matchCount,
 			pageCount: result.pageCount,
-			posts: (result.posts || []).map(post => ({
-				pid: post.pid,
-				tid: post.tid,
-				uid: post.uid,
-				timestamp: post.timestamp,
-				content: post.content,
-				topic: post.topic ? {
-					tid: post.topic.tid,
-					title: post.topic.title,
-					slug: post.topic.slug,
-				} : null,
-			})),
+			posts: (result.posts || []).map((post) => {
+				const topicLinks = buildTopicLinks(post.topic);
+				return {
+					pid: post.pid,
+					tid: post.tid,
+					uid: post.uid,
+					timestamp: post.timestamp,
+					content: post.content,
+					topic: post.topic ? {
+						tid: post.topic.tid,
+						title: post.topic.title,
+						slug: post.topic.slug,
+						url: topicLinks.url,
+						fullUrl: topicLinks.fullUrl,
+					} : null,
+				};
+			}),
 		};
 	} else if (skill === 'search_own_posts') {
 		const query = normalizeOptionalQuery(input.query);

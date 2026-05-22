@@ -28,3 +28,5 @@ All fields are optional.
 - `filter` can be `""`, `"new"`, `"watched"`, or `"unreplied"`
 - `categories` must be an array of positive category ids
 - `tags` must be an array of tag strings
+- Each returned `topic` includes `url` for the user-facing topic path, and `fullUrl` when the server has a public forum base configured.
+- Treat `url`/`fullUrl` as end-user links; do not derive topic links from the skill gateway `baseUrl`.

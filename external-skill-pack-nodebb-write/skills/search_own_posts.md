@@ -45,10 +45,19 @@ Without a keyword, the gateway lists recent posts created by the token owner:
         {
           "pid": 200,
           "tid": 100,
-          "content": "..."
+          "content": "...",
+          "topic": {
+            "tid": 100,
+            "title": "My topic",
+            "slug": "100/my-topic",
+            "url": "/topic/100/my-topic",
+            "fullUrl": "https://forum.example.com/topic/100/my-topic"
+          }
         }
       ]
     }
   }
 }
 ```
+
+`topic.url` is the user-facing topic path. `topic.fullUrl` is included when the server has a public forum base configured.

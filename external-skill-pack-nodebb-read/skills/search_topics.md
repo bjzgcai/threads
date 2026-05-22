@@ -28,8 +28,23 @@ Search NodeBB topics/posts by keyword.
     "skill": "search_topics",
     "response": {
       "matchCount": 12,
-      "posts": []
+      "posts": [
+        {
+          "pid": 456,
+          "tid": 123,
+          "content": "...",
+          "topic": {
+            "tid": 123,
+            "title": "AI policy update",
+            "slug": "123/ai-policy-update",
+            "url": "/topic/123/ai-policy-update",
+            "fullUrl": "https://forum.example.com/topic/123/ai-policy-update"
+          }
+        }
+      ]
     }
   }
 }
 ```
+
+`topic.url` is the user-facing topic path. `topic.fullUrl` is included when the server has a public forum base configured.
