@@ -1,10 +1,8 @@
-<div id="guest-cta-alert" class="alert alert-warning alert-dismissible fade show guest-cta-alert" role="alert">
+<div id="guest-cta-alert" class="alert alert-warning alert-dismissible fade show guest-cta-alert zgci-guest-cta" role="region" aria-label="登录后参与讨论">
 	<p><strong>[[topic:guest-cta.title]]</strong></p>
-	<p>[[topic:guest-cta.message]]</p>
-	<p>[[topic:guest-cta.closing]]</p>
-	<a href="{config.relative_path}/register" class="fw-semibold btn btn-sm btn-warning">[[global:register]]</a>
-	<a href="{config.relative_path}/login" class="fw-semibold btn btn-sm btn-info">[[global:login]]</a>
-	<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+	<p class="mb-2">两院内部成员请使用钉钉登录后参与回复、收藏和发起讨论。</p>
+	<a href="{config.relative_path}/login" class="fw-semibold btn btn-sm btn-primary">钉钉登录后参与讨论</a>
+	<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="关闭"></button>
 </div>
 <script>
 (() => {

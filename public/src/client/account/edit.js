@@ -61,7 +61,7 @@ define('forum/account/edit', [
 				fullnameLabel.text('姓名');
 			}
 			if (fullnameInput.length) {
-				fullnameInput.attr('readonly', true).attr('disabled', true);
+				fullnameInput.attr('readonly', true);
 			}
 
 			const usernameDisableEdit = !!ajaxify.data['username:disableEdit'];
@@ -104,7 +104,7 @@ define('forum/account/edit', [
 		const readonlyEmail = $('#readonly-email');
 		if (readonlyEmail.length) {
 			readonlyEmail.val(ajaxify.data.email ? ajaxify.data.email : '-');
-			readonlyEmail.attr('readonly', true).attr('disabled', true);
+			readonlyEmail.attr('readonly', true);
 			return;
 		}
 
@@ -113,7 +113,7 @@ define('forum/account/edit', [
 			const emailBlock = `
 				<div class="mb-3">
 					<label class="form-label fw-bold" for="readonly-email">${escapeHtml(translatedEmailLabel)}</label>
-					<input class="form-control" type="text" id="readonly-email" value="${escapeHtml(emailValue)}" readonly disabled>
+					<input class="form-control" type="text" id="readonly-email" value="${escapeHtml(emailValue)}" readonly>
 				</div>
 			`;
 			const fullnameBlock = $('#fullname').closest('.mb-3');

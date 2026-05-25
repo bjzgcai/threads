@@ -1,13 +1,25 @@
 <!-- IMPORT partials/account/header.tpl -->
 
-<h3 class="fw-semibold fs-5">{{{ if isSelf }}}[[user:change-username]]{{{ else }}}[[pages:{template.name}, {username}]]{{{ end }}}</h3>
-<div class="row">
-	<div class="col-12 col-lg-6">
-		<form class="edit-form">
-			<div class="mb-3">
-				<label class="form-label fw-semibold text-sm" for="inputNewUsername">[[user:username]]</label>
-				<input class="form-control" type="text" id="inputNewUsername" placeholder="[[user:username]]" value="{username}">
-			</div>
+<div class="zgci-account-edit">
+	<div class="zgci-account-toolbar d-flex justify-content-between gap-3 py-3 mb-3 align-items-center">
+		<div>
+			<div class="text-uppercase text-secondary fw-semibold text-xs mb-1">Account Settings</div>
+			<h3 class="fw-semibold fs-4 mb-0">{{{ if isSelf }}}[[user:change-username]]{{{ else }}}[[pages:{template.name}, {username}]]{{{ end }}}</h3>
+		</div>
+	</div>
+	<div class="row">
+		<div class="col-12 col-lg-7 col-xl-6">
+			<form class="edit-form zgci-settings-card">
+				<div class="zgci-settings-card-header">
+					<div>
+						<h4 class="fs-5 fw-semibold mb-1">论坛昵称</h4>
+						<p class="text-secondary text-sm mb-0">此名称用于帖子、回复和通知中展示。</p>
+					</div>
+				</div>
+				<div class="mb-3">
+					<label class="form-label fw-semibold text-sm" for="inputNewUsername">[[user:username]]</label>
+					<input class="form-control" type="text" id="inputNewUsername" placeholder="[[user:username]]" value="{username}">
+				</div>
 
 			{{{ if (disableCredentialEdit && hasWuxiaNicknames) }}}
 			<div class="mb-3">
@@ -41,10 +53,11 @@
 
 			<input type="hidden" name="uid" id="inputUID" value="{uid}" />
 
-			<div class="form-actions">
-				<button id="submitBtn" class="btn btn-primary btn-block"><i class="hide fa fa-spinner fa-spin"></i> [[user:change-username]]</button>
-			</div>
-		</form>
+				<div class="form-actions">
+					<button id="submitBtn" class="btn btn-primary btn-block zgci-save-button"><i class="hide fa fa-spinner fa-spin"></i> [[user:change-username]]</button>
+				</div>
+			</form>
+		</div>
 	</div>
 </div>
 
