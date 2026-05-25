@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 
 const projectRoot = path.resolve(__dirname, '..');
+const syncThemeOverrides = require('./sync-theme-overrides');
+
 const overrides = [
 	{
 		source: 'overrides/nodebb-plugin-dbsearch/lib/postgres.js',
@@ -36,4 +38,11 @@ for (const override of overrides) {
 
 if (!appliedCount && !process.exitCode) {
 	console.log('[local-overrides] no overrides applied');
+}
+
+try {
+	syncThemeOverrides();
+} catch (err) {
+	console.error(`[local-overrides] theme override sync failed: ${err.message}`);
+	process.exitCode = 1;
 }
