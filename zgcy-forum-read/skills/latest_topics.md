@@ -33,4 +33,4 @@ All fields are optional.
 - `page` 从 `1` 开始，适合顺序翻页查看
 - `categories` 适合传入 `list_categories` 返回的分类 id
 - Each returned `topic` includes `url` for the user-facing topic path, and `fullUrl` when the server has a public forum base configured.
-- Prefer `fullUrl` when it is present. In the current internal deployment, if `fullUrl` is empty, build the final link as `http://10.1.132.5:4567` + `topic.url`.
+- Prefer `fullUrl` when it is present. In the current internal deployment, if `fullUrl` is empty, build the final link as `https://zgcy.lab.bza.edu.cn` + `topic.url`.

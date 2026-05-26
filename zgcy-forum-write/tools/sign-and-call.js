@@ -25,6 +25,73 @@ function usage() {
   process.exit(1);
 }
 
+function normalizeVersion(value) {
+  return String(value || '').trim().replace(/^v/i, '');
+}
+
+function getRemotePackageVersion(manifest, packageName) {
+  if (!manifest || !packageName) {
+    return '';
+  }
+
+  const candidates = [
+    manifest.packages && manifest.packages[packageName] && manifest.packages[packageName].version,
+    manifest.skillPacks && manifest.skillPacks[packageName] && manifest.skillPacks[packageName].version,
+    manifest.packageVersions && manifest.packageVersions[packageName],
+    manifest.versions && manifest.versions[packageName],
+    manifest.name === packageName ? manifest.version : '',
+  ];
+
+  return candidates.find(Boolean) || '';
+}
+
+async function checkForSkillPackageUpdate(config, baseUrl, timeoutMs) {
+  const updateCheck = config.updateCheck || {};
+  if (updateCheck.enabled === false) {
+    return;
+  }
+
+  const packageName = updateCheck.packageName || 'zgcy-forum-write';
+  const localVersion = updateCheck.localVersion || '';
+  if (!localVersion) {
+    return;
+  }
+
+  const manifestUrl = process.env.SKILL_REMOTE_MANIFEST_URL ||
+    updateCheck.remoteManifestUrl ||
+    `${baseUrl.replace(/\/$/, '')}/manifest`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(manifestUrl, {
+      method: 'GET',
+      headers: { accept: 'application/json' },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      console.error(`[update-check] Could not check ${packageName}: manifest returned HTTP ${response.status}. Continuing.`);
+      return;
+    }
+
+    const remoteManifest = await response.json();
+    const remoteVersion = getRemotePackageVersion(remoteManifest, packageName);
+    if (!remoteVersion) {
+      console.error(`[update-check] Could not find remote version for ${packageName} in ${manifestUrl}. Continuing.`);
+      return;
+    }
+
+    if (normalizeVersion(remoteVersion) !== normalizeVersion(localVersion)) {
+      console.error(`[update-check] ${packageName} local version ${localVersion} differs from remote version ${remoteVersion}. Please upgrade this local skill package before relying on it for current behavior.`);
+    }
+  } catch (err) {
+    console.error(`[update-check] Could not check ${packageName}: ${err.message}. Continuing.`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function main() {
   const [, , skillName, payloadPath, configPathArg] = process.argv;
   if (!skillName || !payloadPath) usage();
@@ -43,6 +110,8 @@ async function main() {
     console.error('Missing required config: baseUrl (or SKILL_BASE_URL)');
     process.exit(1);
   }
+
+  await checkForSkillPackageUpdate(config, baseUrl, timeoutMs);
 
   const payload = readJsonFile(payloadPath);
   const stableBody = stableStringify(payload);

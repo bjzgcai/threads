@@ -276,6 +276,9 @@ async function getBundleMetadata(target) {
 	}
 
 	let imports = `${cssImports}\n${scssImports}\n${acpScssImports}`;
+	if (!Object.prototype.hasOwnProperty.call(buildImports, target)) {
+		throw new Error('[[error:invalid-data]]');
+	}
 	imports = buildImports[target](imports, themeData);
 
 	return { paths: paths, imports: imports };

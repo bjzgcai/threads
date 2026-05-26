@@ -549,7 +549,7 @@ DingTalkPlugin.deleteUserData = async function (data) {
 // --- Helpers ---
 
 const fullnameMentionRegex = /(^|\P{L})(@[\p{L}\d\-_.@]+(?<![.-]))/gu;
-const mentionAnchorRegex = /<a\b([^>]*class="[^"]*plugin-mentions-user[^"]*"[^>]*)href="([^"]*\/user\/([^"?/#]+)[^"]*)"([^>]*)>(@?)(<bdi>)([^<]*)(<\/bdi><\/a>)/gu;
+const mentionAnchorRegex = /<a\b([^>]{0,512}class="[^"]{0,256}plugin-mentions-user[^"]{0,256}"[^>]{0,512})href="([^"]{0,512}\/user\/([^"?/#]{1,128})[^"]{0,512})"([^>]{0,512})>(@?)(<bdi>)([^<]{0,256})(<\/bdi><\/a>)/gu;
 
 function patchMentionsUserSearch() {
 	if (!SocketPlugins.mentions || typeof SocketPlugins.mentions.userSearch !== 'function' || SocketPlugins.mentions.userSearch._dingtalkPatched) {

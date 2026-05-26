@@ -234,11 +234,13 @@ define('chat', [
 		const titleEl = modal.find('[component="chat/room/name"]');
 		const icon = titleEl.attr('data-icon');
 		if (titleEl.length) {
-			titleEl.html(
-				data.newName ?
-					`<i class="fa ${icon} text-muted"></i> ${data.newName}` :
-					data.chatWithMessage
-			);
+			titleEl.empty();
+			if (data.newName) {
+				$('<i></i>').addClass(`fa ${icon} text-muted`).appendTo(titleEl);
+				titleEl.append(document.createTextNode(` ${data.newName}`));
+			} else {
+				titleEl.text(data.chatWithMessage);
+			}
 		}
 
 		const newTitle = $('<div></div>').html(data.newName).text();

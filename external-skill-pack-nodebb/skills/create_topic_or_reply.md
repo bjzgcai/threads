@@ -12,8 +12,8 @@ Create a new topic or reply in an existing topic.
 {
   "input": {
     "cid": 1,
-    "title": "新主题标题",
-    "content": "主题正文",
+    "title": "New topic title",
+    "content": "Topic body",
     "tags": ["tag1", "tag2"]
   }
 }
@@ -25,7 +25,7 @@ Create a new topic or reply in an existing topic.
 {
   "input": {
     "tid": 100,
-    "content": "回复内容"
+    "content": "Reply body"
   }
 }
 ```

@@ -34,9 +34,9 @@ process.on('message', async (msg) => {
 		let payload = [];
 		await batch.processSortedSet(`uid:${targetUid}:posts`, async (pids) => {
 			let postData = await posts.getPostsData(pids);
-			// Remove empty post references and convert newlines in content
+			// Remove empty post references; json2csv handles CSV escaping and quoting.
 			postData = postData.filter(Boolean).map((post) => {
-				post.content = `"${String(post.content || '').replace(/\n/g, '\\n').replace(/"/g, '\\"')}"`;
+				post.content = String(post.content || '').replace(/\r?\n/g, '\\n');
 				return post;
 			});
 			payload = payload.concat(postData);
