@@ -94,8 +94,8 @@ Themes.set = async (data) => {
 			await db.sortedSetAdd('plugins:active', score || 0, data.id);
 
 			if (current !== data.id) {
-				const pathToThemeJson = path.join(nconf.get('themes_path'), data.id, 'theme.json');
-				if (!pathToThemeJson.startsWith(nconf.get('themes_path'))) {
+				const pathToThemeJson = path.resolve(nconf.get('themes_path'), data.id, 'theme.json');
+				if (!isPathInsideThemesPath(pathToThemeJson)) {
 					throw new Error('[[error:invalid-theme-id]]');
 				}
 
@@ -182,3 +182,9 @@ Themes.setPath = function (themeObj) {
 	nconf.set('theme_templates_path', themePath);
 	nconf.set('theme_config', path.join(nconf.get('themes_path'), themeObj.id, 'theme.json'));
 };
+
+function isPathInsideThemesPath(targetPath) {
+	const themesPath = path.resolve(nconf.get('themes_path'));
+	const relativePath = path.relative(themesPath, targetPath);
+	return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}

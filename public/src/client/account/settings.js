@@ -150,6 +150,7 @@ define('forum/account/settings', [
 		const linkEl = document.createElement('link');
 		linkEl.rel = 'stylesheet';
 		linkEl.type = 'text/css';
+		skinName = String(skinName || '').replace(/[^a-zA-Z0-9_-]/g, '');
 		linkEl.href = config.relative_path +
 			'/assets/client' + (skinName ? '-' + skinName : '') +
 			(langDir === 'rtl' ? '-rtl' : '') +

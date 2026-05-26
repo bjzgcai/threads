@@ -875,7 +875,7 @@ function resolveImageExtension(imageUrl, contentType) {
 	}
 
 	try {
-		const pathname = new URL(imageUrl).pathname;
+		const { pathname } = new URL(imageUrl);
 		const extension = path.extname(pathname || '').toLowerCase();
 		if (extension) {
 			return extension;
@@ -892,7 +892,7 @@ function buildWechatImageFilename(articleId, imageIndex, imageUrl, extension) {
 		.replace(/[^a-zA-Z0-9_-]+/g, '-')
 		.replace(/^-+|-+$/g, '')
 		.slice(0, 48) || 'article';
-	const hash = crypto.createHash('md5').update(String(imageUrl || '')).digest('hex').slice(0, 10);
+	const hash = crypto.createHash('sha256').update(String(imageUrl || '')).digest('hex').slice(0, 10);
 	return `wechat-${safeArticleId}-${imageIndex}-${hash}${extension}`;
 }
 

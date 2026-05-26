@@ -177,6 +177,7 @@ function setupExpressApp(app) {
 	app.use(cookieParser(nconf.get('secret')));
 	app.use(useragent.express());
 	app.use(detector.middleware());
+	app.use(middleware.rateLimit);
 	app.use(session({
 		store: db.sessionStore,
 		secret: nconf.get('secret'),
@@ -207,7 +208,20 @@ function setupExpressApp(app) {
 
 function setupHelmet(app) {
 	const options = {
-		contentSecurityPolicy: false, // defaults are too restrive and break plugins that load external assets... 🔜
+		contentSecurityPolicy: {
+			useDefaults: true,
+			directives: {
+				defaultSrc: ["'self'"],
+				scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https:', 'http:'],
+				styleSrc: ["'self'", "'unsafe-inline'", 'https:', 'http:'],
+				imgSrc: ["'self'", 'data:', 'blob:', 'https:', 'http:'],
+				fontSrc: ["'self'", 'data:', 'https:', 'http:'],
+				connectSrc: ["'self'", 'ws:', 'wss:', 'https:', 'http:'],
+				mediaSrc: ["'self'", 'data:', 'blob:', 'https:', 'http:'],
+				frameSrc: ["'self'", 'https:', 'http:'],
+				frameAncestors: null,
+			},
+		},
 		crossOriginOpenerPolicy: { policy: meta.config['cross-origin-opener-policy'] },
 		crossOriginResourcePolicy: { policy: meta.config['cross-origin-resource-policy'] },
 		referrerPolicy: { policy: 'strict-origin-when-cross-origin' },

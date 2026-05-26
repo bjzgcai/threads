@@ -315,7 +315,7 @@ define('admin/extend/plugins', [
 				return alerts.error(err);
 			}
 			function removeAndUpdateBadge(section) {
-				$(`${section} [data-plugin-id="${pluginID}"]`).remove();
+				$(`${section} [data-plugin-id="${$.escapeSelector(pluginID)}"]`).remove();
 				const count = $(`${section} [data-plugin-id]`).length;
 				$(`[data-bs-target="${section}"] .badge`).text(count);
 			}

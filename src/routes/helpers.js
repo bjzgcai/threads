@@ -29,12 +29,13 @@ helpers.setupPageRoute = function (...args) {
 
 	router.get(
 		name,
+		middleware.rateLimit,
 		middleware.busyCheck,
 		middlewares,
 		middleware.buildHeader,
 		helpers.tryRoute(controller)
 	);
-	router.get(`/api${name}`, middlewares, helpers.tryRoute(controller));
+	router.get(`/api${name}`, middleware.rateLimit, middlewares, helpers.tryRoute(controller));
 };
 
 // router, name, middleware(deprecated), middlewares(optional), controller
@@ -45,8 +46,15 @@ helpers.setupAdminPageRoute = function (...args) {
 	if (args.length === 5) {
 		winston.warn(`[helpers.setupAdminPageRoute(${name})] passing \`middleware\` as the third param is deprecated, it can now be safely removed`);
 	}
-	router.get(name, middleware.autoLocale, middleware.admin.buildHeader, middlewares, helpers.tryRoute(controller));
-	router.get(`/api${name}`, middlewares, helpers.tryRoute(controller));
+	router.get(
+		name,
+		middleware.rateLimit,
+		middleware.autoLocale,
+		middleware.admin.buildHeader,
+		middlewares,
+		helpers.tryRoute(controller)
+	);
+	router.get(`/api${name}`, middleware.rateLimit, middlewares, helpers.tryRoute(controller));
 };
 
 // router, verb, name, middlewares(optional), controller

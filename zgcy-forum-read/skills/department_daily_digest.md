@@ -75,6 +75,6 @@ Optional fields:
 }
 ```
 
-`url` is the user-facing topic path. `fullUrl` is included when the server has a public forum base configured. In the current internal deployment, if `fullUrl` is empty, build the final link as `http://10.1.132.5:4567` + `url`.
+`url` is the user-facing topic path. `fullUrl` is included when the server has a public forum base configured. In the current internal deployment, if `fullUrl` is empty, build the final link as `https://zgcy.lab.bza.edu.cn` + `url`.
 
 输出说明：`scannedCount` 是初始扫描的帖子数，`matchCount` 是最终命中的帖子数，`topics` 是返回结果列表；其中 `relevanceScore` 表示关键词相关度，`matchedKeywords` 表示命中的关键词，`excerpt` 是摘要片段。

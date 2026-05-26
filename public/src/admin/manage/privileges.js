@@ -224,12 +224,12 @@ define('admin/manage/privileges', [
 		*/
 
 		// As such, individual banned users inherits privileges from banned-users group
-		const getBannedUsersInputSelector = (privs, i) => `.privilege-table tr[data-banned] td[data-privilege="${privs[i]}"] input`;
+		const getBannedUsersInputSelector = (privs, i) => `.privilege-table tr[data-banned] td[data-privilege="${$.escapeSelector(privs[i])}"] input`;
 		const bannedUsersPrivs = getPrivilegesFromRow('banned-users');
 		applyPrivileges(bannedUsersPrivs, getBannedUsersInputSelector);
 
 		// For rest that inherits from registered-users
-		const getRegisteredUsersInputSelector = (privs, i) => `.privilege-table tr[data-group-name]:not([data-group-name="registered-users"],[data-group-name="banned-users"],[data-group-name="guests"],[data-group-name="spiders"],[data-group-name="fediverse"]) td[data-privilege="${privs[i]}"] input, .privilege-table tr[data-uid]:not([data-banned]) td[data-privilege="${privs[i]}"] input`;
+		const getRegisteredUsersInputSelector = (privs, i) => `.privilege-table tr[data-group-name]:not([data-group-name="registered-users"],[data-group-name="banned-users"],[data-group-name="guests"],[data-group-name="spiders"],[data-group-name="fediverse"]) td[data-privilege="${$.escapeSelector(privs[i])}"] input, .privilege-table tr[data-uid]:not([data-banned]) td[data-privilege="${$.escapeSelector(privs[i])}"] input`;
 		const registeredUsersPrivs = getPrivilegesFromRow('registered-users');
 		applyPrivileges(registeredUsersPrivs, getRegisteredUsersInputSelector);
 	};
@@ -343,7 +343,7 @@ define('admin/manage/privileges', [
 
 	function getPrivilegesFromRow(sourceGroupName) {
 		const privs = [];
-		$(`.privilege-table tr[data-group-name="${sourceGroupName}"] td input[type="checkbox"]:not(.checkbox-helper)`)
+		$(`.privilege-table tr[data-group-name="${$.escapeSelector(sourceGroupName)}"] td input[type="checkbox"]:not(.checkbox-helper)`)
 			.parents('[data-privilege]')
 			.each(function (idx, el) {
 				if ($(el).find('input').prop('checked')) {
@@ -362,7 +362,7 @@ define('admin/manage/privileges', [
 	}
 
 	function getPrivilegeFromColumn(sourceGroupName, columnNo) {
-		return $(`.privilege-table tr[data-group-name="${sourceGroupName}"] td:nth-child(${columnNo}) input[type="checkbox"]`)[0].checked;
+		return $(`.privilege-table tr[data-group-name="${$.escapeSelector(sourceGroupName)}"] td:nth-child(${columnNo}) input[type="checkbox"]`)[0].checked;
 	}
 
 	function applyPrivileges(privs, inputSelectorFn) {

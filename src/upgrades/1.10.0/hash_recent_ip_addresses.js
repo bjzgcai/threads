@@ -12,7 +12,7 @@ module.exports = {
 	timestamp: Date.UTC(2018, 5, 22),
 	method: function (callback) {
 		const { progress } = this;
-		const hashed = /[a-f0-9]{32}/;
+		const hashed = /^[a-f0-9]{32}$|^[a-f0-9]{64}$/;
 		let hash;
 
 		batch.processSortedSet('ip:recent', (ips, next) => {
@@ -23,7 +23,7 @@ module.exports = {
 					return setImmediate(next);
 				}
 
-				hash = crypto.createHash('sha1').update(set.value + nconf.get('secret')).digest('hex');
+				hash = crypto.createHash('sha256').update(set.value + nconf.get('secret')).digest('hex');
 
 				async.series([
 					async.apply(db.sortedSetAdd, 'ip:recent', set.score, hash),

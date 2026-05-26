@@ -15,6 +15,7 @@ module.exports = function () {
 		middleware.autoLocale,
 		middleware.applyBlacklist,
 		middleware.authenticateRequest,
+		middleware.applyCSRF,
 		middleware.maintenanceMode,
 		middleware.registrationComplete,
 		middleware.pluginHooks,

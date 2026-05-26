@@ -588,7 +588,7 @@ const utils = {
 	// get all the url params in a single key/value hash
 	params: function (options = {}) {
 		let url;
-		if (options.url && !options.url.startsWith('http')) {
+		if (options.url && !utils.isHttpUrl(options.url)) {
 			url = new URL(options.url, 'http://dummybase');
 		} else {
 			url = new URL(options.url || document.location);
@@ -696,6 +696,14 @@ const utils = {
 				// Subfolder installs need this additional check
 				(relative_path.length > 0 ? targetLocation.pathname.indexOf(relative_path) === 0 : true)
 			);
+	},
+
+	isHttpUrl: function (url) {
+		try {
+			return ['http:', 'https:'].includes(new URL(url).protocol);
+		} catch (err) {
+			return false;
+		}
 	},
 
 	rtrim: function (str) {

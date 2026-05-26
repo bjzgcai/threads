@@ -78,7 +78,7 @@ $('document').ready(function () {
 			parent.addClass('active').removeClass('error');
 
 			const help = parent.find('.form-text');
-			help.html(help.attr('data-help'));
+			help.text(help.attr('data-help'));
 		});
 
 		$('form').on('blur change', '[name]', function () {

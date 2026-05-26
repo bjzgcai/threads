@@ -169,7 +169,7 @@ Auth.reloadRoutes = async function (params) {
 		});
 	});
 
-	router.post('/login', Auth.middleware.applyCSRF, Auth.middleware.applyBlacklist, controllers.authentication.login);
+	router.post('/login', Auth.middleware.rateLimit, Auth.middleware.applyCSRF, Auth.middleware.applyBlacklist, controllers.authentication.login);
 	router.post('/logout', Auth.middleware.applyCSRF, controllers.authentication.logout);
 };
 

@@ -1,6 +1,6 @@
 {
   "name": "ZGCY Skills Gateway Config",
-  "baseUrl": "http://10.1.132.5:4567/api/skills",
+  "baseUrl": "https://zgcy.lab.bza.edu.cn/api/skills",
   "timeoutMs": 15000,
   "userAgent": "my-external-agent/1.0",
   "auth": {
