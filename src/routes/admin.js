@@ -18,6 +18,7 @@ module.exports = function (app, name, middleware, controllers) {
 	helpers.setupAdminPageRoute(app, `/${name}/manage/categories/:category_id`, middlewares, controllers.admin.categories.get);
 	helpers.setupAdminPageRoute(app, `/${name}/manage/categories/:category_id/analytics`, middlewares, controllers.admin.categories.getAnalytics);
 	helpers.setupAdminPageRoute(app, `/${name}/manage/categories/:category_id/federation`, middlewares, controllers.admin.categories.getFederation);
+	helpers.setupAdminPageRoute(app, `/${name}/manage/dingtalk-departments`, middlewares, controllers.admin.dingtalkDepartments.get);
 
 	helpers.setupAdminPageRoute(app, `/${name}/manage/privileges/:cid?`, middlewares, controllers.admin.privileges.get);
 	helpers.setupAdminPageRoute(app, `/${name}/manage/tags`, middlewares, controllers.admin.tags.get);
@@ -90,6 +91,12 @@ function apiRoutes(router, name, middleware, controllers) {
 	router.get(`/api/${name}/groups/:groupname/csv`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.groups.getCSV));
 	router.get(`/api/${name}/manage/skills`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.skills.list));
 	router.delete(`/api/${name}/manage/skills/:token`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.skills.revoke));
+	router.get(`/api/${name}/manage/dingtalk-departments/state`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.dingtalkDepartments.getState));
+	router.post(`/api/${name}/manage/dingtalk-departments/sync-departments`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.dingtalkDepartments.syncDepartments));
+	router.post(`/api/${name}/manage/dingtalk-departments/sync-members`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.dingtalkDepartments.syncMembers));
+	router.get(`/api/${name}/manage/dingtalk-departments/departments/:deptId`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.dingtalkDepartments.refreshDepartmentDetail));
+	router.get(`/api/${name}/manage/dingtalk-departments/categories/:cid`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.dingtalkDepartments.getCategoryConfig));
+	router.put(`/api/${name}/manage/dingtalk-departments/categories/:cid`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.dingtalkDepartments.saveCategoryConfig));
 	router.get(`/api/${name}/analytics`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.dashboard.getAnalytics));
 	router.get(`/api/${name}/advanced/cache/dump`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.cache.dump));
 	router.post(`/api/${name}/manage/categories`, middleware.ensureLoggedIn, helpers.tryRoute(controllers.admin.categories.addRemote));

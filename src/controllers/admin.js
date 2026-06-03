@@ -9,6 +9,7 @@ const adminController = {
 	dashboard: require('./admin/dashboard'),
 	dailyReport: require('./admin/daily-report'),
 	categories: require('./admin/categories'),
+	dingtalkDepartments: require('./admin/dingtalk-departments'),
 	privileges: require('./admin/privileges'),
 	adminsMods: require('./admin/admins-mods'),
 	tags: require('./admin/tags'),

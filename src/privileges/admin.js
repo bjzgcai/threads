@@ -53,6 +53,7 @@ privsAdmin.getPrivilegeList = async () => {
 privsAdmin.routeMap = {
 	dashboard: 'admin:dashboard',
 	'manage/categories': 'admin:categories',
+	'manage/dingtalk-departments': 'admin:privileges',
 	'manage/privileges': 'admin:privileges',
 	'manage/admins-mods': 'admin:admins-mods',
 	'manage/users': 'admin:users',
@@ -74,6 +75,7 @@ privsAdmin.routeMap = {
 privsAdmin.routePrefixMap = {
 	'dashboard/': 'admin:dashboard',
 	'manage/categories/': 'admin:categories',
+	'manage/dingtalk-departments/': 'admin:privileges',
 	'manage/privileges/': 'admin:privileges',
 	'manage/groups/': 'admin:groups',
 	'settings/': 'admin:settings',

@@ -10,6 +10,7 @@
 
 	"section-manage": "管理",
 	"manage/categories": "版块",
+	"manage/dingtalk-departments": "钉钉部门权限",
 	"manage/privileges": "权限",
 	"manage/tags": "标签",
 	"manage/users": "用户",

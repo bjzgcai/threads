@@ -541,6 +541,11 @@ DingTalkPlugin.deleteUserData = async function (data) {
 			const keysToRemove = Object.keys(mapping).filter(k => parseInt(mapping[k], 10) === uid);
 			await Promise.all(keysToRemove.map(k => db.deleteObjectField(DB_KEY, k)));
 		}
+		const userIdMapping = await db.getObject('dingtalk:userid2uid');
+		if (userIdMapping) {
+			const keysToRemove = Object.keys(userIdMapping).filter(k => parseInt(userIdMapping[k], 10) === uid);
+			await Promise.all(keysToRemove.map(k => db.deleteObjectField('dingtalk:userid2uid', k)));
+		}
 	} catch (err) {
 		winston.error(`[sso-dingtalk] deleteUserData error: ${err.message}`);
 	}
@@ -840,6 +845,7 @@ async function sendWorkNoticeToUserIds(userIds, msg) {
 async function resolveTargetDingtalkUserId(userData) {
 	const existingUserId = String(userData && userData['dingtalk:userid'] || '').trim();
 	if (existingUserId) {
+		await bindDingtalkUserId(existingUserId, userData.uid);
 		return existingUserId;
 	}
 
@@ -853,6 +859,7 @@ async function resolveTargetDingtalkUserId(userData) {
 		const userId = await getDingtalkUserIdByUnionId(appAccessToken, unionId);
 		if (userId) {
 			await user.setUserField(userData.uid, 'dingtalk:userid', userId);
+			await bindDingtalkUserId(userId, userData.uid);
 		}
 		return userId;
 	} catch (err) {
@@ -883,12 +890,21 @@ async function syncDingtalkUserId(uid, profile) {
 	const updates = {};
 	if (detail.userId) {
 		updates['dingtalk:userid'] = detail.userId;
+		await bindDingtalkUserId(detail.userId, uid);
 	}
 	if (detail.name) {
 		updates.fullname = detail.name;
 	}
 	if (Object.keys(updates).length) {
 		await user.setUserFields(uid, updates);
+	}
+}
+
+async function bindDingtalkUserId(userId, uid) {
+	userId = String(userId || '').trim();
+	uid = parseInt(uid, 10);
+	if (userId && uid > 0) {
+		await db.setObjectField('dingtalk:userid2uid', userId, uid);
 	}
 }
 

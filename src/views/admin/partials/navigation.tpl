@@ -34,6 +34,9 @@
 				{{{ if user.privileges.admin:categories }}}
 				<a class="btn btn-ghost btn-sm text-start" id="manage-categories" href="{relative_path}/admin/manage/categories">[[admin/menu:manage/categories]]</a>
 				{{{ end }}}
+				{{{ if user.privileges.superadmin }}}
+				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/manage/dingtalk-departments">[[admin/menu:manage/dingtalk-departments]]</a>
+				{{{ end }}}
 				{{{ if user.privileges.admin:privileges }}}
 				<a class="btn btn-ghost btn-sm text-start" href="{relative_path}/admin/manage/privileges">[[admin/menu:manage/privileges]]</a>
 				{{{ end }}}
