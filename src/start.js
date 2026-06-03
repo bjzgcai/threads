@@ -43,6 +43,7 @@ start.start = async function () {
 			require('./reports/dingtalk-daily').startJobs();
 			require('./reports/article-auto-publish').startJobs();
 			require('./reports/wechat-auto-publish').startJobs();
+			require('./reports/category-news-digest').startJobs();
 			await db.delete('locks');
 		}
 
