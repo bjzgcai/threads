@@ -22,6 +22,10 @@ const file = require('../file');
 const image = require('../image');
 const topics = require('../topics');
 const user = require('../user');
+const {
+	normalizeWechatCategory,
+	parseWechatCategoryCidMap,
+} = require('../wechat-category-routing');
 
 const publisher = module.exports;
 
@@ -31,6 +35,7 @@ const TZ = String(process.env.WECHAT_AUTO_PUBLISH_TZ || 'Asia/Shanghai').trim();
 const CID = parseInt(process.env.WECHAT_AUTO_PUBLISH_CID, 10) || 0;
 const CATEGORY_NAME = String(process.env.WECHAT_AUTO_PUBLISH_CATEGORY_NAME || '公众号精选').trim();
 const CATEGORY_PARENT_CID = parseInt(process.env.WECHAT_AUTO_PUBLISH_PARENT_CID, 10) || 0;
+const CATEGORY_CID_MAP = parseWechatCategoryCidMap(process.env.WECHAT_AUTO_PUBLISH_CATEGORY_CID_MAP || '');
 const UID = parseInt(process.env.WECHAT_AUTO_PUBLISH_UID, 10) || 1;
 const EXCEL_PATH = path.resolve(__dirname, '..', '..', process.env.WECHAT_AUTO_PUBLISH_EXCEL_PATH || 'docs/account.csv');
 const ACCOUNTS = parseAccounts(process.env.WECHAT_AUTO_PUBLISH_ACCOUNTS || '');
@@ -59,10 +64,12 @@ const WECHAT_IMAGE_SRC_ATTRS = [
 	'data-orig-src',
 	'data-url',
 ];
+const DEFAULT_ROUTE_CACHE_KEY = '__default__';
 
 let job = null;
 let shutdownHooksInstalled = false;
 let runLockCleanupPromise = null;
+const routeCidCache = new Map();
 
 publisher.startJobs = function () {
 	if (!ENABLED) {
@@ -105,13 +112,13 @@ publisher.publishDailyWechatArticles = async function () {
 
 	await db.setObject(RUN_LOCK, { timestamp: Date.now(), pid: process.pid });
 	try {
-		const cid = await ensureCategory();
 		const window = getYesterdayTimeWindow();
 		let imported = 0;
 		let skipped = 0;
 
 		for (const account of ACCOUNTS) {
-			if (!account.category) {
+			const accountCategory = normalizeWechatCategory(account.category);
+			if (!accountCategory) {
 				skipped += 1;
 				winston.warn(`[wechat-auto-publish] skipped account "${account.name}" because category is empty`);
 				continue;
@@ -122,6 +129,7 @@ publisher.publishDailyWechatArticles = async function () {
 			}
 
 			let articles = [];
+			const accountCid = await ensureCategoryForRoute(accountCategory);
 			try {
 				articles = await fetchAccountArticles(account, window);
 			} catch (err) {
@@ -142,6 +150,8 @@ publisher.publishDailyWechatArticles = async function () {
 				}
 
 				try {
+					const targetCategory = normalizeWechatCategory(brief.category || accountCategory);
+					const articleCid = await ensureCategoryForRoute(targetCategory);
 					let detail = buildArticleDetail(brief);
 					detail = await localizeArticleImages(detail, {
 						accountName: account.name,
@@ -155,7 +165,7 @@ publisher.publishDailyWechatArticles = async function () {
 
 					const interaction = normalizeEngagement(brief.engagement_data);
 					const comments = normalizeComments(brief.comments);
-					const payload = buildTopicPayload(cid, account, brief, detail, interaction, comments);
+					const payload = buildTopicPayload(articleCid, account, brief, detail, interaction, comments);
 					const result = await topics.post(payload);
 
 					await Promise.all([
@@ -166,7 +176,8 @@ publisher.publishDailyWechatArticles = async function () {
 							importedAt: Date.now(),
 							sourceUrl: brief.original_url,
 							account: account.name,
-							category: account.category,
+							category: targetCategory,
+							cid: articleCid,
 						}),
 					]);
 					imported += 1;
@@ -175,9 +186,11 @@ publisher.publishDailyWechatArticles = async function () {
 					winston.error(`[wechat-auto-publish] article ${articleId} failed: ${err.stack || err.message}`);
 				}
 			}
+
+			winston.info(`[wechat-auto-publish] account "${account.name}" category="${accountCategory}" cid=${accountCid} imported-so-far=${imported} skipped-so-far=${skipped}`);
 		}
 
-		winston.info(`[wechat-auto-publish] imported=${imported} skipped=${skipped} cid=${cid}`);
+		winston.info(`[wechat-auto-publish] imported=${imported} skipped=${skipped}`);
 		return { imported, skipped };
 	} finally {
 		await deleteRunLockIfOwned('job completion');
@@ -255,7 +268,23 @@ async function shouldSkipImportedArticle(articleId) {
 	return false;
 }
 
-async function ensureCategory() {
+async function ensureCategoryForRoute(categoryName) {
+	const normalizedCategory = normalizeWechatCategory(categoryName);
+	const cacheKey = normalizedCategory || DEFAULT_ROUTE_CACHE_KEY;
+	if (routeCidCache.has(cacheKey)) {
+		return routeCidCache.get(cacheKey);
+	}
+
+	let cid = normalizedCategory ? CATEGORY_CID_MAP[normalizedCategory] : 0;
+	if (!cid) {
+		cid = await ensureFallbackCategory();
+	}
+
+	routeCidCache.set(cacheKey, cid);
+	return cid;
+}
+
+async function ensureFallbackCategory() {
 	if (CID) {
 		return CID;
 	}

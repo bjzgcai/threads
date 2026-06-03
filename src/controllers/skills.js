@@ -24,6 +24,7 @@ const DIGEST_LIMIT_MAX = 30;
 const DIGEST_SCAN_LIMIT_MAX = 500;
 const DELETE_TOPICS_MAX = 5;
 const DELETE_POSTS_MAX = 5;
+const DEFAULT_DEPARTMENT_DAILY_DIGEST_CIDS = [13];
 const UNREAD_FILTERS = new Set(['', 'new', 'watched', 'unreplied']);
 
 function asPositiveInt(value, name) {
@@ -46,6 +47,35 @@ function asString(value, name, maxLen) {
 		throw new Error(`${name}-too-long`);
 	}
 	return trimmed;
+}
+
+function parseCidList(value, fallback = []) {
+	if (Array.isArray(value)) {
+		return value
+			.map(cid => parseInt(cid, 10))
+			.filter(cid => Number.isInteger(cid) && cid > 0)
+			.filter((cid, index, cids) => cids.indexOf(cid) === index);
+	}
+
+	const normalized = String(value || '').replace(/，/g, ',').trim();
+	if (!normalized) {
+		return fallback.slice();
+	}
+
+	const cids = normalized
+		.split(',')
+		.map(cid => parseInt(cid.trim(), 10))
+		.filter(cid => Number.isInteger(cid) && cid > 0)
+		.filter((cid, index, list) => list.indexOf(cid) === index);
+
+	return cids.length ? cids : fallback.slice();
+}
+
+function getDepartmentDailyDigestDefaultCids() {
+	return parseCidList(
+		process.env.SKILLS_DEPARTMENT_DAILY_DIGEST_DEFAULT_CIDS,
+		DEFAULT_DEPARTMENT_DAILY_DIGEST_CIDS
+	);
 }
 
 function normalizeTags(tags) {
@@ -242,12 +272,10 @@ function normalizeDigestCategoryIds(input) {
 		return explicit;
 	}
 
-	return [
-		2,
-		parseInt(process.env.ARTICLE_AUTO_PUBLISH_CID, 10) || 0,
-		parseInt(process.env.WECHAT_AUTO_PUBLISH_CID, 10) || 0,
-	].filter(Boolean).filter((cid, index, cids) => cids.indexOf(cid) === index);
+	return getDepartmentDailyDigestDefaultCids();
 }
+
+Skills._normalizeDigestCategoryIds = normalizeDigestCategoryIds; // exported for tests
 
 function trimTrailingSlash(value) {
 	return String(value || '').replace(/\/+$/, '');

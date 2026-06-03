@@ -6,20 +6,24 @@ const nconf = require('nconf');
 require('./mocks/databasemock');
 
 const request = require('../src/request');
+const skillsController = require('../src/controllers/skills');
 
 describe('Skills Gateway', () => {
 	let oldSkillsGatewayEnabled;
 	let oldSkillsAllowedIps;
 	let oldSkillsPublicUrl;
+	let oldDigestDefaultCids;
 
 	before(() => {
 		oldSkillsGatewayEnabled = process.env.SKILLS_GATEWAY_ENABLED;
 		oldSkillsAllowedIps = process.env.SKILLS_ALLOWED_IPS;
 		oldSkillsPublicUrl = process.env.SKILLS_PUBLIC_URL;
+		oldDigestDefaultCids = process.env.SKILLS_DEPARTMENT_DAILY_DIGEST_DEFAULT_CIDS;
 
 		process.env.SKILLS_GATEWAY_ENABLED = 'true';
 		process.env.SKILLS_ALLOWED_IPS = '';
 		process.env.SKILLS_PUBLIC_URL = 'https://forum.example.com';
+		process.env.SKILLS_DEPARTMENT_DAILY_DIGEST_DEFAULT_CIDS = '13';
 	});
 
 	after(() => {
@@ -39,6 +43,12 @@ describe('Skills Gateway', () => {
 			delete process.env.SKILLS_PUBLIC_URL;
 		} else {
 			process.env.SKILLS_PUBLIC_URL = oldSkillsPublicUrl;
+		}
+
+		if (oldDigestDefaultCids === undefined) {
+			delete process.env.SKILLS_DEPARTMENT_DAILY_DIGEST_DEFAULT_CIDS;
+		} else {
+			process.env.SKILLS_DEPARTMENT_DAILY_DIGEST_DEFAULT_CIDS = oldDigestDefaultCids;
 		}
 	});
 
@@ -68,5 +78,15 @@ describe('Skills Gateway', () => {
 		assert.strictEqual(response.statusCode, 401);
 		assert.strictEqual(body.status.code, 'not-authorised');
 		assert.strictEqual(body.status.message, 'skills-bearer-token-required');
+	});
+
+	it('should default department_daily_digest to cid 13', () => {
+		assert.deepStrictEqual(skillsController._normalizeDigestCategoryIds({}), [13]);
+		assert.deepStrictEqual(skillsController._normalizeDigestCategoryIds({ categories: [7, 8] }), [7, 8]);
+	});
+
+	it('should allow configuring default department_daily_digest cids', () => {
+		process.env.SKILLS_DEPARTMENT_DAILY_DIGEST_DEFAULT_CIDS = '13, 29, 13, abc, 30';
+		assert.deepStrictEqual(skillsController._normalizeDigestCategoryIds({}), [13, 29, 30]);
 	});
 });

@@ -307,7 +307,7 @@ from the auto-publish categories.
 Optional filters:
 
 - `date`: `YYYY-MM-DD`; defaults to today.
-- `categories`: override category ids; defaults to `ARTICLE_AUTO_PUBLISH_CID` and `WECHAT_AUTO_PUBLISH_CID`.
+- `categories`: override category ids; defaults to the article auto-publish category ids from `ARTICLE_AUTO_PUBLISH_CATEGORY_MAP_FILE` and `WECHAT_AUTO_PUBLISH_CID`.
 - `scanLimit`: max topics scanned before ranking, default `200`, max `500`.
 
 ### Search topics

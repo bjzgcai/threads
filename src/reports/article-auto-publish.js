@@ -9,6 +9,7 @@ const { htmlToText } = require('html-to-text');
 const { request } = require('undici');
 const winston = require('winston');
 
+const articleAutoPublishConfig = require('../article-auto-publish-config');
 const db = require('../database');
 const topics = require('../topics');
 
@@ -18,13 +19,13 @@ const ENABLED = /^1|true|yes$/i.test(String(process.env.ARTICLE_AUTO_PUBLISH_ENA
 const API_BASE_URL = String(process.env.ARTICLE_AUTO_PUBLISH_API_BASE_URL || 'http://10.1.132.21:8001').replace(/\/+$/, '');
 const CRON_EXPR = String(process.env.ARTICLE_AUTO_PUBLISH_CRON || '0 15 8 * * *').trim();
 const TZ = String(process.env.ARTICLE_AUTO_PUBLISH_TZ || 'Asia/Shanghai').trim();
-const CID = parseInt(process.env.ARTICLE_AUTO_PUBLISH_CID, 10) || 0;
 const UID = parseInt(process.env.ARTICLE_AUTO_PUBLISH_UID, 10) || 1;
 const LOOKBACK_DAYS = Math.max(parseInt(process.env.ARTICLE_AUTO_PUBLISH_LOOKBACK_DAYS, 10) || 1, 1);
 const PAGE_SIZE = Math.min(Math.max(parseInt(process.env.ARTICLE_AUTO_PUBLISH_PAGE_SIZE, 10) || 100, 1), 100);
 const MAX_ARTICLES = Math.max(parseInt(process.env.ARTICLE_AUTO_PUBLISH_MAX_ARTICLES, 10) || 100, 1);
 const MAX_TITLE_LENGTH = Math.max(parseInt(process.env.ARTICLE_AUTO_PUBLISH_MAX_TITLE_LENGTH, 10) || 30, 1);
 const DIMENSION = String(process.env.ARTICLE_AUTO_PUBLISH_DIMENSION || '').trim();
+const SOURCE_TYPE = String(process.env.ARTICLE_AUTO_PUBLISH_SOURCE_TYPE || '').trim();
 const SOURCE_IDS = String(process.env.ARTICLE_AUTO_PUBLISH_SOURCE_IDS || '').trim();
 const KEYWORD = String(process.env.ARTICLE_AUTO_PUBLISH_KEYWORD || '').trim();
 const TAG_PREFIX = String(process.env.ARTICLE_AUTO_PUBLISH_TAG_PREFIX || '').trim();
@@ -40,10 +41,6 @@ publisher.startJobs = function () {
 		winston.verbose('[article-auto-publish] disabled by ARTICLE_AUTO_PUBLISH_ENABLED');
 		return;
 	}
-	if (!CID) {
-		winston.warn('[article-auto-publish] missing ARTICLE_AUTO_PUBLISH_CID, job skipped');
-		return;
-	}
 
 	job = new CronJob(CRON_EXPR, async () => {
 		try {
@@ -53,7 +50,9 @@ publisher.startJobs = function () {
 		}
 	}, null, true, TZ);
 
-	winston.info(`[article-auto-publish] job started cron="${CRON_EXPR}" tz="${TZ}" cid=${CID} uid=${UID}`);
+	winston.info(
+		`[article-auto-publish] job started cron="${CRON_EXPR}" tz="${TZ}" routeConfig="${articleAutoPublishConfig.getCategoryMapFile()}" uid=${UID}`
+	);
 };
 
 publisher.stopJobs = function () {
@@ -75,6 +74,12 @@ publisher.publishDailyArticles = async function () {
 
 	await db.setObject(RUN_LOCK, { timestamp: Date.now() });
 	try {
+		const routeConfig = articleAutoPublishConfig.loadCategoryConfig();
+		if (!articleAutoPublishConfig.getCategoryIds(routeConfig).length) {
+			winston.warn(`[article-auto-publish] no category routes configured in ${routeConfig.file}, job skipped`);
+			return { imported: 0, skipped: 0 };
+		}
+
 		const { dateFrom, dateTo } = getDateWindow();
 		const articles = await fetchArticleList(dateFrom, dateTo);
 		let imported = 0;
@@ -99,12 +104,18 @@ publisher.publishDailyArticles = async function () {
 			try {
 				const detail = await fetchArticleDetail(articleId);
 				const article = { ...brief, ...detail, id: articleId };
+				const publishCheck = getPublishEligibility(article, routeConfig);
+				if (!publishCheck.allowed) {
+					skipped += 1;
+					winston.warn(`[article-auto-publish] skipped article ${articleId}: ${publishCheck.reason}`);
+					continue;
+				}
 				if (!isTitleAllowed(article.title)) {
 					skipped += 1;
 					winston.warn(`[article-auto-publish] skipped article ${articleId}: detail title too long (${getTitleLength(article.title)} > ${MAX_TITLE_LENGTH})`);
 					continue;
 				}
-				const payload = buildTopicPayload(article);
+				const payload = buildTopicPayload(article, routeConfig);
 				const result = await topics.post(payload);
 
 				await Promise.all([
@@ -112,6 +123,9 @@ publisher.publishDailyArticles = async function () {
 					db.setObject(`article-auto-publish:article:${articleId}`, {
 						tid: result.topicData.tid,
 						pid: result.postData.pid,
+						cid: payload.cid,
+						dimension: String(article.dimension || '').trim(),
+						sourceType: String(getArticleFieldValue(article, 'source_type') || '').trim(),
 						importedAt: Date.now(),
 						sourceUrl: detail.url || brief.url || '',
 					}),
@@ -143,6 +157,7 @@ async function fetchArticleList(dateFrom, dateTo) {
 			page,
 			page_size: PAGE_SIZE,
 			...(DIMENSION ? { dimension: DIMENSION } : {}),
+			...(SOURCE_TYPE ? { source_type: SOURCE_TYPE } : {}),
 			...(SOURCE_IDS ? { source_ids: SOURCE_IDS } : {}),
 			...(KEYWORD ? { keyword: KEYWORD } : {}),
 		});
@@ -182,7 +197,40 @@ async function getJson(path, params = {}) {
 	return JSON.parse(text);
 }
 
-function buildTopicPayload(article) {
+function getPublishEligibility(article, routeConfig) {
+	if (DIMENSION && normalizeMatchValue(article.dimension) !== normalizeMatchValue(DIMENSION)) {
+		return {
+			allowed: false,
+			reason: `dimension="${String(article.dimension || '').trim() || 'unknown'}" does not match required dimension="${DIMENSION}"`,
+		};
+	}
+
+	const articleSourceType = getArticleFieldValue(article, 'source_type');
+	if (SOURCE_TYPE && normalizeMatchValue(articleSourceType) !== normalizeMatchValue(SOURCE_TYPE)) {
+		return {
+			allowed: false,
+			reason: `source_type="${String(articleSourceType || '').trim() || 'unknown'}" does not match required source_type="${SOURCE_TYPE}"`,
+		};
+	}
+
+	if (hasRouteForArticleDimension(article, routeConfig) && !articleMatchesAnyRoute(article, routeConfig)) {
+		return {
+			allowed: false,
+			reason: `no matching article route for dimension="${String(article.dimension || '').trim() || 'unknown'}" source_type="${String(articleSourceType || '').trim() || 'unknown'}"`,
+		};
+	}
+
+	return { allowed: true };
+}
+
+function buildTopicPayload(article, routeConfig = articleAutoPublishConfig.loadCategoryConfig()) {
+	const cid = articleAutoPublishConfig.getCategoryIdForArticle(article, routeConfig);
+	if (!cid) {
+		throw new Error(
+			`no target category configured for dimension="${String(article.dimension || '').trim() || 'unknown'}" source_type="${String(getArticleFieldValue(article, 'source_type') || '').trim() || 'unknown'}"`
+		);
+	}
+
 	const sourceUrl = String(article.url || '').trim();
 	const content = pickContent(article);
 	const imageMarkdown = getArticleImageMarkdown(article, content);
@@ -198,11 +246,58 @@ function buildTopicPayload(article) {
 
 	return {
 		uid: UID,
-		cid: CID,
+		cid,
 		title: String(article.title || 'Untitled article').trim().slice(0, 255),
 		content: body,
 		tags: normalizeTags(article),
 	};
+}
+
+function hasRouteForArticleDimension(article, routeConfig) {
+	const dimension = normalizeMatchValue(article && article.dimension);
+	if (!dimension) {
+		return false;
+	}
+
+	return (routeConfig.articleRoutes || []).some(route => (
+		route.match &&
+		route.match.dimension &&
+		route.match.dimension === dimension
+	));
+}
+
+function articleMatchesAnyRoute(article, routeConfig) {
+	return (routeConfig.articleRoutes || []).some(route => articleMatchesRoute(article, route));
+}
+
+function articleMatchesRoute(article, route) {
+	if (!route || !route.match || !article || typeof article !== 'object') {
+		return false;
+	}
+
+	return Object.entries(route.match).every(([field, expectedValue]) => (
+		normalizeMatchValue(getArticleFieldValue(article, field)) === expectedValue
+	));
+}
+
+function getArticleFieldValue(article, field) {
+	if (!article || typeof article !== 'object') {
+		return undefined;
+	}
+	if (Object.prototype.hasOwnProperty.call(article, field)) {
+		return article[field];
+	}
+
+	if (field.includes('_')) {
+		const camelField = field.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
+		return article[camelField];
+	}
+
+	return undefined;
+}
+
+function normalizeMatchValue(value) {
+	return String(value || '').trim().toLowerCase();
 }
 
 function getArticleImageMarkdown(article, content = '') {

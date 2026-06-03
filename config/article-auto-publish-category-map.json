@@ -1,0 +1,23 @@
+{
+  "defaultCid": 24,
+  "articleRoutes": [
+    {
+      "match": {
+        "dimension": "social",
+        "source_type": "social_kol"
+      },
+      "cid": 2
+    }
+  ],
+  "dimensionCidMap": {
+    "beijing_policy": 27,
+    "national_policy": 27,
+    "industry": 30,
+    "events": 30,
+    "personnel": 32,
+    "talent": 29,
+    "talent_scout": 29,
+    "technology": 2,
+    "universities": 26
+  }
+}
