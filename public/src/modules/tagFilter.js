@@ -1,6 +1,6 @@
 'use strict';
 
-define('tagFilter', ['hooks', 'alerts', 'bootstrap'], function (hooks, alerts, bootstrap) {
+define('tagFilter', ['hooks', 'alerts', 'bootstrap', 'topicFilterPrefs'], function (hooks, alerts, bootstrap, topicFilterPrefs) {
 	const tagFilter = {};
 
 	tagFilter.init = function (el, options) {
@@ -100,7 +100,9 @@ define('tagFilter', ['hooks', 'alerts', 'bootstrap'], function (hooks, alerts, b
 				if (Object.keys(currentParams).length) {
 					url += '?' + $.param(currentParams);
 				}
-				ajaxify.go(url);
+				topicFilterPrefs.saveCurrent(currentParams).finally(function () {
+					ajaxify.go(url);
+				});
 			}
 		});
 

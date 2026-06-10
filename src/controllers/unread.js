@@ -73,6 +73,8 @@ unreadController.get = async function (req, res) {
 	data.showCategorySelectLabel = true;
 	data.selectedTag = tagData.selectedTag;
 	data.selectedTags = tagData.selectedTags;
+	data.savedTopicFiltersAll = getSavedTopicFiltersAll(userSettings);
+	data.savedTopicFilters = data.savedTopicFiltersAll.unread || {};
 	data.filters = helpers.buildFilters(baseUrl, filter, req.query);
 	data.selectedFilter = data.filters.find(filter => filter && filter.selected);
 	data['reputation:disabled'] = meta.config['reputation:disabled'];
@@ -89,3 +91,11 @@ unreadController.unreadTotal = async function (req, res, next) {
 		next(err);
 	}
 };
+
+function getSavedTopicFiltersAll(settings) {
+	try {
+		return JSON.parse(settings.savedTopicFilters || '{}') || {};
+	} catch (err) {
+		return {};
+	}
+}

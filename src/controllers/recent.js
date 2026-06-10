@@ -78,6 +78,8 @@ recentController.getData = async function (req, url, sort, selectedTerm = 'allti
 	data.selectedCids = categoryData.selectedCids;
 	data.selectedTag = tagData.selectedTag;
 	data.selectedTags = tagData.selectedTags;
+	data.savedTopicFiltersAll = getSavedTopicFiltersAll(settings);
+	data.savedTopicFilters = data.savedTopicFiltersAll[url] || {};
 	data['feeds:disableRSS'] = meta.config['feeds:disableRSS'] || 0;
 	data['reputation:disabled'] = meta.config['reputation:disabled'];
 	if (!meta.config['feeds:disableRSS']) {
@@ -102,6 +104,14 @@ recentController.getData = async function (req, url, sort, selectedTerm = 'allti
 	});
 	return data;
 };
+
+function getSavedTopicFiltersAll(settings) {
+	try {
+		return JSON.parse(settings.savedTopicFilters || '{}') || {};
+	} catch (err) {
+		return {};
+	}
+}
 
 
 require('../promisify')(recentController, ['get']);

@@ -1,6 +1,6 @@
 'use strict';
 
-define('categoryFilter', ['categorySearch', 'api', 'hooks'], function (categorySearch, api, hooks) {
+define('categoryFilter', ['categorySearch', 'api', 'hooks', 'topicFilterPrefs'], function (categorySearch, api, hooks, topicFilterPrefs) {
 	const categoryFilter = {};
 
 	categoryFilter.init = function (el, options) {
@@ -57,7 +57,9 @@ define('categoryFilter', ['categorySearch', 'api', 'hooks'], function (categoryS
 				if (Object.keys(currentParams).length) {
 					url += '?' + $.param(currentParams);
 				}
-				ajaxify.go(url);
+				topicFilterPrefs.saveCurrent(currentParams).finally(function () {
+					ajaxify.go(url);
+				});
 			}
 		});
 
