@@ -141,6 +141,15 @@ function formatRoundLabel(match) {
 	return map[String(match.round)] || `小组赛第${match.round}轮`;
 }
 
+function formatTitleTime(match) {
+	const date = String(match.date || '').trim();
+	const time = String(match.time || '').trim();
+	const monthDay = date.match(/^\d{4}-(\d{2}-\d{2})$/) ? date.slice(5, 10) : date;
+	const hourMinute = time.match(/^\d{2}:\d{2}/) ? time.slice(0, 5) : time;
+	const value = [monthDay, hourMinute].filter(Boolean).join(' ');
+	return value ? `（${value}）` : '';
+}
+
 function normalizeRow(row) {
 	const homeTeam = normalizeTeamName(row.homeTeam);
 	const awayTeam = normalizeTeamName(row.awayTeam);
@@ -170,11 +179,12 @@ function buildDefaultContent(match) {
 
 function buildTitle(match) {
 	const roundLabel = formatRoundLabel(match);
+	const titleTime = formatTitleTime(match);
 
 	if (match.format === 'knockout') {
-		return `【世界杯竞猜（${roundLabel}）】${match.homeTeam} vs ${match.awayTeam}`;
+		return `【世界杯竞猜（${roundLabel}）】${match.homeTeam} vs ${match.awayTeam}${titleTime}`;
 	}
-	return `【世界杯竞猜（${roundLabel}）】${match.group}组 ${match.homeTeam} vs ${match.awayTeam}`;
+	return `【世界杯竞猜（${roundLabel}）】${match.group}组 ${match.homeTeam} vs ${match.awayTeam}${titleTime}`;
 }
 
 function loadContentTemplate(options) {
@@ -197,7 +207,17 @@ async function bootstrap() {
 
 async function getExistingTopicTid(matchId) {
 	const tid = parseInt(await db.getObjectField(TOPIC_MAP_KEY, matchId), 10) || 0;
-	return tid > 0 ? tid : 0;
+	if (!tid) {
+		return 0;
+	}
+
+	const topicData = await topics.getTopicFields(tid, ['tid', 'cid', 'deleted']);
+	if (!topicData || !topicData.tid || !topicData.cid || parseInt(topicData.deleted, 10) === 1) {
+		await db.deleteObjectField(TOPIC_MAP_KEY, matchId);
+		return 0;
+	}
+
+	return tid;
 }
 
 async function rememberTopic(matchId, tid) {

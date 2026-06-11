@@ -43,14 +43,14 @@
 </div>
 
 <script>
-if (typeof window.predictorData === 'undefined') {
-	window.predictorData = {
-		matches: {{{ matchesJSON }}},
-		user: {{{ userJSON }}},
-		config: {{{ configJSON }}}
-	};
-}
-</script>
+	if (typeof window.predictorData === 'undefined') {
+		window.predictorData = {
+			matches: JSON.parse('{{matchesJSON}}'),
+			user: JSON.parse('{{userJSON}}'),
+			config: JSON.parse('{{configJSON}}')
+		};
+	}
+	</script>
 
 <div class="modal fade" id="predictModal" tabindex="-1" aria-hidden="true">
 	<div class="modal-dialog">

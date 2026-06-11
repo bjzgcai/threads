@@ -6,6 +6,7 @@ const topics = require.main.require('./src/topics');
 const privileges = require.main.require('./src/privileges');
 const nconf = require.main.require('nconf');
 const winston = require.main.require('winston');
+const jsesc = require.main.require('jsesc');
 const { Router } = express;
 
 const plugin = module.exports;
@@ -82,9 +83,9 @@ async function renderPredictorPage(req, res, next) {
 		} : null;
 
 		res.render('predictor', {
-			matchesJSON: JSON.stringify(matchesData),
-			userJSON: JSON.stringify(userData),
-			configJSON: JSON.stringify({ relative_path: nconf.get('relative_path') }),
+			matchesJSON: jsesc(JSON.stringify(matchesData), { isScriptContext: true }),
+			userJSON: jsesc(JSON.stringify(userData), { isScriptContext: true }),
+			configJSON: jsesc(JSON.stringify({ relative_path: nconf.get('relative_path') }), { isScriptContext: true }),
 			title: '世界杯竞猜',
 		});
 	} catch (err) {

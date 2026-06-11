@@ -284,7 +284,7 @@ Predictor.openPublishModal = function() {
 		},
 	});
 
-	$('#postTitle').val(`世界杯竞猜: ${match.home.name} vs ${match.away.name}`);
+	$('#postTitle').val(`世界杯竞猜: ${match.home.name} vs ${match.away.name}${Predictor.formatTitleTime(match)}`);
 	const predictionText = Predictor.currentPrediction.type === 'result'
 		? (Predictor.currentPrediction.result === 'home'
 			? `${match.home.name} 胜`
@@ -452,4 +452,13 @@ Predictor.formatDate = function(dateStr) {
 	const date = new Date(`${dateStr}T00:00:00`);
 	const options = { month: 'short', day: 'numeric', weekday: 'short' };
 	return date.toLocaleDateString('zh-CN', options);
+};
+
+Predictor.formatTitleTime = function(match) {
+	const date = String(match.date || '').trim();
+	const time = String(match.time || '').trim();
+	const monthDay = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(5, 10) : date;
+	const hourMinute = /^\d{2}:\d{2}/.test(time) ? time.slice(0, 5) : time;
+	const value = [monthDay, hourMinute].filter(Boolean).join(' ');
+	return value ? `（${value}）` : '';
 };
