@@ -1,0 +1,415 @@
+/* World Cup Predictor Styles */
+
+.predictor-page {
+	padding: 20px 0;
+}
+
+.predictor-page h1 {
+	color: #1e88e5;
+	margin-bottom: 10px;
+	font-weight: 700;
+}
+
+.predictor-page .lead {
+	color: #666;
+	font-size: 16px;
+	margin-bottom: 30px;
+}
+
+/* 导航标签 */
+.predictor-tabs {
+	border-bottom: 2px solid #e0e0e0;
+	margin-bottom: 30px;
+}
+
+.predictor-tabs .nav-link {
+	color: #666;
+	border: none;
+	padding: 12px 20px;
+	font-weight: 500;
+	transition: all 0.3s;
+}
+
+.predictor-tabs .nav-link:hover {
+	color: #1e88e5;
+	border-bottom: 3px solid #1e88e5;
+	margin-bottom: -2px;
+}
+
+.predictor-tabs .nav-link.active {
+	color: #1e88e5;
+	border-bottom: 3px solid #1e88e5;
+	background-color: transparent;
+	margin-bottom: -2px;
+}
+
+/* 比赛卡片 */
+.match-card {
+	background: #fff;
+	border: 1px solid #e0e0e0;
+	border-radius: 8px;
+	padding: 20px;
+	margin-bottom: 15px;
+	transition: all 0.3s;
+	cursor: pointer;
+}
+
+.match-card:hover {
+	box-shadow: 0 4px 12px rgba(30, 136, 229, 0.15);
+	border-color: #1e88e5;
+	transform: translateY(-2px);
+}
+
+.match-card.finished {
+	background-color: #f5f5f5;
+	opacity: 0.7;
+}
+
+.match-card .match-status {
+	display: inline-block;
+	padding: 4px 12px;
+	border-radius: 20px;
+	font-size: 12px;
+	font-weight: 600;
+	margin-bottom: 10px;
+}
+
+.match-card .match-status.upcoming {
+	background-color: #e3f2fd;
+	color: #1565c0;
+}
+
+.match-card .match-status.live {
+	background-color: #ffebee;
+	color: #c62828;
+	animation: pulse 1s infinite;
+}
+
+.match-card .match-status.finished {
+	background-color: #e8f5e9;
+	color: #2e7d32;
+}
+
+@keyframes pulse {
+	0%, 100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.7;
+	}
+}
+
+.match-info {
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	gap: 15px;
+	align-items: center;
+	margin-bottom: 15px;
+}
+
+.match-team {
+	text-align: center;
+}
+
+.match-team .flag {
+	font-size: 40px;
+	margin-bottom: 8px;
+}
+
+.match-team .name {
+	font-weight: 600;
+	color: #333;
+	font-size: 14px;
+}
+
+.match-vs {
+	text-align: center;
+	color: #999;
+	font-weight: 600;
+}
+
+.match-vs .time {
+	font-size: 16px;
+	color: #666;
+}
+
+.match-details {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	color: #999;
+	font-size: 12px;
+	margin-bottom: 15px;
+}
+
+.match-details .badge {
+	background-color: #f0f0f0;
+	padding: 4px 8px;
+	border-radius: 4px;
+}
+
+.match-actions {
+	display: flex;
+	gap: 10px;
+}
+
+.match-actions .btn {
+	flex: 1;
+	padding: 8px 12px;
+	font-size: 14px;
+	border-radius: 4px;
+}
+
+.match-actions .btn-predict {
+	background-color: #1e88e5;
+	color: white;
+	border: none;
+}
+
+.match-actions .btn-predict:hover {
+	background-color: #1565c0;
+}
+
+.match-actions .btn-view {
+	background-color: #f0f0f0;
+	color: #333;
+	border: none;
+}
+
+.match-actions .btn-view:hover {
+	background-color: #e0e0e0;
+}
+
+/* 预测选项 */
+.predict-options {
+	margin: 20px 0;
+}
+
+.predict-btn {
+	padding: 12px 20px;
+	font-size: 16px;
+	font-weight: 600;
+	border-radius: 4px;
+	margin-bottom: 10px;
+	transition: all 0.3s;
+}
+
+.predict-btn.selected {
+	background-color: #1e88e5;
+	color: white;
+	border-color: #1e88e5;
+}
+
+.predict-btn:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.input-group .form-control {
+	text-align: center;
+	font-size: 18px;
+	font-weight: 600;
+}
+
+/* 排行榜 */
+.leaderboard-table {
+	background: white;
+	border-radius: 8px;
+	overflow: hidden;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.leaderboard-table table {
+	margin: 0;
+}
+
+.leaderboard-table th {
+	background-color: #1e88e5;
+	color: white;
+	font-weight: 600;
+	padding: 15px;
+}
+
+.leaderboard-table td {
+	padding: 15px;
+	border-bottom: 1px solid #e0e0e0;
+}
+
+.leaderboard-table tr:hover {
+	background-color: #f8f8f8;
+}
+
+.leaderboard-table .rank {
+	font-weight: 700;
+	color: #1e88e5;
+	font-size: 18px;
+}
+
+.leaderboard-table .rank.top1 {
+	color: #ffd700;
+	font-size: 20px;
+}
+
+.leaderboard-table .rank.top2 {
+	color: #c0c0c0;
+	font-size: 20px;
+}
+
+.leaderboard-table .rank.top3 {
+	color: #cd7f32;
+	font-size: 20px;
+}
+
+.prediction-item {
+	background: #fff;
+	border: 1px solid #e6e6e6;
+	border-radius: 8px;
+	padding: 14px 16px;
+	margin-bottom: 12px;
+}
+
+.match-info-mini {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 8px 16px;
+	font-weight: 500;
+	margin-bottom: 6px;
+}
+
+.prediction-result {
+	color: #1e88e5;
+}
+
+.predictor-composer-section {
+	background: #fafcff;
+	border-color: #d7e8fb !important;
+}
+
+.predictor-topic-card {
+	background: #fff;
+	border-color: #dbe6f3 !important;
+}
+
+.predictor-reply-section {
+	background: #f9fbfe;
+}
+
+.predictor-topic-headline {
+	row-gap: 8px;
+}
+
+.predictor-flag {
+	font-size: 28px;
+	line-height: 1;
+}
+
+.predictor-score-inputs {
+	max-width: 360px;
+}
+
+.predictor-score-inputs .form-control {
+	min-width: 0;
+	text-align: center;
+}
+
+.predictor-feedback {
+	min-height: 20px;
+}
+
+.predictor-reply-summary {
+	max-width: 320px;
+}
+
+.predictor-locked-note {
+	padding-top: 2px;
+}
+
+
+@media (max-width: 767px) {
+	.match-info {
+		grid-template-columns: 1fr;
+	}
+
+	.match-vs {
+		order: 2;
+	}
+
+	.predictor-topic-headline {
+		align-items: center;
+	}
+
+	.match-info-mini {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+}
+
+.leaderboard-table .score {
+	color: #27ae60;
+	font-weight: 600;
+	font-size: 18px;
+}
+
+/* 用户预测列表 */
+.prediction-item {
+	background: #f9f9f9;
+	border-left: 4px solid #1e88e5;
+	padding: 15px;
+	margin-bottom: 12px;
+	border-radius: 4px;
+}
+
+.prediction-item .match-info-mini {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 10px;
+}
+
+.prediction-item .prediction-result {
+	background: white;
+	padding: 10px 15px;
+	border-radius: 4px;
+	font-weight: 600;
+	color: #1e88e5;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+	.match-info {
+		gap: 10px;
+	}
+
+	.match-team .flag {
+		font-size: 32px;
+	}
+
+	.match-team .name {
+		font-size: 12px;
+	}
+
+	.match-details {
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.match-actions {
+		flex-direction: column;
+	}
+
+	.match-actions .btn {
+		padding: 10px;
+	}
+
+	.leaderboard-table th,
+	.leaderboard-table td {
+		padding: 10px;
+		font-size: 14px;
+	}
+
+	.predictor-tabs .nav-link {
+		padding: 10px 15px;
+		font-size: 14px;
+	}
+}

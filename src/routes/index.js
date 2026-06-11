@@ -222,6 +222,8 @@ module.exports = async function (app, middleware) {
 			/^\/api\/skills(?:\/|$)/,
 			/^\/api\/v3\/ping\/?$/,
 			/^\/api\/v3\/utilities\/login\/?$/,
+			/^\/api\/v3\/predictor(?:\/|$)/,
+			/^\/predictor(?:\/|$)/,
 			/^\/assets(?:\/|$)/,
 			/^\/uploads(?:\/|$)/,
 			/^\/plugins(?:\/|$)/,

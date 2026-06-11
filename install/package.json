@@ -106,6 +106,7 @@
         "nodebb-plugin-mentions": "4.8.17",
         "nodebb-plugin-spam-be-gone": "2.3.2",
         "nodebb-plugin-web-push": "0.7.6",
+        "nodebb-plugin-worldcup-predictor": "file:./plugins/nodebb-plugin-worldcup-predictor",
         "nodebb-rewards-essentials": "1.0.2",
         "nodebb-theme-harmony": "2.2.52",
         "nodebb-theme-lavender": "7.1.21",

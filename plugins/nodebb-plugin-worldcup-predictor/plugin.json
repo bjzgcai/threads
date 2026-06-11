@@ -1,0 +1,21 @@
+{
+  "id": "nodebb-plugin-worldcup-predictor",
+  "library": "./library.js",
+  "name": "世界杯竞猜 - World Cup Predictor",
+  "description": "World Cup match predictor - guess results and publish as posts",
+  "version": "0.1.0",
+  "author": "NodeBB Community",
+  "scripts": [
+    "static/js/predictor.js",
+    "static/js/topic-composer.js"
+  ],
+  "styles": [
+    "static/css/predictor.css"
+  ],
+  "hooks": [
+    { "hook": "static:app.load", "method": "init" },
+    { "hook": "static:app.load", "method": "addRoutes" },
+    { "hook": "filter:topic.create", "method": "filterTopicCreate" },
+    { "hook": "filter:topic.get", "method": "filterTopicGet" }
+  ]
+}

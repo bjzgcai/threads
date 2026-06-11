@@ -1,0 +1,102 @@
+[
+	{
+		"date": "2026-06-12",
+		"time": "03:00",
+		"homeTeam": "阿根廷",
+		"homeFlag": "🇦🇷",
+		"awayTeam": "摩洛哥",
+		"awayFlag": "🇲🇦",
+		"stage": "小组赛",
+		"group": "A"
+	},
+	{
+		"date": "2026-06-12",
+		"time": "10:00",
+		"homeTeam": "韩国",
+		"homeFlag": "🇰🇷",
+		"awayTeam": "乌拉圭",
+		"awayFlag": "🇺🇾",
+		"stage": "小组赛",
+		"group": "F"
+	},
+	{
+		"date": "2026-06-13",
+		"time": "03:00",
+		"homeTeam": "加拿大",
+		"homeFlag": "🇨🇦",
+		"awayTeam": "波兰",
+		"awayFlag": "🇵🇱",
+		"stage": "小组赛",
+		"group": "E"
+	},
+	{
+		"date": "2026-06-13",
+		"time": "10:00",
+		"homeTeam": "美国",
+		"homeFlag": "🇺🇸",
+		"awayTeam": "巴拉圭",
+		"awayFlag": "🇵🇾",
+		"stage": "小组赛",
+		"group": "D"
+	},
+	{
+		"date": "2026-06-14",
+		"time": "03:00",
+		"homeTeam": "英格兰",
+		"homeFlag": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+		"awayTeam": "伊朗",
+		"awayFlag": "🇮🇷",
+		"stage": "小组赛",
+		"group": "B"
+	},
+	{
+		"date": "2026-06-14",
+		"time": "10:00",
+		"homeTeam": "荷兰",
+		"homeFlag": "🇳🇱",
+		"awayTeam": "塞内加尔",
+		"awayFlag": "🇸🇳",
+		"stage": "小组赛",
+		"group": "A"
+	},
+	{
+		"date": "2026-06-15",
+		"time": "03:00",
+		"homeTeam": "法国",
+		"homeFlag": "🇫🇷",
+		"awayTeam": "澳大利亚",
+		"awayFlag": "🇦🇺",
+		"stage": "小组赛",
+		"group": "D"
+	},
+	{
+		"date": "2026-06-15",
+		"time": "10:00",
+		"homeTeam": "日本",
+		"homeFlag": "🇯🇵",
+		"awayTeam": "哥斯达黎加",
+		"awayFlag": "🇨🇷",
+		"stage": "小组赛",
+		"group": "E"
+	},
+	{
+		"date": "2026-06-16",
+		"time": "03:00",
+		"homeTeam": "西班牙",
+		"homeFlag": "🇪🇸",
+		"awayTeam": "德国",
+		"awayFlag": "🇩🇪",
+		"stage": "小组赛",
+		"group": "E"
+	},
+	{
+		"date": "2026-06-16",
+		"time": "10:00",
+		"homeTeam": "威尔士",
+		"homeFlag": "🏴󠁧󠁢󠁷󠁬󠁳󠁿",
+		"awayTeam": "伊朗",
+		"awayFlag": "🇮🇷",
+		"stage": "小组赛",
+		"group": "B"
+	}
+]

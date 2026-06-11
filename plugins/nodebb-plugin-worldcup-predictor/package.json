@@ -1,0 +1,25 @@
+{
+  "name": "nodebb-plugin-worldcup-predictor",
+  "version": "0.1.0",
+  "description": "World Cup match prediction plugin for NodeBB",
+  "main": "library.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/nodebb-plugin-worldcup-predictor"
+  },
+  "keywords": [
+    "nodebb",
+    "plugin",
+    "worldcup",
+    "predictor",
+    "prediction"
+  ],
+  "author": "",
+  "license": "GPL-3.0",
+  "nbbpm": {
+    "index": [
+      "library.js"
+    ],
+    "compatibility": "^4.0.0"
+  }
+}
