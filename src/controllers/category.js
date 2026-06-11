@@ -17,6 +17,7 @@ const hotTopics = require('./hotTopics');
 const utils = require('../utils');
 const translator = require('../translator');
 const analytics = require('../analytics');
+const categoryNewsDigest = require('../reports/category-news-digest');
 
 const categoryController = module.exports;
 
@@ -155,6 +156,7 @@ categoryController.get = async function (req, res, next) {
 	categoryData.selectedTags = tagData.selectedTags;
 	categoryData.sortOptionLabel = `[[topic:${validator.escape(String(sort)).replace(/_/g, '-')}]]`;
 	categoryData.hotTopics = await getHotTopics(cid, req.uid, userPrivileges, req.query);
+	categoryData.newsDigest = await categoryNewsDigest.getDigestForCategory(categoryData.cid);
 	if (categoryData.hotTopics) {
 		await addHotTopicControls(categoryData, req.query);
 	}

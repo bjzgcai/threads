@@ -9,7 +9,7 @@ const DANGEROUS_QUERY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 function adminHomePageRoute() {
 	const route = ((meta.config.homePageRoute === 'custom' ? meta.config.homePageCustom : meta.config.homePageRoute) || 'categories').replace(/^\//, '');
-	return route === 'categories' ? 'unread' : route;
+	return route;
 }
 
 async function getUserHomeRoute(uid) {
@@ -25,7 +25,7 @@ async function getUserHomeRoute(uid) {
 
 function normalizeHomePathname(pathname) {
 	if (typeof pathname !== 'string') {
-		return 'unread';
+		return 'categories';
 	}
 
 	const cleaned = pathname
@@ -33,7 +33,7 @@ function normalizeHomePathname(pathname) {
 		.replace(/\/{2,}/g, '/')
 		.trim();
 	if (!cleaned || cleaned.includes('..') || !/^[a-zA-Z0-9/_-]+$/.test(cleaned)) {
-		return 'unread';
+		return 'categories';
 	}
 
 	return cleaned;

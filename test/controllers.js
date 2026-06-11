@@ -109,6 +109,14 @@ describe('Controllers', () => {
 			await assertHomeUrl();
 		});
 
+		it('should load categories when configured as home page route', async () => {
+			await meta.configs.set('homePageRoute', 'categories');
+			const { response, body } = await request.get(`${nconf.get('url')}/api`);
+			assert.equal(response.statusCode, 200);
+			assert(body);
+			assert.equal(body.template.categories, true);
+		});
+
 		it('should load unread', async () => {
 			await meta.configs.set('homePageRoute', 'unread');
 			await assertHomeUrl();

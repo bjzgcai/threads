@@ -5,6 +5,7 @@ const nconf = require('nconf');
 
 const fs = require('fs').promises;
 const path = require('path');
+const middleware = require('../middleware');
 
 module.exports = function (app) {
 	const router = express.Router();
@@ -14,7 +15,7 @@ module.exports = function (app) {
 	});
 
 	// Redoc
-	router.get('/spec/:type', async (req, res, next) => {
+	router.get('/spec/:type', middleware.rateLimit, async (req, res, next) => {
 		const types = ['read', 'write'];
 		const { type } = req.params;
 		if (!types.includes(type)) {

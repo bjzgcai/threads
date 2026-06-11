@@ -1,8 +1,14 @@
 {
   "name": "ZGCY Forum Write Config",
-  "baseUrl": "http://10.1.132.5:4567/api/skills",
+  "baseUrl": "https://zgcy.lab.bza.edu.cn/api/skills",
   "timeoutMs": 15000,
   "userAgent": "zgcy-forum-write/1.1",
+  "updateCheck": {
+    "packageName": "zgcy-forum-write",
+    "localVersion": "1.1.0",
+    "remoteManifestUrl": "https://zgcy.lab.bza.edu.cn/api/skills/manifest",
+    "enabled": true
+  },
   "auth": {
     "bearerToken": "YOUR-TOKEN-HERE",
     "signingSecret": "a2546f5c8f0ff42a2f7e67db5adf5aa4644369f4c98fd6dcfee07ce0f8ac712e"
@@ -20,8 +26,8 @@
     "delivery": "Deliver this directory only to agents that are allowed to post or manage the token owner's own content.",
     "deliveryZh": "此目录只应交给被允许代表 token 持有者发帖或管理其本人内容的 agent。",
     "links": "This baseUrl is only the skills gateway endpoint. End-user topic links should come from each skill response's url/fullUrl fields.",
-    "linksZh": "baseUrl 只是 skills 网关地址，面向用户的帖子链接应优先使用返回结果中的 fullUrl；如果 fullUrl 为空，在当前内网部署下可用 http://10.1.132.5:4567 + url 进行拼接。",
-    "forumBaseUrl": "http://10.1.132.5:4567",
+    "linksZh": "baseUrl 只是 skills 网关地址，面向用户的帖子链接应优先使用返回结果中的 fullUrl；如果 fullUrl 为空，在当前内网部署下可用 https://zgcy.lab.bza.edu.cn + url 进行拼接。",
+    "forumBaseUrl": "https://zgcy.lab.bza.edu.cn",
     "fullUrlFallbackZh": "当返回结果中的 fullUrl 为空时，在当前部署下可按 forumBaseUrl + topic.url 拼接诸葛菜园完整链接。"
   }
 }

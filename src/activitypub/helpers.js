@@ -18,7 +18,7 @@ const user = require('../user');
 const utils = require('../utils');
 const activitypub = require('.');
 
-const webfingerRegex = /^(@|acct:)?[\w-.]+@.+$/;
+const webfingerRegex = /^(?:@|acct:)?[\w.-]+@[^@\s/]{1,253}$/;
 const webfingerCache = ttl({
 	name: 'ap-webfinger-cache',
 	max: 5000,

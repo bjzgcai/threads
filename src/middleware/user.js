@@ -187,7 +187,7 @@ module.exports = function (middleware) {
 			return next();
 		}
 
-		if (/user\/.+\/info$/.test(req.path)) {
+		if (/user\/[^/]+\/info$/.test(req.path)) {
 			allowed = await privileges.global.can('view:users:info', req.uid);
 		}
 		if (allowed) {

@@ -9,7 +9,9 @@ const pubsub = require.main.require('./src/pubsub');
 let searchLanguage = 'english';
 
 function shouldUseSubstringFallback(query) {
-	return /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(String(query || ''));
+	query = String(query || '').trim();
+	return /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(query) ||
+		/[a-z0-9]{3,}/i.test(query);
 }
 
 pubsub.on('dbsearch-language-changed', (e) => {
@@ -17,15 +19,19 @@ pubsub.on('dbsearch-language-changed', (e) => {
 });
 
 async function initDB() {
-	await db.pool.query('CREATE TABLE IF NOT EXISTS "searchtopic" ( "id" TEXT NOT NULL PRIMARY KEY, "content" TEXT, "uid" TEXT, "cid" TEXT )');
+	await db.pool.query('CREATE TABLE IF NOT EXISTS "searchtopic" ( "id" TEXT NOT NULL PRIMARY KEY, "content" TEXT, "uid" TEXT, "cid" TEXT, "ts" BIGINT )');
+	await db.pool.query('ALTER TABLE "searchtopic" ADD COLUMN IF NOT EXISTS "ts" BIGINT');
 	await db.pool.query(`CREATE INDEX IF NOT EXISTS "idx__searchtopic__content" ON "searchtopic" USING GIN (to_tsvector('${searchLanguage}', "content"))`);
 	await db.pool.query('CREATE INDEX IF NOT EXISTS "idx__searchtopic__uid" ON "searchtopic"("uid")');
 	await db.pool.query('CREATE INDEX IF NOT EXISTS "idx__searchtopic__cid" ON "searchtopic"("cid")');
+	await db.pool.query('CREATE INDEX IF NOT EXISTS "idx__searchtopic__ts" ON "searchtopic"("ts")');
 
-	await db.pool.query('CREATE TABLE IF NOT EXISTS "searchpost" ( "id" TEXT NOT NULL PRIMARY KEY, "content" TEXT, "uid" TEXT, "cid" TEXT )');
+	await db.pool.query('CREATE TABLE IF NOT EXISTS "searchpost" ( "id" TEXT NOT NULL PRIMARY KEY, "content" TEXT, "uid" TEXT, "cid" TEXT, "ts" BIGINT )');
+	await db.pool.query('ALTER TABLE "searchpost" ADD COLUMN IF NOT EXISTS "ts" BIGINT');
 	await db.pool.query(`CREATE INDEX IF NOT EXISTS "idx__searchpost__content" ON "searchpost" USING GIN (to_tsvector('${searchLanguage}', "content"))`);
 	await db.pool.query('CREATE INDEX IF NOT EXISTS "idx__searchpost__uid" ON "searchpost"("uid")');
 	await db.pool.query('CREATE INDEX IF NOT EXISTS "idx__searchpost__cid" ON "searchpost"("cid")');
+	await db.pool.query('CREATE INDEX IF NOT EXISTS "idx__searchpost__ts" ON "searchpost"("ts")');
 
 	await db.pool.query('CREATE TABLE IF NOT EXISTS "searchchat" ( "id" TEXT NOT NULL PRIMARY KEY, "content" TEXT, "rid" BIGINT, "uid" TEXT )');
 	await db.pool.query(`CREATE INDEX IF NOT EXISTS "idx__searchchat__content" ON "searchchat" USING GIN (to_tsvector('${searchLanguage}', "content"))`);
@@ -81,7 +87,7 @@ exports.searchIndex = async function (key, data, ids) {
 	try {
 		await db.pool.query({
 			name: `dbsearch-searchIndex-${key}`,
-			text: `INSERT INTO "search${key}" SELECT d."id", d."data"->>'content' "content", (d."data"->>'uid')::text "uid", (d."data"->>'cid')::text "cid" FROM UNNEST($1::text[], $2::jsonb[]) d("id", "data") ON CONFLICT ("id") DO UPDATE SET "content" = COALESCE(EXCLUDED."content", "search${key}"."content"), "uid" = COALESCE(EXCLUDED."uid", "search${key}"."uid"), "cid" = COALESCE(EXCLUDED."cid", "search${key}"."cid")`,
+			text: `INSERT INTO "search${key}" SELECT d."id", d."data"->>'content' "content", (d."data"->>'uid')::text "uid", (d."data"->>'cid')::text "cid", (d."data"->>'timestamp')::bigint "ts" FROM UNNEST($1::text[], $2::jsonb[]) d("id", "data") ON CONFLICT ("id") DO UPDATE SET "content" = COALESCE(EXCLUDED."content", "search${key}"."content"), "uid" = COALESCE(EXCLUDED."uid", "search${key}"."uid"), "cid" = COALESCE(EXCLUDED."cid", "search${key}"."cid"), "ts" = COALESCE(EXCLUDED."ts", "search${key}"."ts")`,
 			values: [ids, data],
 		});
 	} catch (err) {
@@ -107,7 +113,7 @@ exports.search = async function (key, data, limit) {
 	try {
 		const res = await db.pool.query({
 			name: `dbsearch-search-${key}`,
-			text: `SELECT ARRAY(SELECT s."id" FROM "search${key}" s WHERE ($1::text IS NULL OR to_tsvector($5::regconfig, "content") @@ plainto_tsquery($5::regconfig, $1::text) OR ($6::boolean IS TRUE AND "content" ILIKE '%' || $1::text || '%')) AND ($2::text[] IS NULL OR "uid" = ANY($2::text[])) AND ($3::text[] IS NULL OR "cid" = ANY($3::text[])) ORDER BY ts_rank_cd(to_tsvector($5::regconfig, "content"), plainto_tsquery($5::regconfig, $1::text)) DESC, s."id" ASC LIMIT $4::integer) r`,
+			text: `SELECT ARRAY(SELECT s."id" FROM "search${key}" s WHERE ($1::text IS NULL OR to_tsvector($5::regconfig, "content") @@ plainto_tsquery($5::regconfig, $1::text) OR ($6::boolean IS TRUE AND "content" ILIKE '%' || $1::text || '%')) AND ($2::text[] IS NULL OR "uid" = ANY($2::text[])) AND ($3::text[] IS NULL OR "cid" = ANY($3::text[])) ORDER BY s."ts" DESC NULLS LAST, ts_rank_cd(to_tsvector($5::regconfig, "content"), plainto_tsquery($5::regconfig, $1::text)) DESC, s."id" DESC LIMIT $4::integer) r`,
 			values: [data.content, data.uid, data.cid, parseInt(limit, 10), searchLanguage, useSubstringFallback],
 		});
 		return res.rows[0].r;
@@ -170,7 +176,7 @@ exports.chat.search = async (data, limit) => {
 	try {
 		const res = await db.pool.query({
 			name: `dbsearch-search-chat`,
-			text: `SELECT ARRAY(SELECT s."id" FROM "searchchat" s WHERE ($1::text IS NULL OR to_tsvector($5::regconfig, "content") @@ plainto_tsquery($5::regconfig, $1::text) OR ($6::boolean IS TRUE AND "content" ILIKE '%' || $1::text || '%')) AND ($2::text[] IS NULL OR "uid" = ANY($2::text[])) AND ($3::bigint[] IS NULL OR "rid" = ANY($3::bigint[])) ORDER BY ts_rank_cd(to_tsvector($5::regconfig, "content"), plainto_tsquery($5::regconfig, $1::text)) DESC, s."id" ASC LIMIT $4::integer) r`,
+			text: `SELECT ARRAY(SELECT s."id" FROM "searchchat" s WHERE ($1::text IS NULL OR to_tsvector($5::regconfig, "content") @@ plainto_tsquery($5::regconfig, $1::text) OR ($6::boolean IS TRUE AND "content" ILIKE '%' || $1::text || '%')) AND ($2::text[] IS NULL OR "uid" = ANY($2::text[])) AND ($3::bigint[] IS NULL OR "rid" = ANY($3::bigint[])) ORDER BY ts_rank_cd(to_tsvector($5::regconfig, "content"), plainto_tsquery($5::regconfig, $1::text)) DESC, s."id" DESC LIMIT $4::integer) r`,
 			values: [data.content, data.uid, data.roomId, parseInt(limit, 10), searchLanguage, useSubstringFallback],
 		});
 		return res.rows[0].r;

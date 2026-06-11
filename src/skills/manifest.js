@@ -2,6 +2,18 @@
 
 module.exports = {
 	version: 1,
+	packages: {
+		'zgcy-forum-read': {
+			version: '1.1.0',
+			manifest: '/api/skills/manifest',
+			upgradeHint: 'Update the local zgcy-forum-read skill package from the latest ZGCY skill distribution.',
+		},
+		'zgcy-forum-write': {
+			version: '1.1.0',
+			manifest: '/api/skills/manifest',
+			upgradeHint: 'Update the local zgcy-forum-write skill package from the latest ZGCY skill distribution.',
+		},
+	},
 	skills: {
 		list_categories: {
 			description: 'List visible categories for the current user',

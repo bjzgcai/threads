@@ -47,11 +47,13 @@ async function init() {
  *  - For whatever reason `undici` needs to be required so that lookup can be overwritten properly.
  */
 function lookup(hostname, options, callback) {
-	let { ok, lookup } = checkCache.get(hostname);
-	lookup = lookup && [...lookup];
-	if (!ok) {
-		throw new Error('lookup-failed');
+	const cached = checkCache.get(hostname);
+	if (!cached || !cached.ok) {
+		process.nextTick(() => callback(new Error('lookup-failed')));
+		return;
 	}
+	let { lookup } = cached;
+	lookup = lookup && [...lookup];
 
 	if (!lookup) {
 		// trusted, do regular lookup
@@ -74,7 +76,8 @@ function lookup(hostname, options, callback) {
 
 // Initialize fetch - somewhat hacky, but it's required for globalDispatcher to be available
 async function call(url, method, { body, timeout, jar, ...config } = {}) {
-	const { ok } = await check(url);
+	let urlObj = await validate(url);
+	let { ok } = await check(urlObj);
 	if (!ok) {
 		throw new Error('[[error:reserved-ip-address]]');
 	}
@@ -117,7 +120,31 @@ async function call(url, method, { body, timeout, jar, ...config } = {}) {
 		});
 	}
 
-	const response = await fetchImpl(url, opts);
+	opts.redirect = 'manual';
+	let response = await fetchImpl(urlObj.href, opts);
+	let redirects = 0;
+	/* eslint-disable no-await-in-loop */
+	while ([301, 302, 303, 307, 308].includes(response.status) && redirects < 10) {
+		const location = response.headers.get('location');
+		if (!location) {
+			break;
+		}
+		urlObj = await validate(new URL(location, urlObj).href);
+		({ ok } = await check(urlObj));
+		if (!ok) {
+			throw new Error('[[error:reserved-ip-address]]');
+		}
+		if (response.status === 303) {
+			opts.method = 'GET';
+			delete opts.body;
+		}
+		response = await fetchImpl(urlObj.href, opts);
+		redirects += 1;
+	}
+	/* eslint-enable no-await-in-loop */
+	if ([301, 302, 303, 307, 308].includes(response.status)) {
+		throw new Error('[[error:too-many-redirects]]');
+	}
 
 	const { headers } = response;
 	const contentType = headers.get('content-type');
@@ -144,26 +171,35 @@ async function call(url, method, { body, timeout, jar, ...config } = {}) {
 }
 
 // Checks url to ensure it is not in reserved IP range (private, etc.)
-async function check(url) {
+async function validate(url) {
+	const urlObj = new URL(url);
+	if (!['http:', 'https:'].includes(urlObj.protocol)) {
+		throw new Error('[[error:invalid-url]]');
+	}
+	return urlObj;
+}
+
+async function check(urlObj) {
 	await init();
 
-	const { host } = new URL(url);
-	const cached = checkCache.get(url);
+	const { hostname, host } = urlObj;
+	const cached = checkCache.get(hostname);
 	if (cached !== undefined) {
 		return cached;
 	}
 	if (allowList.has(host)) {
 		const payload = { ok: true };
 		checkCache.set(host, payload);
+		checkCache.set(hostname, payload);
 		return payload;
 	}
 
 	const addresses = new Set();
 	let lookup;
-	if (ipaddr.isValid(url)) {
-		addresses.add(url);
+	if (ipaddr.isValid(hostname)) {
+		addresses.add({ address: hostname });
 	} else {
-		lookup = await dns.lookup(host, { all: true });
+		lookup = await dns.lookup(hostname, { all: true });
 		lookup.forEach(({ address, family }) => {
 			addresses.add({ address, family });
 		});

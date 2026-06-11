@@ -24,18 +24,19 @@ const terms = {
 };
 
 module.exports = function (app, middleware) {
-	app.get('/topic/:topic_id.rss', middleware.maintenanceMode, routeHelpers.tryRoute(generateForTopic));
-	app.get('/category/:category_id.rss', middleware.maintenanceMode, routeHelpers.tryRoute(generateForCategory));
-	app.get('/topics.rss', middleware.maintenanceMode, routeHelpers.tryRoute(generateForTopics));
-	app.get('/recent.rss', middleware.maintenanceMode, routeHelpers.tryRoute(generateForRecent));
-	app.get('/top.rss', middleware.maintenanceMode, routeHelpers.tryRoute(generateForTop));
-	app.get('/top/:term.rss', middleware.maintenanceMode, routeHelpers.tryRoute(generateForTop));
-	app.get('/popular.rss', middleware.maintenanceMode, routeHelpers.tryRoute(generateForPopular));
-	app.get('/popular/:term.rss', middleware.maintenanceMode, routeHelpers.tryRoute(generateForPopular));
-	app.get('/recentposts.rss', middleware.maintenanceMode, routeHelpers.tryRoute(generateForRecentPosts));
-	app.get('/category/:category_id/recentposts.rss', middleware.maintenanceMode, routeHelpers.tryRoute(generateForCategoryRecentPosts));
-	app.get('/user/:userslug/topics.rss', middleware.maintenanceMode, routeHelpers.tryRoute(generateForUserTopics));
-	app.get('/tags/:tag.rss', middleware.maintenanceMode, routeHelpers.tryRoute(generateForTag));
+	const middlewares = [middleware.rateLimit, middleware.maintenanceMode];
+	app.get('/topic/:topic_id.rss', middlewares, routeHelpers.tryRoute(generateForTopic));
+	app.get('/category/:category_id.rss', middlewares, routeHelpers.tryRoute(generateForCategory));
+	app.get('/topics.rss', middlewares, routeHelpers.tryRoute(generateForTopics));
+	app.get('/recent.rss', middlewares, routeHelpers.tryRoute(generateForRecent));
+	app.get('/top.rss', middlewares, routeHelpers.tryRoute(generateForTop));
+	app.get('/top/:term.rss', middlewares, routeHelpers.tryRoute(generateForTop));
+	app.get('/popular.rss', middlewares, routeHelpers.tryRoute(generateForPopular));
+	app.get('/popular/:term.rss', middlewares, routeHelpers.tryRoute(generateForPopular));
+	app.get('/recentposts.rss', middlewares, routeHelpers.tryRoute(generateForRecentPosts));
+	app.get('/category/:category_id/recentposts.rss', middlewares, routeHelpers.tryRoute(generateForCategoryRecentPosts));
+	app.get('/user/:userslug/topics.rss', middlewares, routeHelpers.tryRoute(generateForUserTopics));
+	app.get('/tags/:tag.rss', middlewares, routeHelpers.tryRoute(generateForTag));
 };
 
 async function validateTokenIfRequiresLogin(requiresLogin, cid, req, res) {

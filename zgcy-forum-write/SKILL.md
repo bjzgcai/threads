@@ -17,7 +17,7 @@ This forum is used in the Beijing Zhongguancun Academy and Zhongguancun Academy 
 - 适合发帖、回帖、查找当前 token 持有者自己的帖子、删除自己的主题或帖子
 - 不适合纯查看场景，纯读取优先使用 `zgcy-forum-read`
 - 这是有状态、有权限边界的操作，尤其删帖前应先确认对象和范围
-- 如需给用户返回诸葛菜园完整帖子链接，应优先使用返回结果中的 `fullUrl`；若为空，在当前内网部署下可用 `http://10.1.132.5:4567` 与 `url` 路径拼接
+- 如需给用户返回诸葛菜园完整帖子链接，应优先使用返回结果中的 `fullUrl`；若为空，在当前内网部署下可用 `https://zgcy.lab.bza.edu.cn` 与 `url` 路径拼接
 
 ## When To Use
 
@@ -46,6 +46,12 @@ Configure `auth.bearerToken` in `skill-config.json`. Keep the token private.
 Leave `auth.signingSecret` empty unless the gateway explicitly requires request signing.
 
 For internal deployments, the token normally represents one concrete forum identity, so all write and delete actions should be treated as actions on behalf of that token owner.
+
+## Version Awareness
+
+Read `manifest.md` when this skill is invoked. Before making a forum request, compare the local package version from `manifest.md` or `skill-config.json.updateCheck.localVersion` with the remote version from `GET /api/skills/manifest` at `packages.zgcy-forum-write.version`.
+
+If the versions differ, tell the user that the local `zgcy-forum-write` package is stale and should be upgraded before relying on current behavior. The bundled `tools/sign-and-call.js` helper performs this check automatically when `skill-config.json.updateCheck.enabled` is true.
 
 ## Write Skills
 

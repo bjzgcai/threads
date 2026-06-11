@@ -86,7 +86,7 @@ async function loadFromTopicData(topicData, options = {}) {
 			return hasTimestampPrefix.test(name) ? name.slice(14) : name;
 		})(),
 		path: thumb,
-		url: thumb.startsWith('http') ?
+		url: isHttpUrl(thumb) ?
 			thumb :
 			path.posix.join(upload_url, thumb.replace(/\\/g, '/')),
 	})));
@@ -128,7 +128,7 @@ Thumbs.associate = async function ({ id, path, score }) {
 	if (!topicData) {
 		return;
 	}
-	const isLocal = !path.startsWith('http');
+	const isLocal = !isHttpUrl(path);
 
 	// Normalize the path to allow for changes in upload_path (and so upload_url can be appended if needed)
 	if (isLocal) {
@@ -168,15 +168,29 @@ Thumbs.filterThumbs = function (thumbs) {
 		return [];
 	}
 	thumbs = thumbs.filter((thumb) => {
-		if (thumb.startsWith('http')) {
+		if (isHttpUrl(thumb)) {
 			return true;
 		}
 		// ensure it is in upload path
-		const fullPath = path.join(upload_path, thumb);
-		return fullPath.startsWith(upload_path);
+		const fullPath = path.resolve(upload_path, thumb);
+		return isPathInsideUploadPath(fullPath);
 	});
 	return thumbs;
 };
+
+function isHttpUrl(url) {
+	try {
+		return ['http:', 'https:'].includes(new URL(url).protocol);
+	} catch (err) {
+		return false;
+	}
+}
+
+function isPathInsideUploadPath(targetPath) {
+	const resolvedUploadPath = path.resolve(upload_path);
+	const relativePath = path.relative(resolvedUploadPath, targetPath);
+	return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
 
 Thumbs.delete = async function (tid, relativePaths) {
 	const topicData = await topics.getTopicData(tid);

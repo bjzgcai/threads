@@ -19,6 +19,10 @@ const overrides = [
 		target: 'node_modules/nodebb-theme-harmony/templates/account/edit/username.tpl',
 	},
 	{
+		source: 'src/views/category.tpl',
+		target: 'node_modules/nodebb-theme-harmony/templates/category.tpl',
+	},
+	{
 		source: 'src/views/popular.tpl',
 		target: 'node_modules/nodebb-theme-harmony/templates/popular.tpl',
 	},

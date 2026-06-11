@@ -34,13 +34,31 @@
 		{./descriptionParsed}
 	</div>
 	{{{ end }}}
-	{{{ if ./handleFull }}}
-	<p class="text-secondary text-sm fst-italic mb-0 {{{ if config.theme.centerHeaderElements }}}text-center{{{ end }}}">
-		[[category:handle.description, {handleFull}]]
-		<a href="#" class="link-secondary" data-action="copy" data-clipboard-text="{handleFull}"><i class="fa fa-fw fa-copy" aria-hidden="true"></i></a>
-	</p>
-	{{{ end }}}
 </div>
+
+{{{ if newsDigest }}}
+<section class="card border-0 shadow-sm mt-3 mb-1" component="category/news-digest">
+	<div class="card-body p-3 p-md-4">
+		<div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-2">
+			<div class="d-flex gap-2 align-items-center">
+				<span class="badge rounded-pill bg-primary-subtle text-primary-emphasis border border-primary-subtle">
+					<i class="fa fa-sparkles me-1" aria-hidden="true"></i> 今日速览
+				</span>
+				<span class="text-secondary text-xs">{newsDigest.date} 08:00 AI 整理</span>
+			</div>
+		</div>
+		<p class="mb-3 text-secondary">{newsDigest.intro}</p>
+		<ol class="mb-0 ps-3 d-flex flex-column gap-2">
+			{{{ each newsDigest.items }}}
+			<li>
+				<a class="fw-semibold text-decoration-none" href="{./url}">{./title}</a>
+				<span class="text-secondary"> - {./summary}</span>
+			</li>
+			{{{ end }}}
+		</ol>
+	</div>
+</section>
+{{{ end }}}
 
 {{{ if widgets.header.length }}}
 <div data-widget-area="header">

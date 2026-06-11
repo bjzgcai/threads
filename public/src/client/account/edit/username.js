@@ -1,8 +1,8 @@
 ﻿'use strict';
 
 define('forum/account/edit/username', [
-	'forum/account/header', 'api', 'slugify', 'alerts',
-], function (header, api, slugify, alerts) {
+	'forum/account/header', 'api', 'slugify', 'alerts', 'utils',
+], function (header, api, slugify, alerts, utils) {
 	const AccountEditUsername = {};
 
 	AccountEditUsername.init = function () {
@@ -236,6 +236,11 @@ define('forum/account/edit/username', [
 			return String(value || '').trim().length > maximumUsernameLength;
 		}
 
+		function isInvalidFormat(value) {
+			const normalized = String(value || '').trim();
+			return !utils.isUserNameValid(normalized) || !utils.isSlugValid(slugify(normalized));
+		}
+
 		async function checkAvailability() {
 			const value = String(usernameInput.val() || '').trim();
 			if (!value) {
@@ -258,6 +263,12 @@ define('forum/account/edit/username', [
 
 			if (isTooLong(value)) {
 				hint.removeClass('text-success text-muted').addClass('text-danger').text(`花名太长，不能超过 ${maximumUsernameLength} 个字符`);
+				submitBtn.attr('disabled', 'disabled');
+				return;
+			}
+
+			if (isInvalidFormat(value)) {
+				hint.removeClass('text-success text-muted').addClass('text-danger').text('花名包含不支持的特殊符号');
 				submitBtn.attr('disabled', 'disabled');
 				return;
 			}

@@ -21,7 +21,11 @@ define('admin/settings', [
 				if (anchor.startsWith('section')) {
 					$this.parent().attr('id', anchor);
 				}
-				tocList.append(`<a class="btn btn-ghost btn-sm text-xs text-start text-decoration-none" href="#${anchor}">${header}</a>`);
+				$('<a></a>')
+					.addClass('btn btn-ghost btn-sm text-xs text-start text-decoration-none')
+					.attr('href', `#${anchor}`)
+					.text(header)
+					.appendTo(tocList);
 			});
 			const offset = mainHader.outerHeight(true);
 			// https://stackoverflow.com/a/11814275/583363

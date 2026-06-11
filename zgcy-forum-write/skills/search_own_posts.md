@@ -64,7 +64,7 @@ Without a keyword, the gateway lists recent posts created by the token owner:
 }
 ```
 
-`topic.url` is the user-facing topic path. `topic.fullUrl` is included when the server has a public forum base configured. In the current internal deployment, if `topic.fullUrl` is empty, build the final link as `http://10.1.132.5:4567` + `topic.url`.
+`topic.url` is the user-facing topic path. `topic.fullUrl` is included when the server has a public forum base configured. In the current internal deployment, if `topic.fullUrl` is empty, build the final link as `https://zgcy.lab.bza.edu.cn` + `topic.url`.
 
 输出说明：`posts` 是当前页返回的本人帖子列表；每条结果中的 `pid` 是帖子 id，`tid` 是所属主题 id，`topic` 提供主题标题和跳转链接。
 

@@ -21,8 +21,8 @@ file.saveFileToLocal = async function (filename, folder, tempPath) {
 	 */
 	filename = filename.split('.').map(name => slugify(name)).join('.');
 
-	const uploadPath = path.join(nconf.get('upload_path'), folder, filename);
-	if (!uploadPath.startsWith(nconf.get('upload_path'))) {
+	const uploadPath = resolveUploadPath(folder, filename);
+	if (!isPathInsideUploadPath(uploadPath)) {
 		throw new Error('[[error:invalid-path]]');
 	}
 
@@ -41,13 +41,26 @@ file.saveFileToLocal = async function (filename, folder, tempPath) {
 
 file.base64ToLocal = async function (imageData, uploadPath) {
 	const buffer = Buffer.from(imageData.slice(imageData.indexOf('base64') + 7), 'base64');
-	uploadPath = path.join(nconf.get('upload_path'), uploadPath);
+	uploadPath = resolveUploadPath(uploadPath);
+	if (!isPathInsideUploadPath(uploadPath)) {
+		throw new Error('[[error:invalid-path]]');
+	}
 
 	await fs.promises.writeFile(uploadPath, buffer, {
 		encoding: 'base64',
 	});
 	return uploadPath;
 };
+
+function resolveUploadPath(...segments) {
+	return path.resolve(nconf.get('upload_path'), ...segments.filter(Boolean));
+}
+
+function isPathInsideUploadPath(targetPath) {
+	const uploadPath = path.resolve(nconf.get('upload_path'));
+	const relativePath = path.relative(uploadPath, targetPath);
+	return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
 
 // https://stackoverflow.com/a/31205878/583363
 file.appendToFileName = function (filename, string) {

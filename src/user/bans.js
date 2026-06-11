@@ -56,7 +56,7 @@ module.exports = function (User) {
 			User.getUserField(uid, 'username'),
 			User.getSettings(uid),
 		]);
-		const siteTitle = meta.config.title || 'NodeBB';
+		const siteTitle = String(meta.config.title || 'NodeBB').replace(/,/g, '\\,');
 
 		await emailer.send('banned', uid, {
 			subject: `[[email:banned.subject, ${siteTitle}]]`,

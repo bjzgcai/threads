@@ -27,6 +27,11 @@ const delayCache = cacheCreate({
 	ttl: 1000 * 60,
 	max: 200,
 });
+const httpRateLimitCache = cacheCreate({
+	name: 'http-rate-limit',
+	ttl: 1000 * 60,
+	max: 5000,
+});
 
 
 const middleware = module.exports;
@@ -227,6 +232,17 @@ middleware.busyCheck = function busyCheck(req, res, next) {
 	} else {
 		setImmediate(next);
 	}
+};
+
+middleware.rateLimit = function rateLimit(req, res, next) {
+	const limit = Math.max(1, parseInt(meta.config.httpRateLimitPerMinute || process.env.NODEBB_HTTP_RATE_LIMIT_PER_MINUTE || '120', 10));
+	const key = `${req.ip || req.socket?.remoteAddress || 'unknown'}:${req.method}:${req.path}`;
+	const current = httpRateLimitCache.get(key) || 0;
+	if (current >= limit) {
+		return res.status(429).json({ error: '[[error:rate-limit-exceeded]]' });
+	}
+	httpRateLimitCache.set(key, current + 1);
+	next();
 };
 
 middleware.applyBlacklist = async function applyBlacklist(req, res, next) {

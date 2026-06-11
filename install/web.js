@@ -20,6 +20,7 @@ const sass = utils.getSass();
 const { generateToken, csrfSynchronisedProtection } = require('../src/middleware/csrf');
 
 const app = express();
+const rateLimitStore = new Map();
 let server;
 
 const formats = [
@@ -114,11 +115,28 @@ function launchExpress(port) {
 }
 
 function setupRoutes() {
-	app.get('/', csrfSynchronisedProtection, welcome);
-	app.post('/', csrfSynchronisedProtection, install);
-	app.get('/testdb', testDatabase);
-	app.get('/ping', ping);
-	app.get('/sping', ping);
+	app.get('/', rateLimit, csrfSynchronisedProtection, welcome);
+	app.post('/', rateLimit, csrfSynchronisedProtection, install);
+	app.get('/testdb', rateLimit, testDatabase);
+	app.get('/ping', rateLimit, ping);
+	app.get('/sping', rateLimit, ping);
+}
+
+function rateLimit(req, res, next) {
+	const windowMs = 60 * 1000;
+	const limit = Math.max(1, parseInt(process.env.NODEBB_INSTALLER_RATE_LIMIT_PER_MINUTE || '60', 10));
+	const now = Date.now();
+	const key = `${req.ip || req.socket?.remoteAddress || 'unknown'}:${req.method}:${req.path}`;
+	const current = rateLimitStore.get(key);
+	if (!current || current.resetAt <= now) {
+		rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
+		return next();
+	}
+	if (current.count >= limit) {
+		return res.status(429).json({ error: '[[error:rate-limit-exceeded]]' });
+	}
+	current.count += 1;
+	next();
 }
 
 async function testDatabase(req, res) {

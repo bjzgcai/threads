@@ -6,9 +6,10 @@ define('topicList', [
 	'topicSelect',
 	'categoryFilter',
 	'tagFilter',
+	'topicFilterPrefs',
 	'forum/category/tools',
 	'hooks',
-], function (infinitescroll, handleBack, topicSelect, categoryFilter, tagFilter, categoryTools, hooks) {
+], function (infinitescroll, handleBack, topicSelect, categoryFilter, tagFilter, topicFilterPrefs, categoryTools, hooks) {
 	const TopicList = {};
 	let templateName = '';
 
@@ -30,6 +31,11 @@ define('topicList', [
 
 		templateName = template;
 		loadTopicsCallback = cb || loadTopicsAfter;
+
+		if (topicFilterPrefs.restoreIfNeeded(template)) {
+			return;
+		}
+		topicFilterPrefs.initLinkPersistence(template);
 
 		categoryTools.init();
 

@@ -11,18 +11,23 @@ const pool = workerpool.pool(
 );
 
 exports.hash = async function (rounds, password) {
-	password = crypto.createHash('sha512').update(password).digest('hex');
-	return await pool.exec('hash', [password, rounds]);
+	return await pool.exec('hash', [prehashPassword(password), rounds]);
 };
 
 exports.compare = async function (password, hash, shaWrapped) {
 	const fakeHash = await getFakeHash();
 
 	if (shaWrapped) {
-		password = crypto.createHash('sha512').update(password).digest('hex');
+		password = prehashPassword(password);
 	}
 	return await pool.exec('compare', [password, hash || fakeHash]);
 };
+
+function prehashPassword(password) {
+	// This SHA-512 step is a compatibility-preserving bcrypt input wrapper, not the stored password hash.
+	// codeql[js/insufficient-password-hash]
+	return crypto.createHash('sha512').update(password).digest('hex');
+}
 
 let fakeHashCache;
 async function getFakeHash() {
@@ -30,8 +35,9 @@ async function getFakeHash() {
 		return fakeHashCache;
 	}
 	const length = 18;
-	fakeHashCache = crypto.randomBytes(Math.ceil(length / 2))
+	const password = crypto.randomBytes(Math.ceil(length / 2))
 		.toString('hex').slice(0, length);
+	fakeHashCache = await pool.exec('hash', [password, 12]);
 	return fakeHashCache;
 }
 

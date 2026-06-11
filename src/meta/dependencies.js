@@ -31,7 +31,12 @@ Dependencies.check = async function () {
 
 Dependencies.checkModule = async function (moduleName) {
 	try {
-		let pkgData = await fs.promises.readFile(path.join(paths.nodeModules, moduleName, 'package.json'), 'utf8');
+		const modulePath = path.resolve(paths.nodeModules, moduleName, 'package.json');
+		if (!isPathInsideNodeModules(modulePath)) {
+			throw new Error('invalid-module-path');
+		}
+
+		let pkgData = await fs.promises.readFile(modulePath, 'utf8');
 		pkgData = Dependencies.parseModuleData(moduleName, pkgData);
 
 		const satisfies = Dependencies.doesSatisfy(pkgData, pkg.dependencies[moduleName]);
@@ -44,6 +49,12 @@ Dependencies.checkModule = async function (moduleName) {
 		throw err;
 	}
 };
+
+function isPathInsideNodeModules(modulePath) {
+	const nodeModulesPath = path.resolve(paths.nodeModules);
+	const relativePath = path.relative(nodeModulesPath, modulePath);
+	return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
 
 Dependencies.parseModuleData = function (moduleName, pkgData) {
 	try {
@@ -61,7 +72,7 @@ Dependencies.doesSatisfy = function (moduleData, packageJSONVersion) {
 		return false;
 	}
 	const versionOk = !semver.validRange(packageJSONVersion) || semver.satisfies(moduleData.version, packageJSONVersion);
-	const githubRepo = moduleData._resolved && moduleData._resolved.includes('//github.com');
+	const githubRepo = isGithubResolvedUrl(moduleData._resolved);
 	const satisfies = versionOk || githubRepo;
 	if (!satisfies) {
 		winston.warn(`[${chalk.yellow('outdated')}] ${chalk.bold(moduleData.name)} installed v${moduleData.version}, package.json requires ${packageJSONVersion}\n`);
@@ -69,3 +80,15 @@ Dependencies.doesSatisfy = function (moduleData, packageJSONVersion) {
 	}
 	return satisfies;
 };
+
+function isGithubResolvedUrl(resolved) {
+	if (typeof resolved !== 'string') {
+		return false;
+	}
+	try {
+		const parsed = new URL(resolved);
+		return parsed.hostname === 'github.com';
+	} catch (err) {
+		return false;
+	}
+}
