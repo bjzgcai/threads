@@ -339,7 +339,7 @@ const utils = {
 		if (!name || name === '') return false;
 		if (name.trim().length === 0) return false;
 		if (invisibleChars.test(name)) return false;
-		return (/^['" \-+.*[\]0-9\u00BF-\u1FFF\u2C00-\uD7FF\w]+$/.test(name));
+		return (/^['" \-+.*[\]0-9\u00B7\u00BF-\u1FFF\u2C00-\uD7FF\w]+$/.test(name));
 	},
 
 	isSlugValid: function (slug) {
