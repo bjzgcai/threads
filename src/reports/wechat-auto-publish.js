@@ -51,6 +51,16 @@ const TASK_MAX_POLL_ATTEMPTS = Math.max(
 	parseInt(process.env.WECHAT_AUTO_PUBLISH_TASK_MAX_POLL_ATTEMPTS, 10) || 60,
 	1
 );
+const MAX_ACCOUNTS_PER_RUN = Math.max(parseInt(process.env.WECHAT_AUTO_PUBLISH_MAX_ACCOUNTS_PER_RUN, 10) || 0, 0);
+const MAX_CONSECUTIVE_ACCOUNT_FAILURES = Math.max(
+	parseInt(process.env.WECHAT_AUTO_PUBLISH_MAX_CONSECUTIVE_ACCOUNT_FAILURES, 10) || 5,
+	1
+);
+const RUN_TIMEOUT_MS = Math.max(
+	parseInt(process.env.WECHAT_AUTO_PUBLISH_RUN_TIMEOUT_MS, 10) || 90 * 60 * 1000,
+	60 * 1000
+);
+const FAILURE_SUMMARY_LIMIT = Math.max(parseInt(process.env.WECHAT_AUTO_PUBLISH_FAILURE_SUMMARY_LIMIT, 10) || 10, 1);
 const IMPORTED_SET = 'wechat-auto-publish:imported';
 const RUN_LOCK = 'wechat-auto-publish:running';
 const RUN_LOCK_STALE_MS = 2 * 60 * 60 * 1000;
@@ -112,11 +122,33 @@ publisher.publishDailyWechatArticles = async function () {
 
 	await db.setObject(RUN_LOCK, { timestamp: Date.now(), pid: process.pid });
 	try {
+		const startedAt = Date.now();
 		const window = getYesterdayTimeWindow();
+		const accountsForRun = selectAccountsForRun(ACCOUNTS);
+		const runStats = {
+			processedAccounts: 0,
+			failedAccounts: [],
+			timedOutAccounts: [],
+			abortedReason: '',
+			skippedRemainingAccounts: 0,
+		};
 		let imported = 0;
 		let skipped = 0;
+		let consecutiveAccountFailures = 0;
 
-		for (const account of ACCOUNTS) {
+		if (accountsForRun.length !== ACCOUNTS.length) {
+			winston.info(`[wechat-auto-publish] selected ${accountsForRun.length}/${ACCOUNTS.length} accounts for this run`);
+		}
+
+		for (let accountIndex = 0; accountIndex < accountsForRun.length; accountIndex += 1) {
+			const account = accountsForRun[accountIndex];
+			if (Date.now() - startedAt > RUN_TIMEOUT_MS) {
+				runStats.abortedReason = `run timeout ${RUN_TIMEOUT_MS}ms reached`;
+				runStats.skippedRemainingAccounts = accountsForRun.length - accountIndex;
+				winston.warn(`[wechat-auto-publish] aborting run: ${runStats.abortedReason}, remaining-accounts=${runStats.skippedRemainingAccounts}`);
+				break;
+			}
+
 			const accountCategory = normalizeWechatCategory(account.category);
 			if (!accountCategory) {
 				skipped += 1;
@@ -130,11 +162,28 @@ publisher.publishDailyWechatArticles = async function () {
 
 			let articles = [];
 			const accountCid = await ensureCategoryForRoute(accountCategory);
+			runStats.processedAccounts += 1;
 			try {
 				articles = await fetchAccountArticles(account, window);
+				consecutiveAccountFailures = 0;
 			} catch (err) {
 				skipped += 1;
+				consecutiveAccountFailures += 1;
+				runStats.failedAccounts.push({
+					name: account.name,
+					category: accountCategory,
+					error: getErrorSummary(err),
+				});
+				if (isQueryTaskTimeout(err)) {
+					runStats.timedOutAccounts.push(account.name);
+				}
 				winston.error(`[wechat-auto-publish] account "${account.name}" failed: ${err.stack || err.message}`);
+				if (consecutiveAccountFailures >= MAX_CONSECUTIVE_ACCOUNT_FAILURES) {
+					runStats.abortedReason = `${consecutiveAccountFailures} consecutive account failures`;
+					runStats.skippedRemainingAccounts = accountsForRun.length - accountIndex - 1;
+					winston.warn(`[wechat-auto-publish] aborting run: ${runStats.abortedReason}, remaining-accounts=${runStats.skippedRemainingAccounts}`);
+					break;
+				}
 				continue;
 			}
 
@@ -190,12 +239,65 @@ publisher.publishDailyWechatArticles = async function () {
 			winston.info(`[wechat-auto-publish] account "${account.name}" category="${accountCategory}" cid=${accountCid} imported-so-far=${imported} skipped-so-far=${skipped}`);
 		}
 
-		winston.info(`[wechat-auto-publish] imported=${imported} skipped=${skipped}`);
-		return { imported, skipped };
+		logRunSummary(imported, skipped, runStats);
+		return { imported, skipped, ...runStats };
 	} finally {
 		await deleteRunLockIfOwned('job completion');
 	}
 };
+
+function selectAccountsForRun(accounts) {
+	if (!MAX_ACCOUNTS_PER_RUN || accounts.length <= MAX_ACCOUNTS_PER_RUN) {
+		return accounts;
+	}
+
+	const startIndex = getDailyAccountBatchStart(accounts.length);
+	const selected = [];
+	for (let offset = 0; offset < MAX_ACCOUNTS_PER_RUN; offset += 1) {
+		selected.push(accounts[(startIndex + offset) % accounts.length]);
+	}
+	return selected;
+}
+
+function getDailyAccountBatchStart(accountCount) {
+	const now = new Date(new Date().toLocaleString('en-US', { timeZone: TZ }));
+	const utcDay = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+	const dayNumber = Math.floor(utcDay / (24 * 60 * 60 * 1000));
+	return (dayNumber * MAX_ACCOUNTS_PER_RUN) % accountCount;
+}
+
+function logRunSummary(imported, skipped, runStats) {
+	const failedCount = runStats.failedAccounts.length;
+	const timedOutCount = runStats.timedOutAccounts.length;
+	const summary = [
+		`imported=${imported}`,
+		`skipped=${skipped}`,
+		`processed-accounts=${runStats.processedAccounts}`,
+		`failed-accounts=${failedCount}`,
+		`timed-out-accounts=${timedOutCount}`,
+		runStats.skippedRemainingAccounts ? `skipped-remaining-accounts=${runStats.skippedRemainingAccounts}` : '',
+		runStats.abortedReason ? `aborted="${runStats.abortedReason}"` : '',
+	].filter(Boolean).join(' ');
+	winston.info(`[wechat-auto-publish] ${summary}`);
+
+	if (failedCount) {
+		const sample = runStats.failedAccounts.slice(0, FAILURE_SUMMARY_LIMIT)
+			.map(item => `${item.name}(${item.category}): ${item.error}`)
+			.join(' | ');
+		winston.warn(`[wechat-auto-publish] failed account sample: ${sample}`);
+	}
+}
+
+function isQueryTaskTimeout(err) {
+	return getErrorSummary(err).includes('query_task timed out');
+}
+
+function getErrorSummary(err) {
+	return String((err && err.message) || err || 'unknown error')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
 
 function installShutdownHooks() {
 	if (shutdownHooksInstalled) {
