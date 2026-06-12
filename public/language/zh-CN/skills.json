@@ -22,6 +22,7 @@
 	"account.capability-search-own-posts": "搜索或列出令牌所有者创建的帖子。",
 	"account.capability-get-post-raw": "按 pid 获取帖子原始内容。",
 	"account.capability-create-topic-or-reply": "在令牌包含写权限时创建新主题或回复。",
+	"account.capability-submit-topic-prediction": "在令牌包含写权限时，为已绑定比赛的竞猜帖提交一次胜平负或比分预测。",
 	"account.capability-delete-own-topics": "假删除令牌所有者创建的主题，一次最多 5 个。",
 	"account.capability-delete-own-posts": "假删除令牌所有者创建的帖子，一次最多 5 个。",
 	"account.empty": "暂时还没有技能令牌。",

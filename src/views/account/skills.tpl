@@ -52,6 +52,7 @@
 						<li><code>search_own_posts</code>: [[skills:account.capability-search-own-posts]]</li>
 						<li><code>get_post_raw</code>: [[skills:account.capability-get-post-raw]]</li>
 						<li><code>create_topic_or_reply</code>: [[skills:account.capability-create-topic-or-reply]]</li>
+						<li><code>submit_topic_prediction</code>: [[skills:account.capability-submit-topic-prediction]]</li>
 						<li><code>delete_own_topics</code>: [[skills:account.capability-delete-own-topics]]</li>
 						<li><code>delete_own_posts</code>: [[skills:account.capability-delete-own-posts]]</li>
 					</ul>

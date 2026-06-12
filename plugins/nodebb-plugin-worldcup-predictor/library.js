@@ -245,53 +245,25 @@ async function createTopicPrediction(req, res, next) {
 		}
 
 		const tid = parseInt(req.params.tid, 10);
-		const uid = req.user.uid;
-		const topicData = await topics.getTopicData(tid);
-
-		if (!topicData || !topicData.predictorMatchId) {
-			return res.status(404).json({ error: 'No predictor match bound to this topic' });
-		}
-
-		const matchId = topicData.predictorMatchId;
-		const matches = await Predictor.getMatches();
-		topicData.predictorMatch = matches[matchId] || null;
-		if (!topicData.predictorMatch) {
-			return res.status(404).json({ error: 'Match not found' });
-		}
-		if (!Predictor.isPredictionOpen(topicData.predictorMatch)) {
-			return res.status(409).json({ error: '比赛已开始，不能再提交预测' });
-		}
-		const predictionMode = Predictor.normalizePredictionMode(topicData.predictorPredictionMode);
-		const existingPrediction = await Predictor.getTopicPrediction(tid, uid);
-		if (existingPrediction) {
-			return res.status(409).json({ error: '你已经在本帖提交过预测' });
-		}
-		const prediction = Predictor.normalizePredictionPayload(req.body.prediction, predictionMode);
-
-		await Predictor.savePrediction({
-			matchId,
-			uid,
-			username: req.user.username,
-			prediction,
+		const result = await Predictor.submitTopicPrediction({
 			tid,
-		});
-		await Predictor.saveTopicPrediction({
-			tid,
-			matchId,
-			uid,
+			uid: req.user.uid,
 			username: req.user.username,
-			prediction,
+			prediction: req.body.prediction,
 		});
 
 		res.json({
 			success: true,
 			data: {
-				matchId,
-				prediction,
+				matchId: result.matchId,
+				prediction: result.prediction,
 				reply: null,
 			},
 		});
 	} catch (err) {
+		if (err && err.status) {
+			return res.status(err.status).json({ error: err.message });
+		}
 		next(err);
 	}
 }
@@ -469,6 +441,78 @@ Predictor.evaluatePrediction = function (match, prediction) {
 		points: 0.5,
 		label: '未猜中',
 		variant: 'danger',
+	};
+};
+
+Predictor.buildHttpError = function (status, message) {
+	const err = new Error(message);
+	err.status = status;
+	return err;
+};
+
+Predictor.getTopicPredictionSubmissionContext = async function (tid, uid) {
+	const parsedTid = parseInt(tid, 10);
+	if (!Number.isInteger(parsedTid) || parsedTid <= 0) {
+		throw Predictor.buildHttpError(400, 'Invalid tid');
+	}
+
+	const topicData = await topics.getTopicData(parsedTid);
+	if (!topicData || !topicData.predictorMatchId) {
+		throw Predictor.buildHttpError(404, 'No predictor match bound to this topic');
+	}
+
+	const matches = await Predictor.getMatches();
+	const matchId = topicData.predictorMatchId;
+	topicData.predictorMatch = matches[matchId] || null;
+	if (!topicData.predictorMatch) {
+		throw Predictor.buildHttpError(404, 'Match not found');
+	}
+	if (!Predictor.isPredictionOpen(topicData.predictorMatch)) {
+		throw Predictor.buildHttpError(409, '比赛已开始，不能再提交预测');
+	}
+
+	const existingPrediction = await Predictor.getTopicPrediction(parsedTid, uid);
+	if (existingPrediction) {
+		throw Predictor.buildHttpError(409, '你已经在本帖提交过预测');
+	}
+
+	return {
+		tid: parsedTid,
+		matchId,
+		topicData,
+		predictionMode: Predictor.normalizePredictionMode(topicData.predictorPredictionMode),
+	};
+};
+
+Predictor.submitTopicPrediction = async function ({ tid, uid, username, prediction }) {
+	if (!uid) {
+		throw Predictor.buildHttpError(403, '[[error:no-privileges]]');
+	}
+
+	const context = await Predictor.getTopicPredictionSubmissionContext(tid, uid);
+	const normalizedPrediction = Predictor.normalizePredictionPayload(prediction, context.predictionMode);
+
+	await Predictor.savePrediction({
+		matchId: context.matchId,
+		uid,
+		username,
+		prediction: normalizedPrediction,
+		tid: context.tid,
+	});
+	await Predictor.saveTopicPrediction({
+		tid: context.tid,
+		matchId: context.matchId,
+		uid,
+		username,
+		prediction: normalizedPrediction,
+	});
+
+	return {
+		tid: context.tid,
+		matchId: context.matchId,
+		prediction: normalizedPrediction,
+		predictionMode: context.predictionMode,
+		topicData: context.topicData,
 	};
 };
 

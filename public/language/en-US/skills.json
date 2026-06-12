@@ -22,6 +22,7 @@
 	"account.capability-search-own-posts": "Search or list posts created by the token owner.",
 	"account.capability-get-post-raw": "Get the raw content of a post by pid.",
 	"account.capability-create-topic-or-reply": "Create a new topic or reply when the token includes write scope.",
+	"account.capability-submit-topic-prediction": "Submit one result or score prediction for a predictor-bound match topic when the token includes write scope.",
 	"account.capability-delete-own-topics": "Soft-delete up to 5 topics created by the token owner.",
 	"account.capability-delete-own-posts": "Soft-delete up to 5 posts created by the token owner.",
 	"account.empty": "No skills tokens yet.",

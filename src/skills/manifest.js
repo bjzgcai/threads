@@ -4,14 +4,19 @@ module.exports = {
 	version: 1,
 	packages: {
 		'zgcy-forum-read': {
-			version: '1.1.0',
+			version: '1.2.0',
 			manifest: '/api/skills/manifest',
 			upgradeHint: 'Update the local zgcy-forum-read skill package from the latest ZGCY skill distribution.',
 		},
 		'zgcy-forum-write': {
-			version: '1.1.0',
+			version: '1.3.0',
 			manifest: '/api/skills/manifest',
 			upgradeHint: 'Update the local zgcy-forum-write skill package from the latest ZGCY skill distribution.',
+		},
+		'zgcy-skills-gateway': {
+			version: '1.3.0',
+			manifest: '/api/skills/manifest',
+			upgradeHint: 'Update the local zgcy-skills-gateway package from the latest ZGCY skill distribution.',
 		},
 	},
 	skills: {
@@ -53,6 +58,12 @@ module.exports = {
 		},
 		create_topic_or_reply: {
 			description: 'Create a new topic or reply to an existing topic',
+			riskLevel: 'high',
+			access: 'token-write',
+			requiredScopes: ['post:write'],
+		},
+		submit_topic_prediction: {
+			description: 'Submit one prediction for a predictor-bound match topic on behalf of the current user',
 			riskLevel: 'high',
 			access: 'token-write',
 			requiredScopes: ['post:write'],

@@ -57,6 +57,7 @@ Provided examples:
 - `examples/get_post_raw.request.json`
 - `examples/create_topic.request.json`
 - `examples/create_reply.request.json`
+- `examples/submit_topic_prediction.request.json`
 - `examples/delete_own_topics.request.json`
 - `examples/delete_own_posts.request.json`
 
@@ -69,7 +70,10 @@ node tools/sign-and-call.js list_categories examples/list_categories.request.jso
 node tools/sign-and-call.js latest_topics examples/latest_topics.request.json skill-config.json
 node tools/sign-and-call.js unread_topics examples/unread_topics.request.json skill-config.json
 node tools/sign-and-call.js search_topics examples/search_topics.request.json skill-config.json
+node tools/sign-and-call.js submit_topic_prediction examples/submit_topic_prediction.request.json skill-config.json
 ```
+
+Before each call, `tools/sign-and-call.js` fetches `/api/skills/manifest` and compares the local package version in `_meta.json` with the server-declared version. If the versions differ, the helper stops and tells the user to upgrade the local skill package first.
 
 If `skill-config.json` is in the same package root and your wrapper already knows that path, the last argument can be omitted.
 
@@ -206,8 +210,9 @@ This is only a compatibility fallback. The recommended file format for this skil
 5. `search_own_posts`
 6. `get_post_raw`
 7. `create_topic_or_reply`
-8. `delete_own_topics`
-9. `delete_own_posts`
+8. `submit_topic_prediction`
+9. `delete_own_topics`
+10. `delete_own_posts`
 
 ## Read examples
 

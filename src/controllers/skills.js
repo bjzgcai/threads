@@ -12,6 +12,7 @@ const topics = require('../topics');
 const helpers = require('./helpers');
 const user = require('../user');
 const privileges = require('../privileges');
+const worldcupPredictorPlugin = require('../../plugins/nodebb-plugin-worldcup-predictor/library');
 
 const Skills = module.exports;
 
@@ -187,6 +188,46 @@ function normalizeUnreadFilter(value) {
 		throw new Error('invalid-unread-filter');
 	}
 	return filter;
+}
+
+function normalizePredictionResult(value) {
+	const normalized = String(value || '').trim().toLowerCase();
+	if (!['home', 'draw', 'away'].includes(normalized)) {
+		throw new Error('prediction-result-invalid');
+	}
+	return normalized;
+}
+
+function normalizePredictionInput(value) {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		throw new Error('prediction-must-be-object');
+	}
+
+	const type = value.type === undefined ? '' : String(value.type).trim().toLowerCase();
+	if (!type || type === 'result') {
+		return {
+			type: 'result',
+			result: normalizePredictionResult(value.result),
+		};
+	}
+
+	if (type === 'score') {
+		const homeScore = parseInt(value.homeScore, 10);
+		const awayScore = parseInt(value.awayScore, 10);
+		if (!Number.isFinite(homeScore) || homeScore < 0) {
+			throw new Error('prediction-homeScore-invalid');
+		}
+		if (!Number.isFinite(awayScore) || awayScore < 0) {
+			throw new Error('prediction-awayScore-invalid');
+		}
+		return {
+			type: 'score',
+			homeScore,
+			awayScore,
+		};
+	}
+
+	throw new Error('prediction-type-invalid');
 }
 
 function mapTopicSummary(topic) {
@@ -802,6 +843,29 @@ Skills.execute = async (req, res) => {
 				mainPid: topic.mainPid,
 				slug: topic.slug,
 			};
+		}
+	} else if (skill === 'submit_topic_prediction') {
+		const tid = asPositiveInt(input.tid, 'tid');
+		const prediction = normalizePredictionInput(input.prediction || input);
+
+		try {
+			const result = await worldcupPredictorPlugin.Predictor.submitTopicPrediction({
+				tid,
+				uid: actorUid,
+				username: await user.getUserField(actorUid, 'username'),
+				prediction,
+			});
+			response = {
+				tid: result.tid,
+				matchId: result.matchId,
+				prediction: result.prediction,
+				predictionMode: result.predictionMode,
+			};
+		} catch (err) {
+			if (err && err.status) {
+				return helpers.formatApiResponse(err.status, res, err);
+			}
+			throw err;
 		}
 	} else if (skill === 'delete_own_topics') {
 		const tids = normalizeTopicIds(input.tids);

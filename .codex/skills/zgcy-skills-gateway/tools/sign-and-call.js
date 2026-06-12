@@ -21,6 +21,97 @@ function stableStringify(value) {
   return JSON.stringify(value);
 }
 
+function parseVersion(version) {
+  return String(version || '')
+    .trim()
+    .split('.')
+    .map(part => parseInt(part, 10))
+    .map(value => (Number.isFinite(value) ? value : 0));
+}
+
+function compareVersions(left, right) {
+  const a = parseVersion(left);
+  const b = parseVersion(right);
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i += 1) {
+    const av = a[i] || 0;
+    const bv = b[i] || 0;
+    if (av > bv) {
+      return 1;
+    }
+    if (av < bv) {
+      return -1;
+    }
+  }
+  return 0;
+}
+
+function getManifestUrl(baseUrl) {
+  const trimmed = String(baseUrl || '').replace(/\/$/, '');
+  if (trimmed.endsWith('/manifest')) {
+    return trimmed;
+  }
+  return `${trimmed}/manifest`;
+}
+
+async function fetchRemoteManifest(baseUrl, bearer, timeoutMs, userAgent) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const response = await fetch(getManifestUrl(baseUrl), {
+    method: 'GET',
+    headers: {
+      authorization: `Bearer ${bearer}`,
+      accept: 'application/json',
+      'user-agent': userAgent,
+    },
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timer));
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch skills manifest: HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function assertPackageVersion(config) {
+  const skip = String(process.env.SKILL_SKIP_VERSION_CHECK || config.skipVersionCheck || '').toLowerCase();
+  if (skip === '1' || skip === 'true' || skip === 'yes') {
+    return;
+  }
+
+  const meta = readJsonFile(path.resolve(__dirname, '..', '_meta.json'));
+  const packageName = String(meta.packageName || meta.name || '').trim();
+  const localVersion = String(meta.version || '').trim();
+  if (!packageName || !localVersion) {
+    return;
+  }
+
+  const manifest = await fetchRemoteManifest(config.baseUrl, config.bearer, config.timeoutMs, config.userAgent);
+  const remotePackage = manifest && manifest.packages ? manifest.packages[packageName] : null;
+  if (!remotePackage || !remotePackage.version) {
+    return;
+  }
+
+  const remoteVersion = String(remotePackage.version || '').trim();
+  if (compareVersions(localVersion, remoteVersion) === 0) {
+    return;
+  }
+
+  const hint = String(
+    remotePackage.upgradeHint ||
+    `Please update ${packageName} from ${localVersion} to ${remoteVersion}.`
+  ).trim();
+  const err = new Error([
+    `Skill package version mismatch for ${packageName}.`,
+    `Local version: ${localVersion}`,
+    `Remote version: ${remoteVersion}`,
+    hint,
+  ].join('\n'));
+  err.code = 'SKILL_VERSION_MISMATCH';
+  throw err;
+}
+
 function usage() {
   console.error('Usage: node tools/sign-and-call.js <skillName> <payloadJsonPath> [configJsonPath]');
   process.exit(1);
@@ -47,6 +138,14 @@ async function main() {
     console.error('Missing required config: baseUrl and bearerToken');
     process.exit(1);
   }
+
+  await assertPackageVersion({
+    baseUrl,
+    bearer,
+    timeoutMs,
+    userAgent,
+    skipVersionCheck: config.skipVersionCheck,
+  });
 
   const payload = readJsonFile(payloadPath);
   const stableBody = stableStringify(payload);
