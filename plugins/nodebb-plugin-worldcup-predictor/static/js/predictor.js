@@ -100,6 +100,21 @@ Predictor.bindEvents = function() {
 		ev.stopPropagation();
 		window.location.href = href;
 	});
+
+	$(document).on('click', '.leaderboard-recent-trigger', function(ev) {
+		ev.preventDefault();
+		ev.stopPropagation();
+		const item = $(this).closest('.leaderboard-recent-item');
+		const shouldOpen = !item.hasClass('is-open');
+		$('.leaderboard-recent-item.is-open').removeClass('is-open');
+		if (shouldOpen) {
+			item.addClass('is-open');
+		}
+	});
+
+	$(document).on('click', function() {
+		$('.leaderboard-recent-item.is-open').removeClass('is-open');
+	});
 };
 
 Predictor.ensureGlobalEntry = function() {
@@ -527,7 +542,13 @@ Predictor.renderRecentVerdicts = function(recent) {
 			cls = 'wrong';
 		}
 		const tooltip = [item.matchLabel, item.label || item.status || ''].filter(Boolean).join(' - ');
-		return `<span class="leaderboard-recent-dot ${cls}" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-trigger="hover focus click" title="${Predictor.escapeHtml(tooltip)}"></span>`;
+		return `
+			<span class="leaderboard-recent-item">
+				<button class="leaderboard-recent-trigger" type="button" aria-label="${Predictor.escapeHtml(tooltip)}">
+					<span class="leaderboard-recent-dot ${cls}"></span>
+				</button>
+				<span class="leaderboard-recent-panel">${Predictor.escapeHtml(tooltip)}</span>
+			</span>`;
 	}).join('')}</div>`;
 };
 
