@@ -523,7 +523,8 @@ Predictor.renderRecentVerdicts = function(recent) {
 		} else if (item.status === 'wrong') {
 			cls = 'wrong';
 		}
-		return `<span class="leaderboard-recent-dot ${cls}" title="${Predictor.escapeHtml(item.label || item.status || '')}"></span>`;
+		const tooltip = [item.matchLabel, item.label || item.status || ''].filter(Boolean).join(' - ');
+		return `<span class="leaderboard-recent-dot ${cls}" title="${Predictor.escapeHtml(tooltip)}"></span>`;
 	}).join('')}</div>`;
 };
 

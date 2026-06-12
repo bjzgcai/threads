@@ -927,12 +927,17 @@ Predictor.getLeaderboardEntries = async function (matches, limit) {
 			wrong: entry.wrong,
 		});
 		const recent = entry.recent
-			.sort((a, b) => (b.kickoffTimestamp || 0) - (a.kickoffTimestamp || 0))
+			.sort((a, b) => (a.kickoffTimestamp || 0) - (b.kickoffTimestamp || 0))
 			.slice(0, 5)
 			.map(item => ({
 				matchId: item.matchId,
 				status: item.status,
 				label: item.label,
+				matchLabel: matches[item.matchId] ? [
+					matches[item.matchId].date,
+					matches[item.matchId].time,
+					`${matches[item.matchId].home && matches[item.matchId].home.name || ''} vs ${matches[item.matchId].away && matches[item.matchId].away.name || ''}`,
+				].filter(Boolean).join(' ') : '',
 			}));
 
 		return {
