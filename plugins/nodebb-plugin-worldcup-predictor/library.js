@@ -23,6 +23,7 @@ let middleware;
 let inlineStyles;
 let resultSyncJob;
 const ASSET_VERSION = '20260611-reply-plain-v2';
+const TOPIC_MAP_KEY = 'predictor:topic-match-map';
 const RESULT_SYNC_LOCK_KEY = 'predictor:result-sync:lock';
 const RESULT_SYNC_META_PREFIX = 'predictor:result-sync:meta:';
 const RESULT_SYNC_RETRY_MINUTES = [0, 3, 5, 10];
@@ -319,18 +320,9 @@ async function getUserPredictions(req, res, next) {
 
 async function getLeaderboard(req, res, next) {
 	try {
-		const leaderboard = await db.getSortedSetRevRange('predictor:leaderboard', 0, 99);
-		const data = [];
-
-		for (const entry of leaderboard) {
-			const score = await db.getSortedSetScore('predictor:leaderboard', entry);
-			data.push({
-				username: entry,
-				score,
-			});
-		}
-
-		res.json({ leaderboard: data });
+		const matches = await Predictor.getMatches();
+		const leaderboard = await Predictor.getLeaderboardEntries(matches, 100);
+		res.json({ leaderboard });
 	} catch (err) {
 		next(err);
 	}
@@ -683,6 +675,7 @@ Predictor.getUserPredictionEntries = async function (uid, matches) {
 		entries.push({
 			...prediction,
 			match,
+			topicUrl: match.topicUrl || '',
 			matchResult: Predictor.getMatchResult(match),
 			verdict: Predictor.evaluatePrediction(match, prediction.prediction),
 		});
@@ -725,10 +718,12 @@ Predictor.getMatches = async function () {
 		if (!matches || Object.keys(matches).length === 0) {
 			matches = await Predictor.initializeDefaultMatches();
 		}
-		return Object.keys(matches).reduce((memo, matchId) => {
+		const preparedMatches = Object.keys(matches).reduce((memo, matchId) => {
 			memo[matchId] = Predictor.prepareMatchRecord(matches[matchId]);
 			return memo;
 		}, {});
+		await Predictor.attachTopicUrls(preparedMatches);
+		return preparedMatches;
 	} catch (err) {
 		winston.error(`[predictor] Error getting matches: ${err.message}`);
 		return {};
@@ -753,6 +748,29 @@ Predictor.prepareMatchRecord = function (match) {
 		}
 	}
 	return prepared;
+};
+
+Predictor.attachTopicUrls = async function (matches) {
+	const matchIds = Object.keys(matches || {});
+	if (!matchIds.length) {
+		return matches;
+	}
+
+	const mappedTids = await db.getObjectFields(TOPIC_MAP_KEY, matchIds);
+	await Promise.all(matchIds.map(async (matchId, index) => {
+		const tid = parseInt(Array.isArray(mappedTids) ? mappedTids[index] : mappedTids && mappedTids[matchId], 10) || 0;
+		if (!tid) {
+			return;
+		}
+
+		const topicData = await topics.getTopicFields(tid, ['slug']);
+		if (topicData && topicData.slug) {
+			matches[matchId].topicTid = tid;
+			matches[matchId].topicUrl = `${nconf.get('relative_path')}/topic/${topicData.slug}`;
+		}
+	}));
+
+	return matches;
 };
 
 Predictor.setMatchResult = async function (matchId, result, extraFields) {
@@ -827,6 +845,106 @@ Predictor.getAccuracySummary = function (summary) {
 		settled,
 		percent,
 	};
+};
+
+Predictor.getLeaderboardEntries = async function (matches, limit) {
+	const allMatchIds = Object.keys(matches || {});
+	const statsByUid = {};
+
+	for (const matchId of allMatchIds) {
+		const match = matches[matchId];
+		const participantUids = await db.getSetMembers(`predictor:match:${matchId}:participants`);
+		for (const uid of participantUids) {
+			const prediction = await Predictor.getPrediction(matchId, uid);
+			if (!prediction) {
+				continue;
+			}
+
+			const verdict = Predictor.evaluatePrediction(match, prediction.prediction);
+			const key = String(uid);
+			if (!statsByUid[key]) {
+				statsByUid[key] = {
+					uid: parseInt(uid, 10) || 0,
+					username: prediction.username || '',
+					score: 0,
+					total: 0,
+					correct: 0,
+					exact: 0,
+					wrong: 0,
+					pending: 0,
+					recent: [],
+				};
+			}
+
+			const stats = statsByUid[key];
+			stats.total += 1;
+			stats.score += parseInt(verdict && verdict.points, 10) || 0;
+			if (verdict) {
+				if (verdict.status === 'pending') {
+					stats.pending += 1;
+				} else if (verdict.status === 'exact') {
+					stats.correct += 1;
+					stats.exact += 1;
+				} else if (verdict.correct) {
+					stats.correct += 1;
+				} else {
+					stats.wrong += 1;
+				}
+			}
+
+			stats.recent.push({
+				matchId,
+				status: verdict ? verdict.status : '',
+				label: verdict ? verdict.label : '',
+				kickoffTimestamp: Predictor.getMatchKickoffTimestamp(match),
+			});
+		}
+	}
+
+	const uids = Object.keys(statsByUid).map(uid => parseInt(uid, 10)).filter(Boolean);
+	const usersByUid = await getPredictionUsersByUid(uids);
+	let entries = Object.values(statsByUid).map((entry) => {
+		const userData = usersByUid[String(entry.uid)] || {};
+		const accuracy = Predictor.getAccuracySummary({
+			correct: entry.correct,
+			wrong: entry.wrong,
+		});
+		const recent = entry.recent
+			.sort((a, b) => (b.kickoffTimestamp || 0) - (a.kickoffTimestamp || 0))
+			.slice(0, 5)
+			.map(item => ({
+				matchId: item.matchId,
+				status: item.status,
+				label: item.label,
+			}));
+
+		return {
+			uid: entry.uid,
+			username: userData.username || entry.username || '',
+			fullname: userData.fullname || '',
+			displayname: userData.username || entry.username || '',
+			userslug: userData.userslug || '',
+			picture: userData.picture || '',
+			score: entry.score,
+			total: entry.total,
+			correct: entry.correct,
+			exact: entry.exact,
+			wrong: entry.wrong,
+			pending: entry.pending,
+			accuracy: accuracy.percent,
+			recent,
+		};
+	});
+
+	entries = entries.sort((a, b) => (
+		(b.score - a.score) ||
+		(b.correct - a.correct) ||
+		(b.exact - a.exact) ||
+		(a.pending - b.pending) ||
+		a.username.localeCompare(b.username, 'zh-Hans-CN')
+	));
+
+	return entries.slice(0, limit || 100);
 };
 
 Predictor.startResultSyncJob = function () {

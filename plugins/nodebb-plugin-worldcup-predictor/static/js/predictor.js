@@ -1,8 +1,6 @@
 'use strict';
 
 const Predictor = {
-	currentMatch: null,
-	currentPrediction: null,
 	eventsBound: false,
 	matches: {},
 	config: {},
@@ -65,54 +63,6 @@ Predictor.activateInitialTab = function() {
 };
 
 Predictor.bindEvents = function() {
-	$(document).on('click', '.btn-predict', function() {
-		const matchId = $(this).closest('.match-card').data('match-id');
-		if (!Predictor.user) {
-			window.location.href = `${Predictor.config.relative_path || ''}/login?redirect=${encodeURIComponent((Predictor.config.relative_path || '') + '/predictor')}`;
-			return;
-		}
-		Predictor.openPredictModal(matchId);
-	});
-
-	$(document).on('click', '.predict-btn', function() {
-		$(this).siblings('.predict-btn').removeClass('selected');
-		$(this).addClass('selected');
-		Predictor.currentPrediction = {
-			type: 'result',
-			result: $(this).data('result'),
-		};
-	});
-
-	$(document).on('input', '.home-score, .away-score', function() {
-		const homeScore = $('.home-score').val();
-		const awayScore = $('.away-score').val();
-
-		if (homeScore !== '' && awayScore !== '') {
-			$('.predict-btn').removeClass('selected');
-			Predictor.currentPrediction = {
-				type: 'score',
-				homeScore: parseInt(homeScore, 10),
-				awayScore: parseInt(awayScore, 10),
-			};
-		}
-	});
-
-	$('#submitPrediction').on('click', function() {
-		Predictor.submitPrediction();
-	});
-
-	$('#publishAsPost').on('click', function() {
-		if (!Predictor.user) {
-			window.location.href = `${Predictor.config.relative_path || ''}/login?redirect=${encodeURIComponent((Predictor.config.relative_path || '') + '/predictor')}`;
-			return;
-		}
-		$('#predictModal').modal('hide');
-		setTimeout(Predictor.openPublishModal, 300);
-	});
-
-	$('#confirmPublish').on('click', function() {
-		Predictor.publishAsPost();
-	});
 };
 
 Predictor.loadMatches = function() {
@@ -185,7 +135,8 @@ Predictor.renderMatchCard = function(match) {
 		finished: '已结束',
 	}[statusClass] || '未知';
 	const resultText = Predictor.formatMatchResultText(match);
-	const predictionClosed = !Predictor.isPredictionOpen(match);
+	const kickoffText = `${match.date} ${match.time}`;
+	const phaseText = Predictor.isPredictionOpen(match) ? '可在比赛帖内竞猜' : '仅展示赛果与结果';
 
 	return `
 		<div class="match-card" data-match-id="${match.id}">
@@ -207,159 +158,16 @@ Predictor.renderMatchCard = function(match) {
 			<div class="match-details">
 				<span class="badge">${match.stage}</span>
 				<span class="badge">第 ${match.group} 组</span>
+				<span class="badge">${kickoffText}</span>
 			</div>
+			<div class="match-note">${phaseText}</div>
 			${resultText ? `<div class="match-result-line">${resultText}</div>` : ''}
-			<div class="match-actions">
-				<button class="btn btn-predict" ${predictionClosed ? 'disabled' : ''}>${predictionClosed ? '已截止' : '竞猜'}</button>
-			</div>
+			${match.topicUrl ? `
+				<div class="match-actions">
+					<a class="btn btn-outline-primary" href="${match.topicUrl}">进入比赛帖</a>
+				</div>
+			` : ''}
 		</div>`;
-};
-
-Predictor.openPredictModal = function(matchId) {
-	const match = Predictor.matches[matchId];
-	if (!match) {
-		return;
-	}
-
-	Predictor.currentMatch = match;
-	Predictor.currentPrediction = null;
-
-	const matchInfo = `
-		<div class="match-info-modal">
-			<div class="match-info" style="margin: 0;">
-				<div class="match-team">
-					<div class="flag">${match.home.flag}</div>
-					<div class="name">${match.home.name}</div>
-				</div>
-				<div class="match-vs">
-					<div class="time">${match.date} ${match.time}</div>
-					<div>VS</div>
-				</div>
-				<div class="match-team">
-					<div class="flag">${match.away.flag}</div>
-					<div class="name">${match.away.name}</div>
-				</div>
-			</div>
-		</div>`;
-
-	$('#predictModal .match-info').html(matchInfo);
-	$('#predictModal .home-name').text(match.home.name);
-	$('#predictModal .away-name').text(match.away.name);
-	$('.predict-btn').removeClass('selected');
-	$('.home-score').val('');
-	$('.away-score').val('');
-
-	const modal = new bootstrap.Modal(document.getElementById('predictModal'));
-	modal.show();
-};
-
-Predictor.submitPrediction = function() {
-	if (!Predictor.currentMatch || !Predictor.currentPrediction) {
-		alert('请选择竞猜结果');
-		return;
-	}
-
-	$.ajax({
-		url: `${Predictor.config.relative_path || ''}/api/v3/predictor/predictions`,
-		type: 'POST',
-		contentType: 'application/json',
-		dataType: 'json',
-		data: JSON.stringify({
-			matchId: Predictor.currentMatch.id,
-			prediction: Predictor.currentPrediction,
-		}),
-		success: function() {
-			alert('竞猜已提交！');
-			$('#predictModal').modal('hide');
-			Predictor.loadUserPredictions();
-		},
-		error: function(err) {
-			console.error('Failed to submit prediction:', err);
-			alert('提交失败，请稍后重试');
-		},
-	});
-};
-
-Predictor.openPublishModal = function() {
-	const match = Predictor.currentMatch;
-	if (!match) {
-		return;
-	}
-
-	const select = $('#categorySelect');
-	select.empty();
-	select.append('<option value="">-- 请选择分类 --</option>');
-
-	$.ajax({
-		url: `${Predictor.config.relative_path || ''}/api/v3/categories`,
-		type: 'GET',
-		dataType: 'json',
-		success: function(response) {
-			const categories = Array.isArray(response) ? response : (response.categories || response.response?.categories || []);
-			categories.forEach(cat => {
-				select.append(`<option value="${cat.cid}">${cat.name}</option>`);
-			});
-		},
-		error: function(err) {
-			console.error('Failed to load categories:', err);
-			select.append('<option value="">分类加载失败</option>');
-		},
-	});
-
-	$('#postTitle').val(`世界杯竞猜: ${match.home.name} vs ${match.away.name}${Predictor.formatTitleTime(match)}`);
-	const predictionText = Predictor.currentPrediction.type === 'result'
-		? (Predictor.currentPrediction.result === 'home'
-			? `${match.home.name} 胜`
-			: Predictor.currentPrediction.result === 'away'
-				? `${match.away.name} 胜`
-				: '平局')
-		: `${Predictor.currentPrediction.homeScore} - ${Predictor.currentPrediction.awayScore}`;
-
-	$('#postContent').val(`${match.home.flag} ${match.home.name} vs ${match.away.name} ${match.away.flag}\n\n${predictionText}\n\n比赛时间: ${match.date} ${match.time}`);
-
-	const modal = new bootstrap.Modal(document.getElementById('publishModal'));
-	modal.show();
-};
-
-Predictor.publishAsPost = function() {
-	const cid = $('#categorySelect').val();
-	const title = $('#postTitle').val();
-	const content = $('#postContent').val();
-
-	if (!cid) {
-		alert('请选择分类');
-		return;
-	}
-
-	if (!title || !content) {
-		alert('请填写标题和内容');
-		return;
-	}
-
-	$.ajax({
-		url: `${Predictor.config.relative_path || ''}/api/v3/predictor/publish-result`,
-		type: 'POST',
-		contentType: 'application/json',
-		dataType: 'json',
-		data: JSON.stringify({
-			matchId: Predictor.currentMatch.id,
-			categoryId: cid,
-			title,
-			content,
-			predictionMode: Predictor.currentPrediction?.type === 'result' ? 'result' : 'score',
-		}),
-		success: function(response) {
-			alert('帖子已发布！');
-			$('#publishModal').modal('hide');
-			if (response.data && response.data.url) {
-				window.location.href = response.data.url;
-			}
-		},
-		error: function(err) {
-			console.error('Failed to publish post:', err);
-			alert('发布失败，请稍后重试');
-		},
-	});
 };
 
 Predictor.loadUserPredictions = function() {
@@ -416,6 +224,7 @@ Predictor.renderUserPredictions = function(response) {
 					${verdictBadge}
 					<span class="prediction-match-result ${resultText ? '' : 'text-muted'}">${resultText || '比赛未结算'}</span>
 				</div>
+				${pred.topicUrl ? `<div class="prediction-link-row"><a class="btn btn-outline-primary btn-sm" href="${pred.topicUrl}">进入比赛帖</a></div>` : ''}
 				${submittedAt ? `<div style="font-size: 12px; color: #999;">提交时间：${submittedAt}</div>` : ''}
 			</div>`;
 
@@ -446,29 +255,42 @@ Predictor.renderLeaderboard = function(leaderboard) {
 		return;
 	}
 
-	let html = '<div class="leaderboard-table"><table class="table"><thead><tr><th>排名</th><th>用户</th><th>积分</th></tr></thead><tbody>';
+	const podium = leaderboard.slice(0, 3).map((entry, index) => {
+		const rank = index + 1;
+		const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
+		return `
+			<div class="leaderboard-podium-card rank-${rank}">
+				<div class="leaderboard-podium-rank">${medal}</div>
+				<div class="leaderboard-podium-name">${Predictor.escapeHtml(entry.displayname || entry.username)}</div>
+				<div class="leaderboard-podium-score">${entry.score}</div>
+				<div class="leaderboard-podium-meta">命中 ${entry.correct} 场 · 命中率 ${entry.accuracy}%</div>
+			</div>`;
+	}).join('');
+
+	let html = `
+		<div class="leaderboard-summary">
+			<div class="leaderboard-summary-title">当前排行榜</div>
+			<div class="leaderboard-summary-subtitle">按积分、命中场次、精确比分命中数排序</div>
+		</div>
+		${podium ? `<div class="leaderboard-podium">${podium}</div>` : ''}
+		<div class="leaderboard-table"><table class="table"><thead><tr><th>排名</th><th>用户</th><th>积分</th><th>命中</th><th>命中率</th><th>精确比分</th><th>待结算</th><th>最近结果</th></tr></thead><tbody>`;
 
 	leaderboard.forEach((entry, index) => {
 		const rank = index + 1;
-		let rankClass = '';
-		let rankSymbol = rank;
-
-		if (rank === 1) {
-			rankClass = 'top1';
-			rankSymbol = '🥇';
-		} else if (rank === 2) {
-			rankClass = 'top2';
-			rankSymbol = '🥈';
-		} else if (rank === 3) {
-			rankClass = 'top3';
-			rankSymbol = '🥉';
-		}
+		const recent = Predictor.renderRecentVerdicts(entry.recent || []);
 
 		html += `
 			<tr>
-				<td class="rank ${rankClass}">${rankSymbol}</td>
-				<td>${entry.username}</td>
+				<td class="rank ${rank <= 3 ? `top${rank}` : ''}">${rank}</td>
+				<td>
+					<div class="leaderboard-user">${Predictor.escapeHtml(entry.displayname || entry.username)}</div>
+				</td>
 				<td class="score">${entry.score}</td>
+				<td>${entry.correct}/${entry.total}</td>
+				<td>${entry.accuracy}%</td>
+				<td>${entry.exact}</td>
+				<td>${entry.pending}</td>
+				<td>${recent}</td>
 			</tr>`;
 	});
 
@@ -564,5 +386,32 @@ Predictor.renderUserPredictionSummary = function(summary) {
 				<div class="prediction-summary-label">命中率</div>
 				<div class="prediction-summary-value">${accuracy.percent || 0}%</div>
 			</div>
-		</div>`;
+	</div>`;
+};
+
+Predictor.renderRecentVerdicts = function(recent) {
+	if (!Array.isArray(recent) || !recent.length) {
+		return '<span class="text-muted">暂无</span>';
+	}
+
+	return `<div class="leaderboard-recent">${recent.map((item) => {
+		let cls = 'pending';
+		if (item.status === 'exact') {
+			cls = 'exact';
+		} else if (item.status === 'correct') {
+			cls = 'correct';
+		} else if (item.status === 'wrong') {
+			cls = 'wrong';
+		}
+		return `<span class="leaderboard-recent-dot ${cls}" title="${Predictor.escapeHtml(item.label || item.status || '')}"></span>`;
+	}).join('')}</div>`;
+};
+
+Predictor.escapeHtml = function(value) {
+	return String(value || '')
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
 };
