@@ -326,7 +326,7 @@ Predictor.renderLeaderboard = function(leaderboard) {
 			<div class="leaderboard-podium-card rank-${rank}">
 				<div class="leaderboard-podium-rank">${medal}</div>
 				<div class="leaderboard-podium-name">${Predictor.escapeHtml(entry.displayname || entry.username)}</div>
-				<div class="leaderboard-podium-score">${entry.score}</div>
+				<div class="leaderboard-podium-score">${Predictor.formatScore(entry.score)}</div>
 				<div class="leaderboard-podium-meta">命中 ${entry.correct} 场 · 命中率 ${entry.accuracy}%</div>
 			</div>`;
 	}).join('');
@@ -334,11 +334,11 @@ Predictor.renderLeaderboard = function(leaderboard) {
 	let html = `
 		<div class="leaderboard-summary">
 			<div class="leaderboard-summary-title">当前排行榜</div>
-			<div class="leaderboard-summary-subtitle">按积分、命中场次、精确比分命中数排序</div>
+			<div class="leaderboard-summary-subtitle">按积分、命中场次排序。积分规则：猜中 3 分，猜错 0.5 分，不猜 0 分。</div>
 		</div>
 		${podium ? `<div class="leaderboard-podium">${podium}</div>` : ''}
 		<div class="leaderboard-scroll-hint">左右滑动可查看更多数据</div>
-		<div class="leaderboard-table"><table class="table"><thead><tr><th>排名</th><th>用户</th><th>积分</th><th>命中</th><th>命中率</th><th>精确比分</th><th>待结算</th><th>最近结果</th></tr></thead><tbody>`;
+		<div class="leaderboard-table"><table class="table"><thead><tr><th>排名</th><th>用户</th><th>积分</th><th>命中</th><th>命中率</th><th>待结算</th><th>最近结果</th></tr></thead><tbody>`;
 
 	leaderboard.forEach((entry, index) => {
 		const rank = index + 1;
@@ -350,10 +350,9 @@ Predictor.renderLeaderboard = function(leaderboard) {
 				<td>
 					<div class="leaderboard-user">${Predictor.escapeHtml(entry.displayname || entry.username)}</div>
 				</td>
-				<td class="score">${entry.score}</td>
+				<td class="score">${Predictor.formatScore(entry.score)}</td>
 				<td>${entry.correct}/${entry.total}</td>
 				<td>${entry.accuracy}%</td>
-				<td>${entry.exact}</td>
 				<td>${entry.pending}</td>
 				<td>${recent}</td>
 			</tr>`;
@@ -486,13 +485,18 @@ Predictor.renderUserPredictionSummary = function(summary) {
 			</div>
 			<div class="prediction-summary-card">
 				<div class="prediction-summary-label">积分</div>
-				<div class="prediction-summary-value">${summary.points || 0}</div>
+				<div class="prediction-summary-value">${Predictor.formatScore(summary.points || 0)}</div>
 			</div>
 			<div class="prediction-summary-card">
 				<div class="prediction-summary-label">命中率</div>
 				<div class="prediction-summary-value">${accuracy.percent || 0}%</div>
 			</div>
 	</div>`;
+};
+
+Predictor.formatScore = function(score) {
+	const value = Number(score) || 0;
+	return Number.isInteger(value) ? String(value) : value.toFixed(1);
 };
 
 Predictor.renderLoginPrompt = function() {

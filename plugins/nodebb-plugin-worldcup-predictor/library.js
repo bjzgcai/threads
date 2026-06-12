@@ -431,7 +431,7 @@ Predictor.evaluatePrediction = function (match, prediction) {
 		return {
 			status: correct ? 'correct' : 'wrong',
 			correct,
-			points: correct ? 1 : 0,
+			points: correct ? 3 : 0.5,
 			label: correct ? '猜中' : '未猜中',
 			variant: correct ? 'success' : 'danger',
 		};
@@ -457,7 +457,7 @@ Predictor.evaluatePrediction = function (match, prediction) {
 		return {
 			status: 'correct',
 			correct: true,
-			points: 1,
+			points: 3,
 			label: '猜中',
 			variant: 'warning',
 		};
@@ -466,7 +466,7 @@ Predictor.evaluatePrediction = function (match, prediction) {
 	return {
 		status: 'wrong',
 		correct: false,
-		points: 0,
+		points: 0.5,
 		label: '未猜中',
 		variant: 'danger',
 	};
@@ -701,7 +701,7 @@ Predictor.summarizePredictionEntries = function (entries) {
 		} else if (verdict.status) {
 			memo.wrong += 1;
 		}
-		memo.points += parseInt(verdict.points, 10) || 0;
+		memo.points += Number(verdict.points) || 0;
 		return memo;
 	}, {
 		total: 0,
@@ -824,7 +824,7 @@ Predictor.rebuildLeaderboard = async function () {
 				points: 0,
 				username: prediction.username || '',
 			};
-			scoreEntry.points += parseInt(verdict.points, 10) || 0;
+			scoreEntry.points += Number(verdict.points) || 0;
 			if (!scoreEntry.username && prediction.username) {
 				scoreEntry.username = prediction.username;
 			}
@@ -895,7 +895,7 @@ Predictor.getLeaderboardEntries = async function (matches, limit) {
 
 			const stats = statsByUid[key];
 			stats.total += 1;
-			stats.score += parseInt(verdict && verdict.points, 10) || 0;
+			stats.score += Number(verdict && verdict.points) || 0;
 			if (verdict) {
 				if (verdict.status === 'pending') {
 					stats.pending += 1;
@@ -956,7 +956,6 @@ Predictor.getLeaderboardEntries = async function (matches, limit) {
 	entries = entries.sort((a, b) => (
 		(b.score - a.score) ||
 		(b.correct - a.correct) ||
-		(b.exact - a.exact) ||
 		(a.pending - b.pending) ||
 		a.username.localeCompare(b.username, 'zh-Hans-CN')
 	));
