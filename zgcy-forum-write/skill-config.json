@@ -2,10 +2,10 @@
   "name": "ZGCY Forum Write Config",
   "baseUrl": "https://zgcy.lab.bza.edu.cn/api/skills",
   "timeoutMs": 15000,
-  "userAgent": "zgcy-forum-write/1.1",
+  "userAgent": "zgcy-forum-write/1.3",
   "updateCheck": {
     "packageName": "zgcy-forum-write",
-    "localVersion": "1.1.0",
+    "localVersion": "1.3.0",
     "remoteManifestUrl": "https://zgcy.lab.bza.edu.cn/api/skills/manifest",
     "enabled": true
   },
@@ -16,7 +16,7 @@
   "notes": {
     "forumName": "诸葛菜园 (Zhuge Caiyuan)",
     "forumContext": "北京中关村学院与中关村人工智能研究院相关社区论坛，用于受控的发帖、回帖、删帖与内容检索。",
-    "usageZh": "适用于发帖、回帖、搜索 token 持有者自己的帖子、删除本人帖子或主题，以及写入前的上下文检索。",
+    "usageZh": "适用于发帖、回帖、提交比赛竞猜预测、搜索 token 持有者自己的帖子、删除本人帖子或主题，以及写入前的上下文检索。",
     "howToGetToken": "The user logs in to ZGCY and creates a personal token at /user/<userslug>/skills, then pastes it into auth.bearerToken.",
     "howToGetTokenZh": "用户登录诸葛菜园后，可在 /user/<userslug>/skills 创建个人 token，再填写到 auth.bearerToken。",
     "scope": "Use a token with post:write for create/delete. search_own_posts requires post:read.",

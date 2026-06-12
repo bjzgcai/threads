@@ -1,6 +1,6 @@
 ---
 name: zgcy-forum-write
-description: Token-owned write access to the Zhuge Caiyuan, 诸葛菜园, forum through /api/skills. Use for 发帖, 回帖, 删除 token 持有者自己的主题或帖子, and 搜索自己的帖子. Includes helper read skills for choosing categories, finding topics, and reading raw posts before writing. Requires a personal skills token.
+description: Token-owned write access to the Zhuge Caiyuan, 诸葛菜园, forum through /api/skills. Use for 发帖, 回帖, 提交比赛竞猜预测, 删除 token 持有者自己的主题或帖子, and 搜索自己的帖子. Includes helper read skills for choosing categories, finding topics, and reading raw posts before writing. Requires a personal skills token.
 ---
 
 # ZGCY Forum Write
@@ -15,6 +15,7 @@ This forum is used in the Beijing Zhongguancun Academy and Zhongguancun Academy 
 这是 `诸葛菜园` 论坛的写入型 skill。
 
 - 适合发帖、回帖、查找当前 token 持有者自己的帖子、删除自己的主题或帖子
+- 适合发帖、回帖、为比赛竞猜帖提交预测、查找当前 token 持有者自己的帖子、删除自己的主题或帖子
 - 不适合纯查看场景，纯读取优先使用 `zgcy-forum-read`
 - 这是有状态、有权限边界的操作，尤其删帖前应先确认对象和范围
 - 如需给用户返回诸葛菜园完整帖子链接，应优先使用返回结果中的 `fullUrl`；若为空，在当前内网部署下可用 `https://zgcy.lab.bza.edu.cn` 与 `url` 路径拼接
@@ -25,6 +26,7 @@ Use this skill for token-scoped forum work such as:
 
 - creating a new topic in a known category
 - replying to an existing topic
+- submitting one prediction in a predictor-bound match topic
 - finding the token owner's own posts before deletion
 - deleting the token owner's own topics or posts
 - reading forum context before posting, when helper read skills are needed
@@ -56,6 +58,7 @@ If the versions differ, tell the user that the local `zgcy-forum-write` package 
 ## Write Skills
 
 - `create_topic_or_reply`: create a topic or reply to an existing topic
+- `submit_topic_prediction`: submit one prediction for a predictor-bound match topic
 - `delete_own_topics`: soft-delete up to 5 topics owned by the token owner
 - `delete_own_posts`: soft-delete up to 5 posts owned by the token owner
 - `search_own_posts`: search or list posts created by the token owner
@@ -74,6 +77,7 @@ These are included because writing often needs context:
 ```bash
 node tools/sign-and-call.js create_topic_or_reply examples/create_topic.request.json skill-config.json
 node tools/sign-and-call.js create_topic_or_reply examples/create_reply.request.json skill-config.json
+node tools/sign-and-call.js submit_topic_prediction examples/submit_topic_prediction.request.json skill-config.json
 node tools/sign-and-call.js search_own_posts examples/search_own_posts.request.json skill-config.json
 node tools/sign-and-call.js delete_own_topics examples/delete_own_topics.request.json skill-config.json
 node tools/sign-and-call.js delete_own_posts examples/delete_own_posts.request.json skill-config.json
@@ -83,6 +87,7 @@ node tools/sign-and-call.js delete_own_posts examples/delete_own_posts.request.j
 
 - `examples/create_topic.request.json`: 创建新主题
 - `examples/create_reply.request.json`: 回复已有主题
+- `examples/submit_topic_prediction.request.json`: 为比赛竞猜帖提交一次预测
 - `examples/search_own_posts.request.json`: 搜索当前 token 持有者自己的帖子
 - `examples/delete_own_topics.request.json`: 删除自己的主题
 - `examples/delete_own_posts.request.json`: 删除自己的帖子
@@ -98,5 +103,6 @@ node tools/sign-and-call.js delete_own_posts examples/delete_own_posts.request.j
 3. Use `get_post_raw` when you need to inspect the exact existing body before responding.
 4. Use `search_own_posts` before `delete_own_posts` if the correct `pid` is not already known.
 5. Confirm destructive actions before calling `delete_own_topics` or `delete_own_posts`.
+6. Use `submit_topic_prediction` only on topics already bound to a predictor match, and only before kickoff.
 
 See `skills/*.md` for per-skill inputs, outputs, and caveats.

@@ -4,6 +4,7 @@
 
 - `examples/create_topic.request.json`: 在指定分类中创建新主题
 - `examples/create_reply.request.json`: 向已有主题发送回复
+- `examples/submit_topic_prediction.request.json`: 向已绑定比赛的竞猜帖提交一次预测
 - `examples/delete_own_topics.request.json`: 删除当前 token 持有者自己创建的主题
 - `examples/delete_own_posts.request.json`: 删除当前 token 持有者自己的帖子
 - `examples/search_own_posts.request.json`: 搜索当前 token 持有者自己的帖子，适合删帖前定位 `pid`
@@ -16,6 +17,7 @@
 
 - 发新帖前，先看 `list_categories.request.json`
 - 回复已有主题前，先看 `latest_topics.request.json` 或 `search_topics.request.json`
+- 比赛竞猜帖预测前，先确认目标 `tid` 是已绑定比赛的帖子，再使用 `submit_topic_prediction.request.json`
 - 不确定帖子原文时，再用 `get_post_raw.request.json`
 - 删除前，先用 `search_own_posts.request.json` 找到准确 `pid`
 - `delete_own_topics.request.json` 和 `delete_own_posts.request.json` 属于高风险示例，实际调用前应再次确认

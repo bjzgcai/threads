@@ -1,0 +1,9 @@
+{
+  "input": {
+    "tid": 1,
+    "prediction": {
+      "type": "result",
+      "result": "home"
+    }
+  }
+}
