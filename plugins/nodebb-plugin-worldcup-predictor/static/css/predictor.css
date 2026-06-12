@@ -157,7 +157,7 @@
 
 @media (max-width: 767px) {
 	.predictor-global-entry {
-		bottom: 14px;
+		bottom: 72px;
 		right: 14px;
 	}
 
@@ -165,7 +165,9 @@
 		border-radius: 999px;
 		height: 44px;
 		justify-content: center;
+		opacity: 0.58;
 		padding: 0;
+		transition: width 0.2s ease, padding 0.2s ease, opacity 0.2s ease;
 		width: 44px;
 	}
 
@@ -175,6 +177,19 @@
 
 	.predictor-global-entry-text {
 		display: none;
+	}
+
+	.predictor-global-entry.is-expanded .predictor-global-entry-link,
+	.predictor-global-entry-link:active,
+	.predictor-global-entry-link:focus {
+		opacity: 0.96;
+		padding: 0 14px;
+		width: auto;
+	}
+
+	.predictor-global-entry.is-expanded .predictor-global-entry-text {
+		display: inline;
+		font-size: 13px;
 	}
 }
 

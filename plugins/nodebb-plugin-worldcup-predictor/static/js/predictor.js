@@ -78,6 +78,17 @@ Predictor.bindEvents = function() {
 	});
 
 	$(document).on('click', '[component="predictor/global-entry"] a', function(ev) {
+		const entry = $(this).closest('[component="predictor/global-entry"]');
+		if (window.matchMedia && window.matchMedia('(max-width: 767px)').matches && !entry.hasClass('is-expanded')) {
+			ev.preventDefault();
+			ev.stopPropagation();
+			entry.addClass('is-expanded');
+			window.setTimeout(function() {
+				entry.removeClass('is-expanded');
+			}, 2400);
+			return;
+		}
+
 		const href = $(this).attr('href');
 		if (!href) {
 			return;
