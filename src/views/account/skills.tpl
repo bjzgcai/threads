@@ -21,7 +21,7 @@
 				<div class="card-body d-flex flex-column gap-2">
 					<h5 class="card-title mb-1">[[skills:account.skill-name-title]]</h5>
 					<div class="small text-muted">[[skills:account.skill-name-help]]</div>
-					<div><code>zgcy-skills-gateway</code></div>
+					<div><code>zgcy-forum-write</code></div>
 				</div>
 			</div>
 		</div>
@@ -45,16 +45,15 @@
 					<h5 class="card-title mb-1">[[skills:account.capabilities-title]]</h5>
 					<div class="small text-muted">[[skills:account.capabilities-intro]]</div>
 					<ul class="mb-0 ps-3 d-flex flex-column gap-1">
-						<li><code>list_categories</code>: [[skills:account.capability-list-categories]]</li>
-						<li><code>latest_topics</code>: [[skills:account.capability-latest-topics]]</li>
-						<li><code>unread_topics</code>: [[skills:account.capability-unread-topics]]</li>
-						<li><code>search_topics</code>: [[skills:account.capability-search-topics]]</li>
 						<li><code>search_own_posts</code>: [[skills:account.capability-search-own-posts]]</li>
-						<li><code>get_post_raw</code>: [[skills:account.capability-get-post-raw]]</li>
 						<li><code>create_topic_or_reply</code>: [[skills:account.capability-create-topic-or-reply]]</li>
 						<li><code>submit_topic_prediction</code>: [[skills:account.capability-submit-topic-prediction]]</li>
 						<li><code>delete_own_topics</code>: [[skills:account.capability-delete-own-topics]]</li>
 						<li><code>delete_own_posts</code>: [[skills:account.capability-delete-own-posts]]</li>
+						<li><code>list_categories</code>: [[skills:account.capability-list-categories]]</li>
+						<li><code>latest_topics</code>: [[skills:account.capability-latest-topics]]</li>
+						<li><code>search_topics</code>: [[skills:account.capability-search-topics]]</li>
+						<li><code>get_post_raw</code>: [[skills:account.capability-get-post-raw]]</li>
 					</ul>
 				</div>
 			</div>
@@ -66,8 +65,7 @@
 			<thead>
 				<tr>
 					<th>[[skills:table.name]]</th>
-					<th>[[skills:table.scopes]]</th>
-					<th>[[skills:table.preview]]</th>
+					<th>[[skills:table.token]]</th>
 					<th>[[skills:table.created]]</th>
 					<th>[[skills:table.expires]]</th>
 					<th>[[skills:table.status]]</th>
@@ -80,7 +78,6 @@
 				{{{ each tokens }}}
 				<tr data-token="{./token}">
 					<td class="fw-medium">{./name}</td>
-					<td>{./scopesLabel}</td>
 					<td><code>{./tokenPreview}</code></td>
 					<td class="text-nowrap">
 						{{{ if ./createdAtISO }}}
@@ -116,6 +113,9 @@
 						{{{ end }}}
 					</td>
 					<td class="text-nowrap text-end">
+						<button type="button" class="btn btn-outline-primary btn-sm" data-action="view-skill-token">
+							<i class="fa fa-eye"></i> [[skills:account.view]]
+						</button>
 						<button type="button" class="btn btn-outline-secondary btn-sm" data-action="roll-skill-token">
 							<i class="fa fa-rotate-right"></i> [[skills:account.roll]]
 						</button>
@@ -126,7 +126,7 @@
 				</tr>
 				{{{ else }}}
 				<tr>
-					<td colspan="9" class="text-center text-muted py-4">[[skills:account.empty]]</td>
+					<td colspan="8" class="text-center text-muted py-4">[[skills:account.empty]]</td>
 				</tr>
 				{{{ end }}}
 			</tbody>

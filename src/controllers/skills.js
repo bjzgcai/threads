@@ -547,11 +547,17 @@ Skills.listTokens = async (req, res) => {
 	helpers.formatApiResponse(200, res, { tokens });
 };
 
+Skills.getToken = async (req, res) => {
+	await assertSkillsTokenCanBeManagedByRequester(req);
+	const token = await skillTokens.reveal(req.uid, req.params.token);
+	helpers.formatApiResponse(200, res, token);
+};
+
 Skills.createToken = async (req, res) => {
 	await assertSkillsTokenCanBeManagedByRequester(req);
 	const token = await skillTokens.create(req.uid, {
 		name: req.body.name,
-		scopes: req.body.scopes,
+		scopes: ['post:read', 'post:write'],
 		expiresInDays: req.body.expiresInDays,
 	});
 	helpers.formatApiResponse(200, res, token);

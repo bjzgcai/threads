@@ -66,6 +66,7 @@ module.exports = function () {
 	];
 
 	router.get('/tokens', tokenManagementMiddlewares, helpers.tryRoute(controller.listTokens));
+	router.get('/tokens/:token', tokenManagementMiddlewares, helpers.tryRoute(controller.getToken));
 	router.post('/tokens', tokenManagementMiddlewares, helpers.tryRoute(controller.createToken));
 	router.post('/tokens/:token/roll', tokenManagementMiddlewares, helpers.tryRoute(controller.rollToken));
 	router.delete('/tokens/:token', tokenManagementMiddlewares, helpers.tryRoute(controller.revokeToken));

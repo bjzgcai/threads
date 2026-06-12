@@ -7,6 +7,7 @@ const user = require('../user');
 const TOKEN_META_PREFIX = 'token:skills:meta:';
 const ALLOWED_SCOPES = new Set(['post:read', 'post:write']);
 const MAX_EXPIRES_IN_DAYS = 3650;
+const DEFAULT_TOKEN_NAME = '个人技能令牌';
 
 function formatDateTime(value) {
 	const timestamp = parseInt(value, 10) || 0;
@@ -34,13 +35,25 @@ function normalizeScopes(scopes) {
 
 function sanitizeName(name) {
 	const value = String(name || '').trim();
-	if (!value) {
-		throw new Error('skills-token-name-required');
-	}
 	if (value.length > 128) {
 		throw new Error('skills-token-name-too-long');
 	}
 	return value;
+}
+
+async function ensureUniqueName(uid, preferredName) {
+	const baseName = sanitizeName(preferredName) || DEFAULT_TOKEN_NAME;
+	const tokens = await list(uid);
+	const existing = new Set(tokens.map(token => String(token && token.name || '').trim()).filter(Boolean));
+	if (!existing.has(baseName)) {
+		return baseName;
+	}
+
+	let index = 2;
+	while (existing.has(`${baseName}${index}`)) {
+		index += 1;
+	}
+	return `${baseName}${index}`;
 }
 
 function normalizeExpiresInDays(value) {
@@ -103,8 +116,8 @@ function parseTokenMeta(meta, tokenObj = {}) {
 }
 
 async function create(uid, { name, scopes, expiresInDays }) {
-	const safeName = sanitizeName(name);
-	const safeScopes = normalizeScopes(scopes);
+	const safeName = await ensureUniqueName(uid, name);
+	const safeScopes = normalizeScopes(scopes && scopes.length ? scopes : ['post:read', 'post:write']);
 	const safeExpiresInDays = normalizeExpiresInDays(expiresInDays);
 	const token = await api.utils.tokens.generate({
 		uid,
@@ -148,6 +161,14 @@ async function list(uid) {
 		.filter(meta => meta && meta.uid === parseInt(uid, 10));
 	rows = await attachUserInfo(rows);
 	return rows;
+}
+
+async function getOwnedToken(uid, token) {
+	const meta = parseTokenMeta(await getTokenMetaObject(token), { token });
+	if (!meta || meta.uid !== parseInt(uid, 10)) {
+		throw new Error('skills-token-not-found');
+	}
+	return meta;
 }
 
 async function listAll({ page = 1, resultsPerPage = 50, uid, query } = {}) {
@@ -225,10 +246,7 @@ async function attachUserInfo(rows) {
 }
 
 async function revoke(uid, token) {
-	const meta = parseTokenMeta(await getTokenMetaObject(token), { token });
-	if (!meta || meta.uid !== parseInt(uid, 10)) {
-		throw new Error('skills-token-not-found');
-	}
+	await getOwnedToken(uid, token);
 
 	await Promise.all([
 		api.utils.tokens.delete(token),
@@ -237,11 +255,7 @@ async function revoke(uid, token) {
 }
 
 async function roll(uid, token) {
-	const metaObj = await getTokenMetaObject(token);
-	const meta = parseTokenMeta(metaObj, { token });
-	if (!meta || meta.uid !== parseInt(uid, 10)) {
-		throw new Error('skills-token-not-found');
-	}
+	const meta = await getOwnedToken(uid, token);
 
 	let expiresInDays = meta.expiresInDays;
 	if (!expiresInDays && meta.expiresAt && meta.createdAt) {
@@ -284,6 +298,18 @@ async function getByToken(token) {
 	return parseTokenMeta(metaObj, tokenObj);
 }
 
+async function reveal(uid, token) {
+	const meta = await getOwnedToken(uid, token);
+	return {
+		token,
+		name: meta.name,
+		scopes: meta.scopes,
+		expiresInDays: meta.expiresInDays,
+		expiresAt: meta.expiresAt,
+		expiresAtISO: meta.expiresAtISO,
+	};
+}
+
 async function recordUsage(token, { ip, externalActor } = {}) {
 	const meta = await getTokenMetaObject(token);
 	if (!meta || String(meta.type || '') !== 'skills') {
@@ -305,6 +331,7 @@ module.exports = {
 	roll,
 	revokeAdmin,
 	getByToken,
+	reveal,
 	recordUsage,
 	normalizeScopes,
 	sanitizeName,

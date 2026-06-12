@@ -9,6 +9,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 		header.init();
 		loadTranslations().then(() => {
 			bindCreate();
+			bindView();
 			bindRoll();
 			bindRevoke();
 		}).catch(alerts.error);
@@ -20,12 +21,8 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			'[[skills:modal.create.name]]',
 			'[[skills:modal.create.name-placeholder]]',
 			'[[skills:modal.create.name-help]]',
-			'[[skills:error.name-required]]',
-			'[[skills:error.scope-required]]',
-			'[[skills:modal.create.scopes]]',
 			'[[skills:modal.create.scope-read]]',
 			'[[skills:modal.create.scope-write]]',
-			'[[skills:modal.create.scopes-help]]',
 			'[[skills:modal.create.expiry]]',
 			'[[skills:modal.create.expiry-30]]',
 			'[[skills:modal.create.expiry-90]]',
@@ -44,6 +41,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			'[[skills:modal.created.hint]]',
 			'[[skills:modal.created.copy]]',
 			'[[skills:modal.created.done]]',
+			'[[skills:account.view]]',
 			'[[skills:modal.roll.confirm]]',
 			'[[skills:modal.revoke.confirm]]',
 			'[[skills:alert.copied]]',
@@ -57,12 +55,8 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			t.nameLabel,
 			t.namePlaceholder,
 			t.nameHelp,
-			t.nameRequired,
-			t.scopeRequired,
-			t.scopesLabel,
 			t.scopeRead,
 			t.scopeWrite,
-			t.scopesHelp,
 			t.expiryLabel,
 			t.expiry30,
 			t.expiry90,
@@ -81,6 +75,7 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			t.createdHint,
 			t.copy,
 			t.done,
+			t.view,
 			t.rollConfirm,
 			t.revokeConfirm,
 			t.copied,
@@ -98,20 +93,8 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 					'<form component="account/skills/create-form" class="d-flex flex-column gap-3">',
 					'  <div>',
 					`    <label class="form-label" for="skill-token-name">${utils.escapeHTML(t.nameLabel)}</label>`,
-					`    <input id="skill-token-name" name="name" type="text" class="form-control" maxlength="128" required placeholder="${utils.escapeHTML(t.namePlaceholder)}" />`,
+					`    <input id="skill-token-name" name="name" type="text" class="form-control" maxlength="128" placeholder="${utils.escapeHTML(t.namePlaceholder)}" />`,
 					`    <div class="form-text">${utils.escapeHTML(t.nameHelp)}</div>`,
-					'  </div>',
-					'  <div>',
-					`    <label class="form-label d-block mb-2">${utils.escapeHTML(t.scopesLabel)}</label>`,
-					'    <div class="form-check">',
-					'      <input class="form-check-input" type="checkbox" id="scope-post-read" name="scopes" value="post:read" checked />',
-					`      <label class="form-check-label" for="scope-post-read">${utils.escapeHTML(t.scopeRead)} <code>post:read</code></label>`,
-					'    </div>',
-					'    <div class="form-check">',
-					'      <input class="form-check-input" type="checkbox" id="scope-post-write" name="scopes" value="post:write" />',
-					`      <label class="form-check-label" for="scope-post-write">${utils.escapeHTML(t.scopeWrite)} <code>post:write</code></label>`,
-					'    </div>',
-					`    <div class="form-text">${utils.escapeHTML(t.scopesHelp)}</div>`,
 					'  </div>',
 					'  <div>',
 					`    <label class="form-label" for="skill-token-expiry">${utils.escapeHTML(t.expiryLabel)}</label>`,
@@ -144,21 +127,8 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 							const nameInput = formEl.querySelector('[name="name"]');
 							const payload = {
 								name: nameInput.value.trim(),
-								scopes: Array.from(formEl.querySelectorAll('[name="scopes"]:checked')).map(el => el.value),
 								expiresInDays: formEl.querySelector('[name="expiresInDays"]').value,
 							};
-
-							if (!payload.name) {
-								nameInput.focus();
-								nameInput.classList.add('is-invalid');
-								alerts.error(t.nameRequired);
-								return false;
-							}
-
-							if (!payload.scopes.length) {
-								alerts.error(t.scopeRequired);
-								return false;
-							}
 
 							try {
 								const tokenObj = await api.post('/api/skills/tokens', payload);
@@ -176,27 +146,21 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 
 			setTimeout(() => {
 				const nameInput = dialog.find('#skill-token-name');
-				nameInput.on('input', function () {
-					this.classList.remove('is-invalid');
-				});
 				nameInput.trigger('focus');
 			}, 50);
 		});
 	}
 
-	function showCreatedToken(tokenObj) {
+	function showCreatedToken(tokenObj, options) {
+		const settings = Object.assign({
+			refreshOnClose: true,
+		}, options || {});
 		const rawToken = tokenObj && tokenObj.token ? tokenObj.token : '';
-		const scopeText = formatScopes(tokenObj && tokenObj.scopes);
 		const expiryText = tokenObj && tokenObj.expiresAt ? formatDateTime(tokenObj.expiresAt) : t.createdNeverExpires;
 		const dialog = bootbox.dialog({
 			title: t.createdTitle,
 			message: [
 				'<div class="d-flex flex-column gap-3">',
-				`  <div class="alert alert-warning mb-0">${utils.escapeHTML(t.createdWarning)}</div>`,
-				'  <div>',
-				`    <div class="small text-muted mb-1">${utils.escapeHTML(t.createdScopes)}</div>`,
-				`    <div class="fw-semibold">${utils.escapeHTML(scopeText)}</div>`,
-				'  </div>',
 				'  <div>',
 				`    <div class="small text-muted mb-1">${utils.escapeHTML(t.createdExpiry)}</div>`,
 				`    <div class="fw-semibold">${utils.escapeHTML(expiryText)}</div>`,
@@ -235,9 +199,11 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 			},
 		});
 
-		dialog.on('hidden.bs.modal', function () {
-			ajaxify.refresh();
-		});
+		if (settings.refreshOnClose) {
+			dialog.on('hidden.bs.modal', function () {
+				ajaxify.refresh();
+			});
+		}
 
 		dialog.on('hide.bs.modal', function () {
 			releaseModalFocus(dialog);
@@ -255,19 +221,6 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 		}, 50);
 	}
 
-	function formatScopes(scopes) {
-		const values = Array.isArray(scopes) ? scopes : [];
-		if (!values.length) {
-			return '';
-		}
-
-		const labels = {
-			'post:read': t.scopeRead,
-			'post:write': t.scopeWrite,
-		};
-		return values.map(scope => labels[scope] || scope).join(' / ');
-	}
-
 	function formatDateTime(value) {
 		const date = new Date(value);
 		if (Number.isNaN(date.getTime())) {
@@ -276,6 +229,23 @@ define('forum/account/skills', ['forum/account/header', 'api', 'bootbox', 'alert
 
 		const pad = num => String(num).padStart(2, '0');
 		return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+	}
+
+	function bindView() {
+		$('[component="account/skills/tokens"]').on('click', '[data-action="view-skill-token"]', async function () {
+			const rowEl = this.closest('[data-token]');
+			const token = rowEl && rowEl.getAttribute('data-token');
+			if (!token) {
+				return;
+			}
+
+			try {
+				const tokenObj = await api.get(`/api/skills/tokens/${encodeURIComponent(token)}`);
+				showCreatedToken(tokenObj, { refreshOnClose: false });
+			} catch (err) {
+				alerts.error(err);
+			}
+		});
 	}
 
 	function bindRoll() {
