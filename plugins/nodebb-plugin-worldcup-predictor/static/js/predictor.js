@@ -326,6 +326,7 @@ Predictor.renderLeaderboard = function(leaderboard) {
 			<div class="leaderboard-summary-subtitle">按积分、命中场次、精确比分命中数排序</div>
 		</div>
 		${podium ? `<div class="leaderboard-podium">${podium}</div>` : ''}
+		<div class="leaderboard-scroll-hint">左右滑动可查看更多数据</div>
 		<div class="leaderboard-table"><table class="table"><thead><tr><th>排名</th><th>用户</th><th>积分</th><th>命中</th><th>命中率</th><th>精确比分</th><th>待结算</th><th>最近结果</th></tr></thead><tbody>`;
 
 	leaderboard.forEach((entry, index) => {
