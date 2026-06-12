@@ -51,6 +51,8 @@ Predictor.init = function() {
 	if (Predictor.user && Predictor.config.activeTab === 'my-predictions') {
 		Predictor.loadUserPredictions();
 	}
+
+	Predictor.initializeTooltips();
 };
 
 Predictor.activateInitialTab = function() {
@@ -360,6 +362,7 @@ Predictor.renderLeaderboard = function(leaderboard) {
 
 	html += '</tbody></table></div>';
 	container.html(html);
+	Predictor.initializeTooltips(container);
 };
 
 Predictor.formatDate = function(dateStr) {
@@ -524,8 +527,23 @@ Predictor.renderRecentVerdicts = function(recent) {
 			cls = 'wrong';
 		}
 		const tooltip = [item.matchLabel, item.label || item.status || ''].filter(Boolean).join(' - ');
-		return `<span class="leaderboard-recent-dot ${cls}" title="${Predictor.escapeHtml(tooltip)}"></span>`;
+		return `<span class="leaderboard-recent-dot ${cls}" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-trigger="hover focus click" title="${Predictor.escapeHtml(tooltip)}"></span>`;
 	}).join('')}</div>`;
+};
+
+Predictor.initializeTooltips = function(scope) {
+	if (typeof bootstrap === 'undefined' || !bootstrap.Tooltip) {
+		return;
+	}
+
+	const root = scope && scope.length ? scope[0] : document;
+	const nodes = root.querySelectorAll('[data-bs-toggle="tooltip"]');
+	nodes.forEach((node) => {
+		bootstrap.Tooltip.getOrCreateInstance(node, {
+			container: 'body',
+			trigger: node.getAttribute('data-bs-trigger') || 'hover focus',
+		});
+	});
 };
 
 Predictor.escapeHtml = function(value) {
