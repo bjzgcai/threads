@@ -63,6 +63,16 @@ Predictor.activateInitialTab = function() {
 };
 
 Predictor.bindEvents = function() {
+	$(document).on('click', '.predictor-page a[data-ajaxify="false"]', function(ev) {
+		const href = $(this).attr('href');
+		if (!href) {
+			return;
+		}
+
+		ev.preventDefault();
+		ev.stopPropagation();
+		window.location.href = href;
+	});
 };
 
 Predictor.loadMatches = function() {
@@ -118,7 +128,9 @@ Predictor.renderMatches = function() {
 			</div>`;
 		const group = $(html);
 
-		matchesByDate[date].forEach(match => {
+		matchesByDate[date]
+			.sort(Predictor.compareMatches)
+			.forEach(match => {
 			const cardHtml = Predictor.renderMatchCard(match);
 			group.find('.matches-list').append(cardHtml);
 		});
@@ -157,7 +169,7 @@ Predictor.renderMatchCard = function(match) {
 			</div>
 			<div class="match-details">
 				<span class="badge">${match.stage}</span>
-				<span class="badge">第 ${match.group} 组</span>
+				${Predictor.renderGroupBadge(match)}
 				<span class="badge">${kickoffText}</span>
 			</div>
 			<div class="match-note">${phaseText}</div>
@@ -314,6 +326,30 @@ Predictor.formatTitleTime = function(match) {
 	const hourMinute = /^\d{2}:\d{2}/.test(time) ? time.slice(0, 5) : time;
 	const value = [monthDay, hourMinute].filter(Boolean).join(' ');
 	return value ? `（${value}）` : '';
+};
+
+Predictor.compareMatches = function(left, right) {
+	const leftFinished = String(left && left.status || '') === 'finished';
+	const rightFinished = String(right && right.status || '') === 'finished';
+	if (leftFinished !== rightFinished) {
+		return leftFinished ? 1 : -1;
+	}
+
+	const leftKickoff = Date.parse(`${left.date}T${left.time}:00+08:00`) || 0;
+	const rightKickoff = Date.parse(`${right.date}T${right.time}:00+08:00`) || 0;
+	return leftKickoff - rightKickoff;
+};
+
+Predictor.renderGroupBadge = function(match) {
+	if (!match || !match.group) {
+		return '';
+	}
+
+	if (match.format === 'group') {
+		return `<span class="badge">${match.group}组</span>`;
+	}
+
+	return `<span class="badge">${match.group}</span>`;
 };
 
 Predictor.isPredictionOpen = function(match) {
