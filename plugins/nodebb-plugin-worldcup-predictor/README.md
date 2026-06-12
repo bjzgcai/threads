@@ -117,6 +117,9 @@ http://your-forum-domain/predictor
 ### GET /api/v3/predictor/my-predictions
 获取用户竞猜 (需认证)
 
+### GET /predictor/my-results
+个人竞猜结果页，默认直接打开“我的预测”标签
+
 ### GET /api/v3/predictor/leaderboard
 获取排行榜
 
@@ -133,9 +136,43 @@ http://your-forum-domain/predictor
 }
 ```
 
+## 脚本
+
+### 导入赛程
+
+```bash
+node plugins/nodebb-plugin-worldcup-predictor/scripts/import-matches.js docs/match.csv
+```
+
+### 自动发布某一轮竞猜帖
+
+```bash
+node plugins/nodebb-plugin-worldcup-predictor/scripts/publish-match-topics.js --file docs/match.csv --round 1 --cid 12
+```
+
+### 同步比赛结果
+
+手动指定比分：
+
+```bash
+node plugins/nodebb-plugin-worldcup-predictor/scripts/sync-match-results.js --match-id wc2026-g-a-r1-1 --home-score 2 --away-score 1 --source manual
+```
+
+使用 SerpApi 抓取：
+
+```bash
+SERPAPI_KEY=your_key node plugins/nodebb-plugin-worldcup-predictor/scripts/sync-match-results.js --match-id wc2026-g-a-r1-1
+```
+
+说明：
+
+- `--dry-run` 只预览，不写数据库
+- `--round 1` 可一次同步整轮比赛
+- 若 SerpApi 默认查询不准，可追加 `--query "墨西哥 vs 南非 世界杯 2026-06-11"`
+
 ## 配置
 
-目前插件使用硬编码的比赛数据，后续可添加以下配置项：
+当前已支持通过脚本导入赛程和同步赛果，建议后续补充这些配置项：
 
 - `predictor:enabled` - 启用/禁用竞猜功能
 - `predictor:scoring-rules` - 积分规则

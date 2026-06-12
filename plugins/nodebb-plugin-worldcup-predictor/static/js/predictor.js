@@ -20,7 +20,7 @@ Predictor.initialize = function() {
 		Predictor.eventsBound = true;
 	}
 
-	if (window.location.pathname.endsWith('/predictor') || ajaxify.data?.template?.name === 'predictor') {
+	if (window.location.pathname.indexOf('/predictor') !== -1 || ajaxify.data?.template?.name === 'predictor') {
 		Predictor.init();
 	}
 };
@@ -37,11 +37,24 @@ Predictor.init = function() {
 	Predictor.config = data.config || {};
 	Predictor.user = data.user || (window.app && app.user && app.user.uid ? { uid: app.user.uid, username: app.user.username } : null);
 
+	Predictor.activateInitialTab();
 	Predictor.loadMatches();
 
-	$('[href="#leaderboard"]').one('click', Predictor.loadLeaderboard);
+	$('[data-bs-target="#leaderboard"]').one('click', Predictor.loadLeaderboard);
 	if (Predictor.user) {
-		$('[href="#my-predictions"]').one('click', Predictor.loadUserPredictions);
+		$('[data-bs-target="#my-predictions"]').one('click', Predictor.loadUserPredictions);
+	}
+};
+
+Predictor.activateInitialTab = function() {
+	const activeTab = Predictor.config.activeTab;
+	if (!activeTab || typeof bootstrap === 'undefined' || !bootstrap.Tab) {
+		return;
+	}
+
+	const trigger = document.querySelector(`[data-bs-target="#${activeTab}"]`);
+	if (trigger) {
+		bootstrap.Tab.getOrCreateInstance(trigger).show();
 	}
 };
 
@@ -165,6 +178,8 @@ Predictor.renderMatchCard = function(match) {
 		live: '正在进行',
 		finished: '已结束',
 	}[statusClass] || '未知';
+	const resultText = Predictor.formatMatchResultText(match);
+	const predictionClosed = !Predictor.isPredictionOpen(match);
 
 	return `
 		<div class="match-card" data-match-id="${match.id}">
@@ -187,8 +202,9 @@ Predictor.renderMatchCard = function(match) {
 				<span class="badge">${match.stage}</span>
 				<span class="badge">第 ${match.group} 组</span>
 			</div>
+			${resultText ? `<div class="match-result-line">${resultText}</div>` : ''}
 			<div class="match-actions">
-				<button class="btn btn-predict">竞猜</button>
+				<button class="btn btn-predict" ${predictionClosed ? 'disabled' : ''}>${predictionClosed ? '已截止' : '竞猜'}</button>
 			</div>
 		</div>`;
 };
@@ -350,7 +366,7 @@ Predictor.loadUserPredictions = function() {
 		type: 'GET',
 		dataType: 'json',
 		success: function(response) {
-			Predictor.renderUserPredictions(response.predictions || {});
+			Predictor.renderUserPredictions(response);
 		},
 		error: function(err) {
 			console.error('Failed to load user predictions:', err);
@@ -358,29 +374,31 @@ Predictor.loadUserPredictions = function() {
 	});
 };
 
-Predictor.renderUserPredictions = function(predictions) {
+Predictor.renderUserPredictions = function(response) {
 	const container = $('.predictor-user-predictions');
 	container.empty();
+	const entries = Array.isArray(response && response.entries) ? response.entries : Object.values(response && response.predictions || {});
+	const summary = response && response.summary ? response.summary : null;
 
-	if (!predictions || Object.keys(predictions).length === 0) {
+	if (!entries.length) {
 		container.html('<div class="alert alert-info">你还没有进行任何竞猜</div>');
 		return;
 	}
 
-	Object.values(predictions).forEach(pred => {
-		const match = Predictor.matches[pred.matchId];
+	if (summary) {
+		container.append(Predictor.renderUserPredictionSummary(summary));
+	}
+
+	entries.forEach(pred => {
+		const match = pred.match || Predictor.matches[pred.matchId];
 		if (!match) {
 			return;
 		}
 
-		const prediction = pred.prediction || {};
-		const predictionText = prediction.type === 'result'
-			? (prediction.result === 'home'
-				? `${match.home.name} 胜`
-				: prediction.result === 'away'
-					? `${match.away.name} 胜`
-					: '平局')
-			: `${prediction.homeScore} - ${prediction.awayScore}`;
+		const predictionText = Predictor.formatPredictionText(match, pred.prediction || {});
+		const resultText = Predictor.formatMatchResultText(match);
+		const verdictBadge = Predictor.formatVerdictBadge(pred.verdict);
+		const submittedAt = pred.createdAt ? new Date(parseInt(pred.createdAt, 10)).toLocaleString() : '';
 
 		const html = `
 			<div class="prediction-item">
@@ -388,7 +406,11 @@ Predictor.renderUserPredictions = function(predictions) {
 					<span>${match.home.flag} ${match.home.name} vs ${match.away.name} ${match.away.flag}</span>
 					<span class="prediction-result">${predictionText}</span>
 				</div>
-				<div style="font-size: 12px; color: #999;">${new Date(parseInt(pred.createdAt, 10)).toLocaleString()}</div>
+				<div class="prediction-meta-row">
+					${verdictBadge}
+					<span class="prediction-match-result ${resultText ? '' : 'text-muted'}">${resultText || '比赛未结算'}</span>
+				</div>
+				${submittedAt ? `<div style="font-size: 12px; color: #999;">提交时间：${submittedAt}</div>` : ''}
 			</div>`;
 
 		container.append(html);
@@ -461,4 +483,75 @@ Predictor.formatTitleTime = function(match) {
 	const hourMinute = /^\d{2}:\d{2}/.test(time) ? time.slice(0, 5) : time;
 	const value = [monthDay, hourMinute].filter(Boolean).join(' ');
 	return value ? `（${value}）` : '';
+};
+
+Predictor.isPredictionOpen = function(match) {
+	if (!match || !match.date || !match.time) {
+		return true;
+	}
+
+	const kickoff = Date.parse(`${match.date}T${match.time}:00+08:00`);
+	return !Number.isFinite(kickoff) || Date.now() < kickoff;
+};
+
+Predictor.formatPredictionText = function(match, prediction) {
+	if (!prediction) {
+		return '';
+	}
+
+	if (prediction.type === 'result') {
+		if (prediction.result === 'home') {
+			return `${match.home.name} 胜`;
+		}
+		if (prediction.result === 'away') {
+			return `${match.away.name} 胜`;
+		}
+		return '平局';
+	}
+
+	return `${match.home.name} ${prediction.homeScore} : ${prediction.awayScore} ${match.away.name}`;
+};
+
+Predictor.formatMatchResultText = function(match) {
+	if (!match || !match.result) {
+		return '';
+	}
+
+	const result = match.result;
+	const resultLabel = result.result === 'home'
+		? `${match.home.name} 胜`
+		: result.result === 'away'
+			? `${match.away.name} 胜`
+			: '平局';
+	return `赛果：${match.home.name} ${result.homeScore} : ${result.awayScore} ${match.away.name} · ${resultLabel}`;
+};
+
+Predictor.formatVerdictBadge = function(verdict) {
+	if (!verdict) {
+		return '';
+	}
+
+	return `<span class="badge text-bg-${verdict.variant || 'secondary'}">${verdict.label}</span>`;
+};
+
+Predictor.renderUserPredictionSummary = function(summary) {
+	return `
+		<div class="prediction-summary-grid">
+			<div class="prediction-summary-card">
+				<div class="prediction-summary-label">总场次</div>
+				<div class="prediction-summary-value">${summary.total || 0}</div>
+			</div>
+			<div class="prediction-summary-card">
+				<div class="prediction-summary-label">已猜中</div>
+				<div class="prediction-summary-value">${summary.correct || 0}</div>
+			</div>
+			<div class="prediction-summary-card">
+				<div class="prediction-summary-label">待结算</div>
+				<div class="prediction-summary-value">${summary.pending || 0}</div>
+			</div>
+			<div class="prediction-summary-card">
+				<div class="prediction-summary-label">积分</div>
+				<div class="prediction-summary-value">${summary.points || 0}</div>
+			</div>
+		</div>`;
 };

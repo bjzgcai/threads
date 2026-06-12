@@ -170,6 +170,20 @@
 	background-color: #1565c0;
 }
 
+.match-actions .btn-predict[disabled] {
+	background-color: #9aa7b6;
+	cursor: not-allowed;
+}
+
+.match-result-line {
+	background: #f5f8fb;
+	border-radius: 6px;
+	color: #4b5a6a;
+	font-size: 13px;
+	margin-bottom: 12px;
+	padding: 10px 12px;
+}
+
 .match-actions .btn-view {
 	background-color: #f0f0f0;
 	color: #333;
@@ -340,6 +354,74 @@
 	font-size: 12px;
 	margin-top: 6px;
 	opacity: 0.78;
+}
+
+.predictor-my-prediction-verdict {
+	border-radius: 999px;
+	display: inline-block;
+	font-size: 12px;
+	font-weight: 700;
+	margin-top: 8px;
+	padding: 4px 10px;
+}
+
+.predictor-verdict-success {
+	background: rgba(39, 174, 96, 0.18);
+	color: #d6ffe7;
+}
+
+.predictor-verdict-warning {
+	background: rgba(245, 159, 0, 0.22);
+	color: #fff3cd;
+}
+
+.predictor-verdict-danger {
+	background: rgba(220, 53, 69, 0.2);
+	color: #ffe0e5;
+}
+
+.predictor-verdict-secondary {
+	background: rgba(255, 255, 255, 0.18);
+	color: #eef4ff;
+}
+
+.predictor-match-result {
+	background: rgba(255, 255, 255, 0.9);
+	border: 1px solid rgba(39, 174, 96, 0.18);
+	border-left: 6px solid #27ae60;
+	border-radius: 12px;
+	padding: 14px 16px;
+}
+
+.predictor-match-result-label {
+	color: #617285;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.predictor-match-result-score {
+	color: #102a43;
+	font-size: 24px;
+	font-weight: 800;
+	line-height: 1.2;
+	margin-top: 4px;
+}
+
+.predictor-match-result-text {
+	color: #1f7a45;
+	font-size: 14px;
+	font-weight: 700;
+	margin-top: 4px;
+}
+
+.predictor-result-source {
+	color: #738395;
+	font-size: 12px;
+	margin-top: 6px;
+}
+
+.predictor-result-source a {
+	color: #1e88e5;
 }
 
 .predictor-summary-panel,
@@ -619,6 +701,47 @@
 	color: #1e88e5;
 }
 
+.prediction-summary-grid {
+	display: grid;
+	gap: 12px;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	margin-bottom: 16px;
+}
+
+.prediction-summary-card {
+	background: #fff;
+	border: 1px solid #dce6f2;
+	border-radius: 8px;
+	padding: 14px 16px;
+}
+
+.prediction-summary-label {
+	color: #738395;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.prediction-summary-value {
+	color: #102a43;
+	font-size: 24px;
+	font-weight: 800;
+	line-height: 1.1;
+	margin-top: 4px;
+}
+
+.prediction-meta-row {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 10px;
+	margin-bottom: 8px;
+}
+
+.prediction-match-result {
+	color: #526173;
+	font-size: 13px;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
 	.match-info {
@@ -655,5 +778,9 @@
 	.predictor-tabs .nav-link {
 		padding: 10px 15px;
 		font-size: 14px;
+	}
+
+	.prediction-summary-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }

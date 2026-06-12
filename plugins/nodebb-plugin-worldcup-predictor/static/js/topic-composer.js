@@ -177,11 +177,36 @@
 		}
 
 		const submittedAt = formatSubmittedAt(context.myPrediction.createdAt);
+		const verdict = context.myPredictionVerdict;
 		return `
 			<div class="predictor-my-prediction">
 				<div class="predictor-my-prediction-label">我的预测</div>
 				<div class="predictor-my-prediction-value">${predictionValueText(context)}</div>
+				${verdict ? `<div class="predictor-my-prediction-verdict predictor-verdict-${escapeHtml(verdict.variant || 'secondary')}">${escapeHtml(verdict.label || '')}</div>` : ''}
 				${submittedAt ? `<div class="predictor-my-prediction-meta">提交时间：${submittedAt}</div>` : ''}
+			</div>
+		`;
+	}
+
+	function renderMatchResult(context) {
+		if (!context.matchResult) {
+			return '';
+		}
+
+		const result = context.matchResult;
+		const resultLabel = result.result === 'home'
+			? `${context.match.home.name} 胜`
+			: result.result === 'away'
+				? `${context.match.away.name} 胜`
+				: '平局';
+		const sourceLine = result.source ? `<div class="predictor-result-source">来源：${escapeHtml(result.source)}${result.sourceUrl ? ` <a href="${escapeHtml(result.sourceUrl)}" target="_blank" rel="noopener noreferrer">查看</a>` : ''}</div>` : '';
+
+		return `
+			<div class="predictor-match-result">
+				<div class="predictor-match-result-label">比赛结果</div>
+				<div class="predictor-match-result-score">${escapeHtml(context.match.home.name)} ${result.homeScore} : ${result.awayScore} ${escapeHtml(context.match.away.name)}</div>
+				<div class="predictor-match-result-text">${escapeHtml(resultLabel)}</div>
+				${sourceLine}
 			</div>
 		`;
 	}
@@ -328,9 +353,10 @@
 								<span class="badge text-bg-light">参与预测 ${context.participantCount || 0} 人</span>
 								<span class="badge ${context.predictionOpen ? 'text-bg-success' : 'text-bg-secondary'}">${context.predictionOpen ? '预测开放中' : '预测已截止'}</span>
 							</div>
-						</div>
+					</div>
 						<div class="predictor-current">${context.myPrediction ? renderMyPredictionDetails(context) : `<div class="small text-muted">${predictionText(context)}</div>`}</div>
 					</div>
+					${renderMatchResult(context)}
 					${context.predictionSummary ? renderPredictionSummary(context) : ''}
 					${renderPredictionDetails(context)}
 					${context.loggedIn && !context.myPrediction && context.predictionOpen ? `

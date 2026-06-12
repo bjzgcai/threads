@@ -129,7 +129,7 @@ function normalizeMatch(row, fallbackId) {
 		throw new Error(`line ${row._line}: homeTeam and awayTeam are required`);
 	}
 
-	return {
+	const match = {
 		id: matchId,
 		round: parseInt(row.round, 10) || 0,
 		format: String(row.format || '').trim() || 'group',
@@ -147,6 +147,23 @@ function normalizeMatch(row, fallbackId) {
 			flag: resolveTeamFlag(awayTeam, row.awayFlag),
 		},
 	};
+
+	const homeScore = parseInt(row.homeScore, 10);
+	const awayScore = parseInt(row.awayScore, 10);
+	if (Number.isInteger(homeScore) && homeScore >= 0 && Number.isInteger(awayScore) && awayScore >= 0) {
+		match.result = {
+			homeScore,
+			awayScore,
+			result: homeScore === awayScore ? 'draw' : (homeScore > awayScore ? 'home' : 'away'),
+			status: String(row.resultStatus || row.status || '').trim() || 'finished',
+			source: String(row.resultSource || '').trim(),
+			sourceUrl: String(row.resultSourceUrl || '').trim(),
+			updatedAt: Date.now(),
+		};
+		match.status = match.result.status;
+	}
+
+	return match;
 }
 
 async function loadInput(options) {

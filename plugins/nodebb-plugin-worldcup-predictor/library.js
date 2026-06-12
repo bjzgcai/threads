@@ -33,6 +33,7 @@ plugin.addRoutes = async function (data) {
 	const router = data.router || Router();
 
 	router.get('/predictor', renderPredictorPage);
+	router.get('/predictor/my-results', renderMyResultsPage);
 	router.get('/api/v3/predictor/matches', getMatches);
 	router.get('/api/v3/predictor/topic/:tid', getTopicPredictorContext);
 	router.post('/api/v3/predictor/predictions', createPrediction);
@@ -100,6 +101,14 @@ plugin.filterTopicGet = async function (hookData) {
 };
 
 async function renderPredictorPage(req, res, next) {
+	return renderPredictorPageWithTab(req, res, next, 'matches');
+}
+
+async function renderMyResultsPage(req, res, next) {
+	return renderPredictorPageWithTab(req, res, next, 'my-predictions');
+}
+
+async function renderPredictorPageWithTab(req, res, next, activeTab) {
 	try {
 		const matchesData = await Predictor.getMatches();
 		const userData = req.user ? {
@@ -110,7 +119,10 @@ async function renderPredictorPage(req, res, next) {
 		res.render('predictor', {
 			matchesJSON: jsesc(JSON.stringify(matchesData), { isScriptContext: true }),
 			userJSON: jsesc(JSON.stringify(userData), { isScriptContext: true }),
-			configJSON: jsesc(JSON.stringify({ relative_path: nconf.get('relative_path') }), { isScriptContext: true }),
+			configJSON: jsesc(JSON.stringify({
+				relative_path: nconf.get('relative_path'),
+				activeTab,
+			}), { isScriptContext: true }),
 			title: '世界杯竞猜',
 		});
 	} catch (err) {
@@ -154,6 +166,8 @@ async function getTopicPredictorContext(req, res, next) {
 		const publicPredictionSummary = predictionSummary ? { ...predictionSummary, details: undefined } : null;
 		const kickoffTimestamp = Predictor.getMatchKickoffTimestamp(match);
 		const predictionOpen = Predictor.isPredictionOpen(match);
+		const matchResult = Predictor.getMatchResult(match);
+		const myPredictionVerdict = Predictor.evaluatePrediction(match, prediction ? prediction.prediction : null);
 
 		res.json({
 			enabled: true,
@@ -169,6 +183,8 @@ async function getTopicPredictorContext(req, res, next) {
 			loggedIn: !!uid,
 			predictionOpen,
 			kickoffTimestamp,
+			matchResult,
+			myPredictionVerdict,
 		});
 	} catch (err) {
 		next(err);
@@ -271,17 +287,15 @@ async function getUserPredictions(req, res, next) {
 		}
 
 		const uid = req.user.uid;
-		const matchIds = await db.getSetMembers(`predictor:user:predictions:${uid}`);
-		const predictions = {};
+		const matches = await Predictor.getMatches();
+		const entries = await Predictor.getUserPredictionEntries(uid, matches);
+		const predictions = entries.reduce((memo, entry) => {
+			memo[entry.matchId] = entry;
+			return memo;
+		}, {});
+		const summary = Predictor.summarizePredictionEntries(entries);
 
-		for (const matchId of matchIds) {
-			const prediction = await Predictor.getPrediction(matchId, uid);
-			if (prediction) {
-				predictions[matchId] = prediction;
-			}
-		}
-
-		res.json({ predictions });
+		res.json({ predictions, entries, summary });
 	} catch (err) {
 		next(err);
 	}
@@ -355,6 +369,28 @@ Predictor.normalizePredictionMode = function (mode) {
 	return mode === 'result' ? 'result' : 'score';
 };
 
+Predictor.normalizeMatchResultPayload = function (result) {
+	if (!result || typeof result !== 'object') {
+		return null;
+	}
+
+	const homeScore = parseInt(result.homeScore, 10);
+	const awayScore = parseInt(result.awayScore, 10);
+	if (!Number.isInteger(homeScore) || homeScore < 0 || !Number.isInteger(awayScore) || awayScore < 0) {
+		return null;
+	}
+
+	return {
+		homeScore,
+		awayScore,
+		result: homeScore === awayScore ? 'draw' : (homeScore > awayScore ? 'home' : 'away'),
+		source: String(result.source || '').trim(),
+		sourceUrl: String(result.sourceUrl || '').trim(),
+		updatedAt: parseInt(result.updatedAt, 10) || Date.now(),
+		status: String(result.status || '').trim() || 'finished',
+	};
+};
+
 Predictor.getMatchKickoffTimestamp = function (match) {
 	if (!match || !match.date || !match.time) {
 		return 0;
@@ -371,6 +407,79 @@ Predictor.isPredictionOpen = function (match) {
 	}
 
 	return Date.now() < kickoffTimestamp;
+};
+
+Predictor.getMatchResult = function (match) {
+	return Predictor.normalizeMatchResultPayload(match && match.result);
+};
+
+Predictor.isMatchFinished = function (match) {
+	const result = Predictor.getMatchResult(match);
+	if (result && result.status === 'finished') {
+		return true;
+	}
+	return String(match && match.status || '').trim() === 'finished';
+};
+
+Predictor.evaluatePrediction = function (match, prediction) {
+	const result = Predictor.getMatchResult(match);
+	if (!prediction) {
+		return null;
+	}
+	if (!result || !Predictor.isMatchFinished(match)) {
+		return {
+			status: 'pending',
+			correct: null,
+			points: 0,
+			label: '待结算',
+			variant: 'secondary',
+		};
+	}
+
+	if (prediction.type === 'result') {
+		const correct = prediction.result === result.result;
+		return {
+			status: correct ? 'correct' : 'wrong',
+			correct,
+			points: correct ? 1 : 0,
+			label: correct ? '猜中胜平负' : '未猜中',
+			variant: correct ? 'success' : 'danger',
+		};
+	}
+
+	const sameScore = prediction.homeScore === result.homeScore && prediction.awayScore === result.awayScore;
+	const sameResult = (
+		(prediction.homeScore === prediction.awayScore && result.result === 'draw') ||
+		(prediction.homeScore > prediction.awayScore && result.result === 'home') ||
+		(prediction.homeScore < prediction.awayScore && result.result === 'away')
+	);
+	if (sameScore) {
+		return {
+			status: 'exact',
+			correct: true,
+			points: 3,
+			label: '比分完全命中',
+			variant: 'success',
+		};
+	}
+
+	if (sameResult) {
+		return {
+			status: 'correct',
+			correct: true,
+			points: 1,
+			label: '猜中胜平负',
+			variant: 'warning',
+		};
+	}
+
+	return {
+		status: 'wrong',
+		correct: false,
+		points: 0,
+		label: '未猜中',
+		variant: 'danger',
+	};
 };
 
 Predictor.normalizePredictionPayload = function (prediction, predictionMode) {
@@ -412,6 +521,7 @@ Predictor.savePrediction = async function ({ matchId, uid, username, prediction,
 		createdAt: Date.now(),
 	});
 	await db.setAdd(`predictor:user:predictions:${uid}`, matchId);
+	await db.setAdd(`predictor:match:${matchId}:participants`, uid);
 	if (tid) {
 		await db.setAdd(`predictor:topic:${tid}:participants`, uid);
 	}
@@ -561,16 +671,154 @@ Predictor.buildPredictionReplyText = function (topicData, prediction) {
 	return `我预测：${match.home.name} ${prediction.homeScore} : ${prediction.awayScore} ${match.away.name}。`;
 };
 
+Predictor.getUserPredictionEntries = async function (uid, matches) {
+	const matchIds = await db.getSetMembers(`predictor:user:predictions:${uid}`);
+	const entries = [];
+
+	for (const matchId of matchIds) {
+		const prediction = await Predictor.getPrediction(matchId, uid);
+		const match = matches[matchId];
+		if (!prediction || !match) {
+			continue;
+		}
+
+		entries.push({
+			...prediction,
+			match,
+			matchResult: Predictor.getMatchResult(match),
+			verdict: Predictor.evaluatePrediction(match, prediction.prediction),
+		});
+	}
+
+	entries.sort((a, b) => {
+		const left = Predictor.getMatchKickoffTimestamp(a.match) || 0;
+		const right = Predictor.getMatchKickoffTimestamp(b.match) || 0;
+		return left - right;
+	});
+
+	return entries;
+};
+
+Predictor.summarizePredictionEntries = function (entries) {
+	return entries.reduce((memo, entry) => {
+		const verdict = entry.verdict || {};
+		memo.total += 1;
+		if (verdict.status === 'pending') {
+			memo.pending += 1;
+		} else if (verdict.correct) {
+			memo.correct += 1;
+		} else if (verdict.status) {
+			memo.wrong += 1;
+		}
+		memo.points += parseInt(verdict.points, 10) || 0;
+		return memo;
+	}, {
+		total: 0,
+		pending: 0,
+		correct: 0,
+		wrong: 0,
+		points: 0,
+	});
+};
+
 Predictor.getMatches = async function () {
 	try {
 		let matches = await db.getObject('predictor:matches');
 		if (!matches || Object.keys(matches).length === 0) {
 			matches = await Predictor.initializeDefaultMatches();
 		}
-		return matches;
+		return Object.keys(matches).reduce((memo, matchId) => {
+			memo[matchId] = Predictor.prepareMatchRecord(matches[matchId]);
+			return memo;
+		}, {});
 	} catch (err) {
 		winston.error(`[predictor] Error getting matches: ${err.message}`);
 		return {};
+	}
+};
+
+Predictor.prepareMatchRecord = function (match) {
+	if (!match || typeof match !== 'object') {
+		return match;
+	}
+
+	const prepared = {
+		...match,
+		home: match.home || { name: '', flag: '' },
+		away: match.away || { name: '', flag: '' },
+	};
+	const result = Predictor.getMatchResult(prepared);
+	if (result) {
+		prepared.result = result;
+		if (result.status === 'finished') {
+			prepared.status = 'finished';
+		}
+	}
+	return prepared;
+};
+
+Predictor.setMatchResult = async function (matchId, result, extraFields) {
+	const matches = await Predictor.getMatches();
+	const match = matches[matchId];
+	if (!match) {
+		throw new Error(`Match not found: ${matchId}`);
+	}
+
+	const normalizedResult = Predictor.normalizeMatchResultPayload(result);
+	if (!normalizedResult) {
+		throw new Error('Invalid result payload');
+	}
+
+	const nextMatch = Predictor.prepareMatchRecord({
+		...match,
+		...extraFields,
+		status: normalizedResult.status || 'finished',
+		result: normalizedResult,
+	});
+
+	matches[matchId] = nextMatch;
+	await db.setObject('predictor:matches', matches);
+	await Predictor.rebuildLeaderboard();
+	return nextMatch;
+};
+
+Predictor.rebuildLeaderboard = async function () {
+	const matches = await Predictor.getMatches();
+	const allMatchIds = Object.keys(matches);
+	const userScores = {};
+
+	for (const matchId of allMatchIds) {
+		const participantUids = await db.getSetMembers(`predictor:match:${matchId}:participants`);
+		for (const uid of participantUids) {
+			const prediction = await Predictor.getPrediction(matchId, uid);
+			if (!prediction) {
+				continue;
+			}
+			const verdict = Predictor.evaluatePrediction(matches[matchId], prediction.prediction);
+			if (!verdict || verdict.status === 'pending') {
+				continue;
+			}
+			const scoreEntry = userScores[String(uid)] || {
+				points: 0,
+				username: prediction.username || '',
+			};
+			scoreEntry.points += parseInt(verdict.points, 10) || 0;
+			if (!scoreEntry.username && prediction.username) {
+				scoreEntry.username = prediction.username;
+			}
+			userScores[String(uid)] = scoreEntry;
+		}
+	}
+
+	await db.delete('predictor:leaderboard');
+	const usernames = Object.values(userScores)
+		.filter(entry => entry.username)
+		.map(entry => entry.username);
+	const scores = Object.values(userScores)
+		.filter(entry => entry.username)
+		.map(entry => entry.points);
+	if (usernames.length) {
+		await db.sortedSetAdd('predictor:leaderboard', scores, usernames);
 	}
 };
 
