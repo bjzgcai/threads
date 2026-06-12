@@ -29,16 +29,7 @@
 		</div>
 
 		<div class="tab-pane fade" id="my-predictions" role="tabpanel">
-			{{{ if user.loggedIn }}}
 			<div class="predictor-user-predictions mt-4"></div>
-			{{{ else }}}
-			<div class="alert alert-info mt-4 predictor-login-alert">
-				<div class="fw-semibold">登录后可查看你的全部竞猜记录、实际结果和命中率。</div>
-				<div class="mt-2">
-					<a class="btn btn-primary btn-sm" href="{config.relative_path}/login?redirect={config.relative_path}/predictor/my-results">登录查看</a>
-				</div>
-			</div>
-			{{{ end }}}
 		</div>
 
 		<div class="tab-pane fade" id="leaderboard" role="tabpanel">

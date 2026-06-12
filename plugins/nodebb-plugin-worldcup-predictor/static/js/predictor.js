@@ -171,7 +171,9 @@ Predictor.renderMatchCard = function(match) {
 };
 
 Predictor.loadUserPredictions = function() {
+	const container = $('.predictor-user-predictions');
 	if (!Predictor.user) {
+		container.html(Predictor.renderLoginPrompt());
 		return;
 	}
 
@@ -184,6 +186,7 @@ Predictor.loadUserPredictions = function() {
 		},
 		error: function(err) {
 			console.error('Failed to load user predictions:', err);
+			container.html('<div class="alert alert-danger">加载竞猜记录失败，请稍后重试</div>');
 		},
 	});
 };
@@ -387,6 +390,16 @@ Predictor.renderUserPredictionSummary = function(summary) {
 				<div class="prediction-summary-value">${accuracy.percent || 0}%</div>
 			</div>
 	</div>`;
+};
+
+Predictor.renderLoginPrompt = function() {
+	return `
+		<div class="alert alert-info predictor-login-alert">
+			<div class="fw-semibold">登录后可查看你的全部竞猜记录、实际结果和命中率。</div>
+			<div class="mt-2">
+				<a class="btn btn-primary btn-sm" href="${Predictor.config.relative_path || ''}/login?redirect=${encodeURIComponent((Predictor.config.relative_path || '') + '/predictor/my-results')}">登录查看</a>
+			</div>
+		</div>`;
 };
 
 Predictor.renderRecentVerdicts = function(recent) {
