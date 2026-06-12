@@ -432,7 +432,7 @@ Predictor.evaluatePrediction = function (match, prediction) {
 			status: correct ? 'correct' : 'wrong',
 			correct,
 			points: correct ? 1 : 0,
-			label: correct ? '猜中胜平负' : '未猜中',
+			label: correct ? '猜中' : '未猜中',
 			variant: correct ? 'success' : 'danger',
 		};
 	}
@@ -458,7 +458,7 @@ Predictor.evaluatePrediction = function (match, prediction) {
 			status: 'correct',
 			correct: true,
 			points: 1,
-			label: '猜中胜平负',
+			label: '猜中',
 			variant: 'warning',
 		};
 	}

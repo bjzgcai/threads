@@ -535,4 +535,15 @@
 	$(document).on('click', '.predictor-submit', function () {
 		submitTopicPrediction($(this).closest('[component="predictor/topic-card"]'));
 	});
+
+	$(document).on('click', '.predictor-topic-links a', function (ev) {
+		const href = $(this).attr('href');
+		if (!href) {
+			return;
+		}
+
+		ev.preventDefault();
+		ev.stopPropagation();
+		window.location.href = href;
+	});
 })();
