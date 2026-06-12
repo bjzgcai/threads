@@ -1,9 +1,12 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const express = require.main.require('express');
 const db = require.main.require('./src/database');
 const topics = require.main.require('./src/topics');
 const privileges = require.main.require('./src/privileges');
+const user = require.main.require('./src/user');
 const nconf = require.main.require('nconf');
 const winston = require.main.require('winston');
 const jsesc = require.main.require('jsesc');
@@ -12,6 +15,8 @@ const { Router } = express;
 const plugin = module.exports;
 
 let middleware;
+let inlineStyles;
+const ASSET_VERSION = '20260611-reply-plain-v2';
 
 const Predictor = {};
 
@@ -59,6 +64,26 @@ plugin.filterTopicCreate = async function (hookData) {
 	hookData.topic.predictorPredictionMode = predictionMode;
 	return hookData;
 };
+
+plugin.addHeaderAssets = async function (hookData) {
+	const customHTML = hookData.templateData.customHTML || '';
+	if (!customHTML.includes('data-worldcup-predictor-styles')) {
+		hookData.templateData.useCustomHTML = true;
+		hookData.templateData.customHTML = `${customHTML}
+<style data-worldcup-predictor-styles>
+${getInlineStyles()}
+</style>`;
+	}
+	return hookData;
+};
+
+
+function getInlineStyles() {
+	if (!inlineStyles) {
+		inlineStyles = fs.readFileSync(path.join(__dirname, 'static/css/predictor.css'), 'utf8');
+	}
+	return inlineStyles;
+}
 
 plugin.filterTopicGet = async function (hookData) {
 	if (!hookData.topic || !hookData.topic.predictorMatchId) {
@@ -122,7 +147,11 @@ async function getTopicPredictorContext(req, res, next) {
 
 		const uid = req.user ? req.user.uid : 0;
 		const prediction = uid ? await Predictor.getTopicPrediction(tid, uid) : null;
+		const canViewPredictionDetails = uid ? await privileges.topics.isAdminOrMod(tid, uid) : false;
 		const participantCount = await db.setCount(`predictor:topic:${tid}:participants`);
+		const shouldShowPredictionSummary = !!prediction || canViewPredictionDetails;
+		const predictionSummary = shouldShowPredictionSummary ? await Predictor.getTopicPredictionSummary(tid, topicData, match) : null;
+		const publicPredictionSummary = predictionSummary ? { ...predictionSummary, details: undefined } : null;
 		const kickoffTimestamp = Predictor.getMatchKickoffTimestamp(match);
 		const predictionOpen = Predictor.isPredictionOpen(match);
 
@@ -134,6 +163,9 @@ async function getTopicPredictorContext(req, res, next) {
 			match,
 			myPrediction: prediction,
 			participantCount,
+			predictionSummary: publicPredictionSummary,
+			predictionDetails: canViewPredictionDetails && predictionSummary ? predictionSummary.details : [],
+			canViewPredictionDetails,
 			loggedIn: !!uid,
 			predictionOpen,
 			kickoffTimestamp,
@@ -419,6 +451,95 @@ Predictor.getTopicPrediction = async function (tid, uid) {
 		...prediction,
 		prediction: JSON.parse(prediction.prediction),
 	};
+};
+
+Predictor.getTopicPredictionSummary = async function (tid, topicData, match) {
+	const participantUids = await db.getSetMembers(`predictor:topic:${tid}:participants`);
+	const usersByUid = await getPredictionUsersByUid(participantUids);
+	const predictionMode = Predictor.normalizePredictionMode(topicData.predictorPredictionMode);
+	const counts = predictionMode === 'result' ? {
+		home: 0,
+		draw: 0,
+		away: 0,
+	} : {};
+	const details = [];
+
+	await Promise.all(participantUids.map(async (uid) => {
+		const entry = await Predictor.getTopicPrediction(tid, uid);
+		if (!entry || !entry.prediction) {
+			return;
+		}
+
+		const label = Predictor.formatPredictionLabel(match, entry.prediction);
+		if (predictionMode === 'result') {
+			const result = entry.prediction.result;
+			if (Object.prototype.hasOwnProperty.call(counts, result)) {
+				counts[result] += 1;
+			}
+		} else {
+			counts[label] = (counts[label] || 0) + 1;
+		}
+
+		const userData = usersByUid[String(entry.uid)] || {};
+		const displayname = userData.username || entry.username || '';
+		details.push({
+			uid: entry.uid,
+			username: userData.username || entry.username || '',
+			fullname: userData.fullname || '',
+			displayname,
+			userslug: userData.userslug || '',
+			picture: userData.picture || '',
+			iconBgColor: userData['icon:bgColor'] || '',
+			iconText: userData['icon:text'] || (displayname ? displayname.slice(0, 1) : ''),
+			prediction: entry.prediction,
+			label,
+			createdAt: entry.createdAt,
+		});
+	}));
+
+	details.sort((a, b) => (parseInt(a.createdAt, 10) || 0) - (parseInt(b.createdAt, 10) || 0));
+
+	return {
+		total: details.length,
+		mode: predictionMode,
+		counts,
+		labels: {
+			home: `${match.home.name} 胜`,
+			draw: '平局',
+			away: `${match.away.name} 胜`,
+		},
+		details,
+	};
+};
+
+async function getPredictionUsersByUid(uids) {
+	if (!Array.isArray(uids) || !uids.length) {
+		return {};
+	}
+
+	const users = await user.getUsersFields(uids, [
+		'uid', 'username', 'fullname', 'userslug', 'picture', 'icon:bgColor', 'icon:text',
+	]);
+	return users.reduce((memo, userData) => {
+		if (userData && userData.uid) {
+			memo[String(userData.uid)] = userData;
+		}
+		return memo;
+	}, {});
+}
+
+Predictor.formatPredictionLabel = function (match, prediction) {
+	if (prediction.type === 'result') {
+		if (prediction.result === 'home') {
+			return `${match.home.name} 胜`;
+		}
+		if (prediction.result === 'away') {
+			return `${match.away.name} 胜`;
+		}
+		return '平局';
+	}
+
+	return `${match.home.name} ${prediction.homeScore} : ${prediction.awayScore} ${match.away.name}`;
 };
 
 Predictor.buildPredictionReplyText = function (topicData, prediction) {

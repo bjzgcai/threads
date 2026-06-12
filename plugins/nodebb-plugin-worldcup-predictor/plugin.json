@@ -12,9 +12,13 @@
   "styles": [
     "static/css/predictor.css"
   ],
+  "staticDirs": {
+    "static": "static"
+  },
   "hooks": [
     { "hook": "static:app.load", "method": "init" },
     { "hook": "static:app.load", "method": "addRoutes" },
+    { "hook": "filter:middleware.renderHeader", "method": "addHeaderAssets" },
     { "hook": "filter:topic.create", "method": "filterTopicCreate" },
     { "hook": "filter:topic.get", "method": "filterTopicGet" }
   ]

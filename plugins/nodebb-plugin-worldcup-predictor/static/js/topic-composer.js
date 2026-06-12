@@ -80,7 +80,7 @@
 	}
 
 	function renderReplyComposerSection(context) {
-		if (!context.predictionOpen) {
+		if (!context.predictionOpen || context.myPrediction) {
 			return '';
 		}
 
@@ -120,24 +120,13 @@
 	}
 
 	function enhanceReplyComposer(postContainer, postData) {
-		if (!postData.tid || postContainer.find('[component="predictor/reply-composer"]').length) {
-			return;
+		// Predictions are submitted only from the topic card. Replies must remain plain replies.
+		if (postContainer) {
+			postContainer.find('[component="predictor/reply-composer"]').remove();
 		}
-
-		getTopicContext(postData.tid).then(function (context) {
-			if (!context || !context.enabled) {
-				return;
-			}
-
-			postData.predictorTopicContext = context;
-			const section = $(renderReplyComposerSection(context));
-			if (!section.length) {
-				return;
-			}
-			const host = postContainer.find('.composer-container > .p-2, .composer-container').first();
-			host.append(section);
-			applyPredictionSelection(section, context.myPrediction && context.myPrediction.prediction);
-		});
+		if (postData) {
+			delete postData.predictorTopicContext;
+		}
 	}
 
 	function predictionText(context) {
@@ -163,6 +152,136 @@
 		return predictionText(context).replace(/^我的预测：/, '');
 	}
 
+	function formatTitleTime(match) {
+		const date = String(match && match.date || '').trim();
+		const time = String(match && match.time || '').trim();
+		const monthDay = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(5, 10) : date;
+		const hourMinute = /^\d{2}:\d{2}/.test(time) ? time.slice(0, 5) : time;
+		return [monthDay, hourMinute].filter(Boolean).join(' ');
+	}
+
+	function formatSubmittedAt(value) {
+		const timestamp = parseInt(value, 10);
+		if (!timestamp) {
+			return '';
+		}
+
+		const date = new Date(timestamp);
+		const pad = number => String(number).padStart(2, '0');
+		return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+	}
+
+	function renderMyPredictionDetails(context) {
+		if (!context.myPrediction || !context.myPrediction.prediction) {
+			return '';
+		}
+
+		const submittedAt = formatSubmittedAt(context.myPrediction.createdAt);
+		return `
+			<div class="predictor-my-prediction">
+				<div class="predictor-my-prediction-label">我的预测</div>
+				<div class="predictor-my-prediction-value">${predictionValueText(context)}</div>
+				${submittedAt ? `<div class="predictor-my-prediction-meta">提交时间：${submittedAt}</div>` : ''}
+			</div>
+		`;
+	}
+
+	function escapeHtml(value) {
+		return String(value || '')
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+	}
+
+	function renderPredictionSummary(context) {
+		const summary = context.predictionSummary;
+		if (!summary || !summary.total) {
+			return '';
+		}
+
+		const counts = summary.counts || {};
+		const rows = summary.mode === 'result' ? ['home', 'draw', 'away'].map((key) => {
+			const count = parseInt(counts[key], 10) || 0;
+			const percent = summary.total ? Math.round((count / summary.total) * 100) : 0;
+			return `
+				<div class="predictor-summary-row predictor-summary-${key}">
+					<div class="predictor-summary-main">
+						<div class="predictor-summary-label"><span class="predictor-summary-dot"></span>${escapeHtml(summary.labels && summary.labels[key] || key)}</div>
+						<div class="predictor-summary-people">${count} 人选择</div>
+					</div>
+					<div class="predictor-summary-percent">${percent}%</div>
+					<div class="predictor-summary-bar"><span style="width: ${percent}%"></span></div>
+				</div>
+			`;
+		}).join('') : Object.keys(counts).sort((a, b) => counts[b] - counts[a]).map((label) => {
+			const count = parseInt(counts[label], 10) || 0;
+			const percent = summary.total ? Math.round((count / summary.total) * 100) : 0;
+			return `
+				<div class="predictor-summary-row predictor-summary-score">
+					<div class="predictor-summary-main">
+						<div class="predictor-summary-label"><span class="predictor-summary-dot"></span>${escapeHtml(label)}</div>
+						<div class="predictor-summary-people">${count} 人选择</div>
+					</div>
+					<div class="predictor-summary-percent">${percent}%</div>
+					<div class="predictor-summary-bar"><span style="width: ${percent}%"></span></div>
+				</div>
+			`;
+		}).join('');
+
+		return `
+			<div class="predictor-summary-panel">
+				<div class="d-flex justify-content-between flex-wrap gap-2 mb-2">
+					<div class="fw-semibold">当前预测情况</div>
+					<div class="small text-muted">已参与 ${summary.total} 人</div>
+				</div>
+				${rows}
+			</div>
+		`;
+	}
+
+	function renderPredictionDetails(context) {
+		if (!context.canViewPredictionDetails || !Array.isArray(context.predictionDetails) || !context.predictionDetails.length) {
+			return '';
+		}
+
+		const rows = context.predictionDetails.map((entry, index) => {
+			const submittedAt = formatSubmittedAt(entry.createdAt);
+			const displayname = entry.displayname || entry.fullname || entry.username || '未知用户';
+			return `
+				<tr>
+					<td class="predictor-detail-index">${index + 1}</td>
+					<td class="predictor-detail-name">${escapeHtml(displayname)}</td>
+					<td><span class="predictor-detail-pick">${escapeHtml(entry.label)}</span></td>
+					<td class="predictor-detail-time">${escapeHtml(submittedAt)}</td>
+				</tr>
+			`;
+		}).join('');
+
+		return `
+			<details class="predictor-details-panel">
+				<summary>
+					<span>版主/管理员可见：预测明细</span>
+					<span class="predictor-details-count">${context.predictionDetails.length} 人</span>
+				</summary>
+				<div class="predictor-detail-table-wrap mt-3">
+					<table class="predictor-detail-table">
+						<thead>
+							<tr>
+								<th>#</th>
+								<th>花名</th>
+								<th>预测</th>
+								<th>提交时间</th>
+							</tr>
+						</thead>
+						<tbody>${rows}</tbody>
+					</table>
+				</div>
+			</details>
+		`;
+	}
+
 	function predictionClosedText(context) {
 		if (context.kickoffTimestamp) {
 			return '比赛已开始，胜平负预测已截止。';
@@ -171,6 +290,7 @@
 	}
 
 	function renderTopicCard(context) {
+		const matchTime = formatTitleTime(context.match);
 		const resultButtons = `
 			<div class="predictor-result-buttons d-flex flex-wrap gap-2">
 				<button class="btn btn-outline-primary predictor-choice" data-type="result" data-result="home">${context.match.home.name} 胜</button>
@@ -195,7 +315,10 @@
 							<div class="d-flex align-items-center gap-3 predictor-topic-headline">
 								<span class="predictor-flag">${context.match.home.flag}</span>
 								<div class="fw-semibold">${context.match.home.name}</div>
-								<div class="text-muted">${context.match.date} ${context.match.time}</div>
+								<div class="predictor-topic-vs">
+									<div class="fw-semibold">VS</div>
+									${matchTime ? `<div class="small text-muted">${matchTime}</div>` : ''}
+								</div>
 								<div class="fw-semibold">${context.match.away.name}</div>
 								<span class="predictor-flag">${context.match.away.flag}</span>
 							</div>
@@ -203,10 +326,13 @@
 								<span class="badge text-bg-light">${context.match.stage}</span>
 								<span class="badge text-bg-light">第 ${context.match.group} 组</span>
 								<span class="badge text-bg-light">参与预测 ${context.participantCount || 0} 人</span>
+								<span class="badge ${context.predictionOpen ? 'text-bg-success' : 'text-bg-secondary'}">${context.predictionOpen ? '预测开放中' : '预测已截止'}</span>
 							</div>
 						</div>
-						<div class="predictor-current small text-muted">${context.myPrediction ? '已提交预测' : predictionText(context)}</div>
+						<div class="predictor-current">${context.myPrediction ? renderMyPredictionDetails(context) : `<div class="small text-muted">${predictionText(context)}</div>`}</div>
 					</div>
+					${context.predictionSummary ? renderPredictionSummary(context) : ''}
+					${renderPredictionDetails(context)}
 					${context.loggedIn && !context.myPrediction && context.predictionOpen ? `
 						<div class="d-flex flex-column gap-3">
 							<div>
@@ -220,9 +346,10 @@
 						</div>
 					` : context.loggedIn && context.myPrediction ? `
 						<div class="predictor-locked-note">
-							<div class="small text-muted mb-1">你的预测</div>
-							<div class="fw-semibold">${predictionValueText(context)}</div>
-							<div class="small text-muted mt-2">本帖预测已锁定，你仍可继续发表普通回复。</div>
+							<div class="alert alert-success mb-0">
+								<div class="fw-semibold">预测已提交</div>
+								<div class="small mt-1">你的预测已记录在上方卡片中；本帖预测提交后不可修改，你仍可继续发表普通回复。</div>
+							</div>
 						</div>
 					` : context.loggedIn ? `
 						<div class="predictor-locked-note">
@@ -330,68 +457,15 @@
 	require(['hooks'], function (hooks) {
 		hooks.on('action:composer.enhanced', enhanceComposer);
 		hooks.on('filter:composer.check', function (payload) {
-			if (!payload || payload.postData.action !== 'posts.reply') {
-				return payload;
+			if (payload && payload.postContainer) {
+				payload.postContainer.find('[component="predictor/reply-composer"]').remove();
 			}
-
-			const section = payload.postContainer.find('[component="predictor/reply-composer"]');
-			if (!section.length) {
-				return payload;
-			}
-
-			const context = payload.postData.predictorTopicContext;
-			const prediction = collectPrediction(section);
-			if (!context || !prediction) {
-				return payload;
-			}
-
-			if (!payload.bodyEl.val().trim()) {
-				const text = buildPredictionText(context.match, prediction);
-				payload.bodyEl.val(text);
-				payload.bodyLen = text.length;
-			}
-
 			return payload;
 		});
 		hooks.on('filter:composer.submit', async function (payload) {
-			if (!payload || payload.action !== 'posts.reply') {
-				return payload;
+			if (payload && payload.composerEl) {
+				payload.composerEl.find('[component="predictor/reply-composer"]').remove();
 			}
-
-			const section = payload.composerEl.find('[component="predictor/reply-composer"]');
-			if (!section.length) {
-				return payload;
-			}
-
-			const context = payload.postData.predictorTopicContext;
-			const prediction = collectPrediction(section);
-			if (!context || !prediction) {
-				return payload;
-			}
-
-			payload.composerData.content = payload.composerEl.find('textarea').val();
-
-			try {
-				await $.ajax({
-					url: `${config.relative_path || ''}/api/v3/predictor/topic/${context.tid}/predict`,
-					type: 'POST',
-					contentType: 'application/json',
-					dataType: 'json',
-					data: JSON.stringify({
-						prediction,
-						createReply: false,
-					}),
-				});
-				ComposerPredictor.topicCardLoadedTid = null;
-				ComposerPredictor.topicContextPromise[context.tid] = null;
-			} catch (xhr) {
-				const message = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : '预测提交失败';
-				require(['alerts'], function (alerts) {
-					alerts.error(message);
-				});
-				throw new Error(message);
-			}
-
 			return payload;
 		});
 		hooks.on('action:composer.posts.reply', function () {
