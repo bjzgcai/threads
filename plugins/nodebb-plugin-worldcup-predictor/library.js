@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const express = require.main.require('express');
+const { CronJob } = require.main.require('cron');
 const db = require.main.require('./src/database');
 const topics = require.main.require('./src/topics');
 const privileges = require.main.require('./src/privileges');
@@ -10,18 +11,27 @@ const user = require.main.require('./src/user');
 const nconf = require.main.require('nconf');
 const winston = require.main.require('winston');
 const jsesc = require.main.require('jsesc');
+const {
+	normalizeResultPayload,
+	fetchResultFromSerpApi,
+} = require('./lib/result-sync');
 const { Router } = express;
 
 const plugin = module.exports;
 
 let middleware;
 let inlineStyles;
+let resultSyncJob;
 const ASSET_VERSION = '20260611-reply-plain-v2';
+const RESULT_SYNC_LOCK_KEY = 'predictor:result-sync:lock';
+const RESULT_SYNC_META_PREFIX = 'predictor:result-sync:meta:';
+const RESULT_SYNC_RETRY_MINUTES = [0, 3, 5, 10];
 
 const Predictor = {};
 
 plugin.init = async function () {
 	winston.info('[worldcup-predictor] Plugin initialized');
+	Predictor.startResultSyncJob();
 };
 
 plugin.addRoutes = async function (data) {
@@ -34,6 +44,7 @@ plugin.addRoutes = async function (data) {
 
 	router.get('/predictor', renderPredictorPage);
 	router.get('/predictor/my-results', renderMyResultsPage);
+	router.get('/predictor/leaderboard', renderLeaderboardPage);
 	router.get('/api/v3/predictor/matches', getMatches);
 	router.get('/api/v3/predictor/topic/:tid', getTopicPredictorContext);
 	router.post('/api/v3/predictor/predictions', createPrediction);
@@ -106,6 +117,10 @@ async function renderPredictorPage(req, res, next) {
 
 async function renderMyResultsPage(req, res, next) {
 	return renderPredictorPageWithTab(req, res, next, 'my-predictions');
+}
+
+async function renderLeaderboardPage(req, res, next) {
+	return renderPredictorPageWithTab(req, res, next, 'leaderboard');
 }
 
 async function renderPredictorPageWithTab(req, res, next, activeTab) {
@@ -294,6 +309,7 @@ async function getUserPredictions(req, res, next) {
 			return memo;
 		}, {});
 		const summary = Predictor.summarizePredictionEntries(entries);
+		summary.accuracy = Predictor.getAccuracySummary(summary);
 
 		res.json({ predictions, entries, summary });
 	} catch (err) {
@@ -370,25 +386,7 @@ Predictor.normalizePredictionMode = function (mode) {
 };
 
 Predictor.normalizeMatchResultPayload = function (result) {
-	if (!result || typeof result !== 'object') {
-		return null;
-	}
-
-	const homeScore = parseInt(result.homeScore, 10);
-	const awayScore = parseInt(result.awayScore, 10);
-	if (!Number.isInteger(homeScore) || homeScore < 0 || !Number.isInteger(awayScore) || awayScore < 0) {
-		return null;
-	}
-
-	return {
-		homeScore,
-		awayScore,
-		result: homeScore === awayScore ? 'draw' : (homeScore > awayScore ? 'home' : 'away'),
-		source: String(result.source || '').trim(),
-		sourceUrl: String(result.sourceUrl || '').trim(),
-		updatedAt: parseInt(result.updatedAt, 10) || Date.now(),
-		status: String(result.status || '').trim() || 'finished',
-	};
+	return normalizeResultPayload(result);
 };
 
 Predictor.getMatchKickoffTimestamp = function (match) {
@@ -819,6 +817,127 @@ Predictor.rebuildLeaderboard = async function () {
 		.map(entry => entry.points);
 	if (usernames.length) {
 		await db.sortedSetAdd('predictor:leaderboard', scores, usernames);
+	}
+};
+
+Predictor.getAccuracySummary = function (summary) {
+	const settled = Math.max((summary.correct || 0) + (summary.wrong || 0), 0);
+	const percent = settled ? Math.round(((summary.correct || 0) / settled) * 100) : 0;
+	return {
+		settled,
+		percent,
+	};
+};
+
+Predictor.startResultSyncJob = function () {
+	const enabled = /^1|true|yes$/i.test(String(process.env.PREDICTOR_AUTO_SYNC_ENABLED || 'true'));
+	if (!enabled) {
+		winston.verbose('[worldcup-predictor] auto result sync disabled by PREDICTOR_AUTO_SYNC_ENABLED');
+		return;
+	}
+	if (!String(process.env.SERPAPI_KEY || '').trim()) {
+		winston.warn('[worldcup-predictor] auto result sync skipped: missing SERPAPI_KEY');
+		return;
+	}
+	if (resultSyncJob) {
+		return;
+	}
+
+	const cronExpr = String(process.env.PREDICTOR_AUTO_SYNC_CRON || '0 * * * * *').trim();
+	const tz = String(process.env.PREDICTOR_AUTO_SYNC_TZ || 'Asia/Shanghai').trim();
+	resultSyncJob = new CronJob(cronExpr, async () => {
+		try {
+			await Predictor.runAutoResultSync();
+		} catch (err) {
+			winston.error(`[worldcup-predictor] auto result sync failed: ${err.stack || err.message}`);
+		}
+	}, null, true, tz);
+
+	winston.info(`[worldcup-predictor] auto result sync job started cron="${cronExpr}" tz="${tz}"`);
+};
+
+Predictor.runAutoResultSync = async function () {
+	const lockTs = parseInt(await db.get(RESULT_SYNC_LOCK_KEY), 10) || 0;
+	if (lockTs && (Date.now() - lockTs) < 55000) {
+		return;
+	}
+
+	await db.set(RESULT_SYNC_LOCK_KEY, Date.now());
+	try {
+		const matches = await Predictor.getMatches();
+		const pendingMatches = Object.values(matches).filter(match => Predictor.shouldAttemptResultSync(match));
+
+		for (const match of pendingMatches) {
+			// eslint-disable-next-line no-await-in-loop
+			await Predictor.tryAutoSyncMatchResult(match);
+		}
+	} finally {
+		await db.delete(RESULT_SYNC_LOCK_KEY);
+	}
+};
+
+Predictor.shouldAttemptResultSync = function (match) {
+	if (!match || Predictor.getMatchResult(match)) {
+		return false;
+	}
+
+	const kickoff = Predictor.getMatchKickoffTimestamp(match);
+	if (!kickoff) {
+		return false;
+	}
+
+	const firstAttemptAt = kickoff + (120 * 60 * 1000);
+	return Date.now() >= firstAttemptAt;
+};
+
+Predictor.getResultSyncMetaKey = function (matchId) {
+	return `${RESULT_SYNC_META_PREFIX}${matchId}`;
+};
+
+Predictor.getNextRetryTimestamp = function (kickoffTimestamp, attempts) {
+	const delayMinutes = RESULT_SYNC_RETRY_MINUTES[Math.min(attempts, RESULT_SYNC_RETRY_MINUTES.length - 1)];
+	return kickoffTimestamp + ((120 + delayMinutes) * 60 * 1000);
+};
+
+Predictor.tryAutoSyncMatchResult = async function (match) {
+	const metaKey = Predictor.getResultSyncMetaKey(match.id || match.matchId);
+	const kickoffTimestamp = Predictor.getMatchKickoffTimestamp(match);
+	const meta = await db.getObject(metaKey) || {};
+	const attempts = parseInt(meta.attempts, 10) || 0;
+	const nextAttemptAt = parseInt(meta.nextAttemptAt, 10) || Predictor.getNextRetryTimestamp(kickoffTimestamp, attempts);
+
+	if (Date.now() < nextAttemptAt) {
+		return false;
+	}
+
+	const serpApiOptions = {
+		serpapiKey: String(process.env.SERPAPI_KEY || '').trim(),
+		hl: String(process.env.SERPAPI_HL || 'zh-cn').trim(),
+		gl: String(process.env.SERPAPI_GL || 'us').trim(),
+		source: 'SerpApi',
+		sourceUrl: '',
+		query: '',
+	};
+
+	try {
+		const result = await fetchResultFromSerpApi(match, serpApiOptions);
+		await Predictor.setMatchResult(match.id || match.matchId, result);
+		await db.delete(metaKey);
+		winston.info(`[worldcup-predictor] auto synced result for ${match.id || match.matchId}`);
+		return true;
+	} catch (err) {
+		const nextAttempts = attempts + 1;
+		const exhausted = nextAttempts >= RESULT_SYNC_RETRY_MINUTES.length;
+		const nextTs = exhausted ? 0 : Predictor.getNextRetryTimestamp(kickoffTimestamp, nextAttempts);
+		await db.setObject(metaKey, {
+			attempts: nextAttempts,
+			lastAttemptAt: Date.now(),
+			nextAttemptAt: nextTs,
+			lastError: err.message || String(err),
+			manualRequired: exhausted ? '1' : '0',
+		});
+		winston.warn(`[worldcup-predictor] auto sync miss for ${match.id || match.matchId}: ${err.message}`);
+		return false;
 	}
 };
 

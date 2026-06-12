@@ -199,7 +199,7 @@
 			: result.result === 'away'
 				? `${context.match.away.name} 胜`
 				: '平局';
-		const sourceLine = result.source ? `<div class="predictor-result-source">来源：${escapeHtml(result.source)}${result.sourceUrl ? ` <a href="${escapeHtml(result.sourceUrl)}" target="_blank" rel="noopener noreferrer">查看</a>` : ''}</div>` : '';
+		const sourceLine = result.sourceUrl ? `<div class="predictor-result-source"><a href="${escapeHtml(result.sourceUrl)}" target="_blank" rel="noopener noreferrer">查看</a></div>` : '';
 
 		return `
 			<div class="predictor-match-result">

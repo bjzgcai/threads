@@ -16,6 +16,10 @@
 	margin-bottom: 30px;
 }
 
+.predictor-shortcuts {
+	margin-bottom: 12px;
+}
+
 /* 导航标签 */
 .predictor-tabs {
 	border-bottom: 2px solid #e0e0e0;
@@ -704,7 +708,7 @@
 .prediction-summary-grid {
 	display: grid;
 	gap: 12px;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(5, minmax(0, 1fr));
 	margin-bottom: 16px;
 }
 

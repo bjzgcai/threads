@@ -44,6 +44,12 @@ Predictor.init = function() {
 	if (Predictor.user) {
 		$('[data-bs-target="#my-predictions"]').one('click', Predictor.loadUserPredictions);
 	}
+	if (Predictor.config.activeTab === 'leaderboard') {
+		Predictor.loadLeaderboard();
+	}
+	if (Predictor.user && Predictor.config.activeTab === 'my-predictions') {
+		Predictor.loadUserPredictions();
+	}
 };
 
 Predictor.activateInitialTab = function() {
@@ -535,6 +541,7 @@ Predictor.formatVerdictBadge = function(verdict) {
 };
 
 Predictor.renderUserPredictionSummary = function(summary) {
+	const accuracy = summary.accuracy || {};
 	return `
 		<div class="prediction-summary-grid">
 			<div class="prediction-summary-card">
@@ -552,6 +559,10 @@ Predictor.renderUserPredictionSummary = function(summary) {
 			<div class="prediction-summary-card">
 				<div class="prediction-summary-label">积分</div>
 				<div class="prediction-summary-value">${summary.points || 0}</div>
+			</div>
+			<div class="prediction-summary-card">
+				<div class="prediction-summary-label">命中率</div>
+				<div class="prediction-summary-value">${accuracy.percent || 0}%</div>
 			</div>
 		</div>`;
 };

@@ -158,6 +158,18 @@ node plugins/nodebb-plugin-worldcup-predictor/scripts/publish-match-topics.js --
 node plugins/nodebb-plugin-worldcup-predictor/scripts/sync-match-results.js --match-id wc2026-g-a-r1-1 --home-score 2 --away-score 1 --source manual
 ```
 
+批量导入结果 CSV：
+
+```bash
+node plugins/nodebb-plugin-worldcup-predictor/scripts/import-match-results.js docs/results.csv
+```
+
+只导入某一轮：
+
+```bash
+node plugins/nodebb-plugin-worldcup-predictor/scripts/import-match-results.js --file docs/results.csv --round 1
+```
+
 使用 SerpApi 抓取：
 
 ```bash
@@ -170,6 +182,9 @@ SERPAPI_KEY=your_key node plugins/nodebb-plugin-worldcup-predictor/scripts/sync-
 SERPAPI_KEY=your_key
 SERPAPI_HL=zh-cn
 SERPAPI_GL=us
+PREDICTOR_AUTO_SYNC_ENABLED=true
+PREDICTOR_AUTO_SYNC_CRON=0 * * * * *
+PREDICTOR_AUTO_SYNC_TZ=Asia/Shanghai
 ```
 
 写入后可直接执行：
@@ -183,6 +198,9 @@ node plugins/nodebb-plugin-worldcup-predictor/scripts/sync-match-results.js --ma
 - `--dry-run` 只预览，不写数据库
 - `--round 1` 可一次同步整轮比赛
 - 若 SerpApi 默认查询不准，可追加 `--query "墨西哥 vs 南非 世界杯 2026-06-11"`
+- 自动同步开启后，插件会在比赛开赛后约 120 分钟首次尝试同步；失败后再按 3 / 5 / 10 分钟补查
+- 多次自动补查仍失败时，保留手动同步脚本兜底
+- 批量手动导入可参考 `docs/results.csv`
 
 ## 配置
 

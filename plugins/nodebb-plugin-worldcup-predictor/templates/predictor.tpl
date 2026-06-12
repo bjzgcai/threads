@@ -6,6 +6,11 @@
 				世界杯竞猜中心
 			</h1>
 			<p class="lead">预测比赛结果，与社区一起竞猜</p>
+			<div class="predictor-shortcuts d-flex flex-wrap gap-2">
+				<a class="btn btn-outline-primary" href="{config.relative_path}/predictor">比赛列表</a>
+				<a class="btn btn-outline-primary" href="{config.relative_path}/predictor/my-results">我的竞猜结果</a>
+				<a class="btn btn-outline-primary" href="{config.relative_path}/predictor/leaderboard">排行榜</a>
+			</div>
 		</div>
 	</div>
 
