@@ -106,6 +106,29 @@ function buildDefaultQuery(match) {
 	return `${match.home.name} vs ${match.away.name} ${roundText} ${match.date}`;
 }
 
+function buildQueryCandidates(match, options) {
+	if (options.query) {
+		return [options.query];
+	}
+
+	const date = String(match.date || '').trim();
+	const year = /^\d{4}-/.test(date) ? date.slice(0, 4) : '';
+	const stage = String(match.stage || '').trim();
+	const group = String(match.group || '').trim();
+	const groupText = group ? `${group}组` : '';
+
+	return Array.from(new Set([
+		buildDefaultQuery(match),
+		`${match.home.name} ${match.away.name} ${date}`,
+		`${match.home.name} ${match.away.name} 比分 ${date}`,
+		`${match.home.name} ${match.away.name} 世界杯 ${date}`,
+		`${match.home.name} 对 ${match.away.name} 世界杯 ${date}`,
+		`${match.home.name} ${match.away.name} ${stage} ${groupText} ${date}`.trim(),
+		`${match.home.name} ${match.away.name} FIFA World Cup ${year}`.trim(),
+		`${match.home.name} vs ${match.away.name} score ${date}`,
+	].filter(Boolean)));
+}
+
 function requestJson(url) {
 	return new Promise((resolve, reject) => {
 		https.get(url, (res) => {
@@ -191,8 +214,7 @@ function flattenCandidates(node, output) {
 	});
 }
 
-function buildSerpApiUrl(options, match) {
-	const query = options.query || buildDefaultQuery(match);
+function buildSerpApiUrl(options, query) {
 	const url = new URL('https://serpapi.com/search.json');
 	url.searchParams.set('engine', 'google');
 	url.searchParams.set('q', query);
@@ -207,23 +229,29 @@ async function fetchResultFromSerpApi(match, options) {
 		throw new Error('Missing SERPAPI_KEY or --serpapi-key');
 	}
 
-	const { url, query } = buildSerpApiUrl(options, match);
-	const data = await requestJson(url);
-	const candidates = [];
-	flattenCandidates(data.sports_results || data, candidates);
+	const queries = buildQueryCandidates(match, options);
+	const tried = [];
 
-	for (const candidate of candidates) {
-		const score = pickScore(candidate, match);
-		if (score) {
-			return normalizeResultPayload({
-				...score,
-				source: options.source || 'SerpApi',
-				sourceUrl: options.sourceUrl || data.search_metadata?.google_url || '',
-			});
+	for (const query of queries) {
+		const { url } = buildSerpApiUrl(options, query);
+		const data = await requestJson(url);
+		const candidates = [];
+		flattenCandidates(data.sports_results || data, candidates);
+		tried.push(query);
+
+		for (const candidate of candidates) {
+			const score = pickScore(candidate, match);
+			if (score) {
+				return normalizeResultPayload({
+					...score,
+					source: options.source || 'SerpApi',
+					sourceUrl: options.sourceUrl || data.search_metadata?.google_url || '',
+				});
+			}
 		}
 	}
 
-	throw new Error(`No finished score found from SerpApi for query: ${query}`);
+	throw new Error(`No finished score found from SerpApi. tried queries: ${tried.join(' | ')}`);
 }
 
 async function rebuildLeaderboard(matches) {
