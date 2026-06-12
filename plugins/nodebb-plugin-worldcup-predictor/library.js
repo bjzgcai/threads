@@ -740,6 +740,12 @@ Predictor.prepareMatchRecord = function (match) {
 		home: match.home || { name: '', flag: '' },
 		away: match.away || { name: '', flag: '' },
 	};
+	const kickoffTimestamp = Predictor.getMatchKickoffTimestamp(prepared);
+	if (kickoffTimestamp && Date.now() >= kickoffTimestamp) {
+		prepared.status = 'live';
+	} else if (!prepared.status || prepared.status === 'live') {
+		prepared.status = 'upcoming';
+	}
 	const result = Predictor.getMatchResult(prepared);
 	if (result) {
 		prepared.result = result;

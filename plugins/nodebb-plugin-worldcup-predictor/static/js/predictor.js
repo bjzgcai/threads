@@ -18,12 +18,15 @@ Predictor.initialize = function() {
 		Predictor.eventsBound = true;
 	}
 
+	Predictor.ensureGlobalEntry();
+
 	if (window.location.pathname.indexOf('/predictor') !== -1 || ajaxify.data?.template?.name === 'predictor') {
 		Predictor.init();
 	}
 };
 
 Predictor.onAjaxifyEnd = function() {
+	Predictor.ensureGlobalEntry();
 	if (ajaxify.data?.template?.name === 'predictor') {
 		Predictor.init();
 	}
@@ -73,6 +76,41 @@ Predictor.bindEvents = function() {
 		ev.stopPropagation();
 		window.location.href = href;
 	});
+
+	$(document).on('click', '[component="predictor/global-entry"] a', function(ev) {
+		const href = $(this).attr('href');
+		if (!href) {
+			return;
+		}
+
+		ev.preventDefault();
+		ev.stopPropagation();
+		window.location.href = href;
+	});
+};
+
+Predictor.ensureGlobalEntry = function() {
+	const onPredictorPage = window.location.pathname.indexOf('/predictor') !== -1 || ajaxify.data?.template?.name === 'predictor';
+	const onAdminPage = window.location.pathname.indexOf('/admin') === 0 || ajaxify.data?.template?.name?.indexOf('admin/') === 0;
+	const body = $('body');
+
+	if (onPredictorPage || onAdminPage) {
+		body.find('[component="predictor/global-entry"]').remove();
+		return;
+	}
+
+	if (body.find('[component="predictor/global-entry"]').length) {
+		return;
+	}
+
+	body.append(`
+		<div component="predictor/global-entry" class="predictor-global-entry">
+			<a href="${config.relative_path || ''}/predictor" class="predictor-global-entry-link" data-ajaxify="false" aria-label="进入世界杯竞猜">
+				<span class="predictor-global-entry-icon" aria-hidden="true">🏆</span>
+				<span class="predictor-global-entry-text">世界杯竞猜</span>
+			</a>
+		</div>
+	`);
 };
 
 Predictor.loadMatches = function() {
@@ -140,10 +178,10 @@ Predictor.renderMatches = function() {
 };
 
 Predictor.renderMatchCard = function(match) {
-	const statusClass = match.status || 'upcoming';
+	const statusClass = Predictor.getMatchStatus(match);
 	const statusLabel = {
 		upcoming: '即将开始',
-		live: '正在进行',
+		live: '进行中',
 		finished: '已结束',
 	}[statusClass] || '未知';
 	const resultText = Predictor.formatMatchResultText(match);
@@ -151,7 +189,7 @@ Predictor.renderMatchCard = function(match) {
 	const phaseText = Predictor.isPredictionOpen(match) ? '可在比赛帖内竞猜' : '仅展示赛果与结果';
 
 	return `
-		<div class="match-card" data-match-id="${match.id}">
+		<div class="match-card ${statusClass === 'finished' ? 'finished' : ''}" data-match-id="${match.id}">
 			<span class="match-status ${statusClass}">${statusLabel}</span>
 			<div class="match-info">
 				<div class="match-team">
@@ -329,8 +367,8 @@ Predictor.formatTitleTime = function(match) {
 };
 
 Predictor.compareMatches = function(left, right) {
-	const leftFinished = String(left && left.status || '') === 'finished';
-	const rightFinished = String(right && right.status || '') === 'finished';
+	const leftFinished = Predictor.getMatchStatus(left) === 'finished';
+	const rightFinished = Predictor.getMatchStatus(right) === 'finished';
 	if (leftFinished !== rightFinished) {
 		return leftFinished ? 1 : -1;
 	}
@@ -359,6 +397,23 @@ Predictor.isPredictionOpen = function(match) {
 
 	const kickoff = Date.parse(`${match.date}T${match.time}:00+08:00`);
 	return !Number.isFinite(kickoff) || Date.now() < kickoff;
+};
+
+Predictor.getMatchStatus = function(match) {
+	if (!match) {
+		return 'upcoming';
+	}
+
+	if (match.result) {
+		return 'finished';
+	}
+
+	const kickoff = Date.parse(`${match.date}T${match.time}:00+08:00`);
+	if (Number.isFinite(kickoff) && Date.now() >= kickoff) {
+		return 'live';
+	}
+
+	return 'upcoming';
 };
 
 Predictor.formatPredictionText = function(match, prediction) {
