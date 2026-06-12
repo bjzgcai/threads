@@ -164,6 +164,20 @@ node plugins/nodebb-plugin-worldcup-predictor/scripts/sync-match-results.js --ma
 SERPAPI_KEY=your_key node plugins/nodebb-plugin-worldcup-predictor/scripts/sync-match-results.js --match-id wc2026-g-a-r1-1
 ```
 
+也可以写入项目根目录 `.env`：
+
+```env
+SERPAPI_KEY=your_key
+SERPAPI_HL=zh-cn
+SERPAPI_GL=us
+```
+
+写入后可直接执行：
+
+```bash
+node plugins/nodebb-plugin-worldcup-predictor/scripts/sync-match-results.js --match-id wc2026-g-a-r1-1
+```
+
 说明：
 
 - `--dry-run` 只预览，不写数据库
