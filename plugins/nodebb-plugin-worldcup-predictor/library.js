@@ -1120,46 +1120,8 @@ Predictor.tryAutoSyncMatchResult = async function (match) {
 };
 
 Predictor.initializeDefaultMatches = async function () {
-	const matches = {
-		'2026-06-12-1': {
-			id: '2026-06-12-1',
-			date: '2026-06-12',
-			time: '03:00',
-			home: { name: '阿根廷', flag: '🇦🇷' },
-			away: { name: '摩洛哥', flag: '🇲🇦' },
-			stage: '小组赛',
-			group: 'A',
-			status: 'upcoming',
-		},
-		'2026-06-12-2': {
-			id: '2026-06-12-2',
-			date: '2026-06-12',
-			time: '10:00',
-			home: { name: '韩国', flag: '🇰🇷' },
-			away: { name: '乌拉圭', flag: '🇺🇾' },
-			stage: '小组赛',
-			group: 'F',
-			status: 'upcoming',
-		},
-		'2026-06-13-1': {
-			id: '2026-06-13-1',
-			date: '2026-06-13',
-			time: '03:00',
-			home: { name: '加拿大', flag: '🇨🇦' },
-			away: { name: '波兰', flag: '🇵🇱' },
-			stage: '小组赛',
-			group: 'E',
-			status: 'upcoming',
-		},
-	};
-
-	try {
-		await db.setObject('predictor:matches', matches);
-	} catch (err) {
-		winston.error(`[predictor] Error initializing matches: ${err.message}`);
-	}
-
-	return matches;
+	winston.warn('[predictor] No matches configured; import an official schedule before enabling predictions');
+	return {};
 };
 
 plugin.Predictor = Predictor;
