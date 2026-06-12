@@ -43,9 +43,9 @@ plugin.addRoutes = async function (data) {
 
 	const router = data.router || Router();
 
-	router.get('/predictor', renderPredictorPage);
-	router.get('/predictor/my-results', renderMyResultsPage);
-	router.get('/predictor/leaderboard', renderLeaderboardPage);
+	router.get('/predictor', middleware.buildHeader, renderPredictorPage);
+	router.get('/predictor/my-results', middleware.buildHeader, renderMyResultsPage);
+	router.get('/predictor/leaderboard', middleware.buildHeader, renderLeaderboardPage);
 	router.get('/api/v3/predictor/matches', getMatches);
 	router.get('/api/v3/predictor/topic/:tid', getTopicPredictorContext);
 	router.post('/api/v3/predictor/predictions', createPrediction);

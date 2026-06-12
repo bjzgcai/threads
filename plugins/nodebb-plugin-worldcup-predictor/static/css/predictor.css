@@ -494,6 +494,12 @@
 	color: #1e88e5;
 }
 
+.predictor-topic-links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
 .predictor-summary-panel,
 .predictor-details-panel {
 	background: rgba(255, 255, 255, 0.82);

@@ -211,6 +211,15 @@
 		`;
 	}
 
+	function renderResultLinks() {
+		return `
+			<div class="predictor-topic-links">
+				<a class="btn btn-outline-primary btn-sm" href="${config.relative_path || ''}/predictor/my-results">我的竞猜结果</a>
+				<a class="btn btn-outline-primary btn-sm" href="${config.relative_path || ''}/predictor/leaderboard">排行榜</a>
+			</div>
+		`;
+	}
+
 	function escapeHtml(value) {
 		return String(value || '')
 			.replace(/&/g, '&amp;')
@@ -357,6 +366,7 @@
 						<div class="predictor-current">${context.myPrediction ? renderMyPredictionDetails(context) : `<div class="small text-muted">${predictionText(context)}</div>`}</div>
 					</div>
 					${renderMatchResult(context)}
+					${renderResultLinks()}
 					${context.predictionSummary ? renderPredictionSummary(context) : ''}
 					${renderPredictionDetails(context)}
 					${context.loggedIn && !context.myPrediction && context.predictionOpen ? `
