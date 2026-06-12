@@ -4,11 +4,6 @@
 			<h1>世界杯竞猜结果</h1>
 			<p class="lead">这里仅用于查看赛程、我的竞猜结果和排行榜。提交竞猜请到各场比赛讨论帖内完成。</p>
 		</div>
-		<div class="predictor-shortcuts">
-			<a class="btn btn-primary" href="{config.relative_path}/predictor" data-ajaxify="false">比赛列表</a>
-			<a class="btn btn-outline-primary" href="{config.relative_path}/predictor/my-results" data-ajaxify="false">我的竞猜结果</a>
-			<a class="btn btn-outline-primary" href="{config.relative_path}/predictor/leaderboard" data-ajaxify="false">排行榜</a>
-		</div>
 	</div>
 
 	<ul class="nav nav-tabs predictor-tabs mt-4" role="tablist">
