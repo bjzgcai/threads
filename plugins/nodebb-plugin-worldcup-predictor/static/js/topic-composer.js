@@ -214,8 +214,8 @@
 	function renderResultLinks() {
 		return `
 			<div class="predictor-topic-links">
-				<a class="btn btn-outline-primary btn-sm" href="${config.relative_path || ''}/predictor/my-results">我的竞猜结果</a>
-				<a class="btn btn-outline-primary btn-sm" href="${config.relative_path || ''}/predictor/leaderboard">排行榜</a>
+				<a class="btn btn-outline-primary btn-sm" href="${config.relative_path || ''}/predictor/my-results" data-ajaxify="false">我的竞猜结果</a>
+				<a class="btn btn-outline-primary btn-sm" href="${config.relative_path || ''}/predictor/leaderboard" data-ajaxify="false">排行榜</a>
 			</div>
 		`;
 	}
@@ -513,6 +513,13 @@
 		});
 		hooks.on('action:ajaxify.end', function () {
 			attachTopicCard();
+		});
+		$(window).on('pageshow popstate', function () {
+			ComposerPredictor.topicCardLoadedTid = null;
+			if (ajaxify.data && ajaxify.data.tid) {
+				ComposerPredictor.topicContextPromise[ajaxify.data.tid] = null;
+			}
+			setTimeout(attachTopicCard, 50);
 		});
 		$(function () {
 			attachTopicCard();

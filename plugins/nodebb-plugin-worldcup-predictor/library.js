@@ -853,9 +853,20 @@ Predictor.getLeaderboardEntries = async function (matches, limit) {
 
 	for (const matchId of allMatchIds) {
 		const match = matches[matchId];
-		const participantUids = await db.getSetMembers(`predictor:match:${matchId}:participants`);
+		const participantUids = await Predictor.getMatchParticipantUids(matchId);
+		const topicTids = await Predictor.getMatchTopicTids(matchId);
 		for (const uid of participantUids) {
-			const prediction = await Predictor.getPrediction(matchId, uid);
+			let prediction = await Predictor.getPrediction(matchId, uid);
+			if (!prediction && topicTids.length) {
+				for (const tid of topicTids) {
+					// eslint-disable-next-line no-await-in-loop
+					const topicPrediction = await Predictor.getTopicPrediction(tid, uid);
+					if (topicPrediction) {
+						prediction = topicPrediction;
+						break;
+					}
+				}
+			}
 			if (!prediction) {
 				continue;
 			}
@@ -945,6 +956,55 @@ Predictor.getLeaderboardEntries = async function (matches, limit) {
 	));
 
 	return entries.slice(0, limit || 100);
+};
+
+Predictor.getMatchTopicTids = async function (matchId) {
+	const tids = new Set();
+	const mappedTid = parseInt(await db.getObjectField(TOPIC_MAP_KEY, matchId), 10) || 0;
+	if (mappedTid) {
+		tids.add(String(mappedTid));
+	}
+
+	const publishedTids = await db.getSetMembers(`predictor:published:${matchId}`);
+	if (Array.isArray(publishedTids)) {
+		publishedTids.forEach((tid) => {
+			const parsed = parseInt(tid, 10) || 0;
+			if (parsed) {
+				tids.add(String(parsed));
+			}
+		});
+	}
+
+	return Array.from(tids).map(tid => parseInt(tid, 10)).filter(Boolean);
+};
+
+Predictor.getMatchParticipantUids = async function (matchId) {
+	const uids = new Set();
+	const matchParticipants = await db.getSetMembers(`predictor:match:${matchId}:participants`);
+	if (Array.isArray(matchParticipants)) {
+		matchParticipants.forEach((uid) => {
+			const parsed = parseInt(uid, 10) || 0;
+			if (parsed) {
+				uids.add(String(parsed));
+			}
+		});
+	}
+
+	const topicTids = await Predictor.getMatchTopicTids(matchId);
+	for (const tid of topicTids) {
+		// eslint-disable-next-line no-await-in-loop
+		const topicParticipants = await db.getSetMembers(`predictor:topic:${tid}:participants`);
+		if (Array.isArray(topicParticipants)) {
+			topicParticipants.forEach((uid) => {
+				const parsed = parseInt(uid, 10) || 0;
+				if (parsed) {
+					uids.add(String(parsed));
+				}
+			});
+		}
+	}
+
+	return Array.from(uids);
 };
 
 Predictor.startResultSyncJob = function () {

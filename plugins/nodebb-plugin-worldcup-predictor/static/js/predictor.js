@@ -164,7 +164,7 @@ Predictor.renderMatchCard = function(match) {
 			${resultText ? `<div class="match-result-line">${resultText}</div>` : ''}
 			${match.topicUrl ? `
 				<div class="match-actions">
-					<a class="btn btn-outline-primary" href="${match.topicUrl}">进入比赛帖</a>
+					<a class="btn btn-outline-primary" href="${match.topicUrl}" data-ajaxify="false">进入比赛帖</a>
 				</div>
 			` : ''}
 		</div>`;
@@ -227,7 +227,7 @@ Predictor.renderUserPredictions = function(response) {
 					${verdictBadge}
 					<span class="prediction-match-result ${resultText ? '' : 'text-muted'}">${resultText || '比赛未结算'}</span>
 				</div>
-				${pred.topicUrl ? `<div class="prediction-link-row"><a class="btn btn-outline-primary btn-sm" href="${pred.topicUrl}">进入比赛帖</a></div>` : ''}
+				${pred.topicUrl ? `<div class="prediction-link-row"><a class="btn btn-outline-primary btn-sm" href="${pred.topicUrl}" data-ajaxify="false">进入比赛帖</a></div>` : ''}
 				${submittedAt ? `<div style="font-size: 12px; color: #999;">提交时间：${submittedAt}</div>` : ''}
 			</div>`;
 
