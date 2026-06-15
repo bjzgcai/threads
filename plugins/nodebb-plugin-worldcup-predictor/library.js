@@ -26,6 +26,7 @@ const ASSET_VERSION = '20260611-reply-plain-v2';
 const TOPIC_MAP_KEY = 'predictor:topic-match-map';
 const RESULT_SYNC_LOCK_KEY = 'predictor:result-sync:lock';
 const RESULT_SYNC_META_PREFIX = 'predictor:result-sync:meta:';
+const RESULT_SYNC_BASE_DELAY_MINUTES = 150;
 const RESULT_SYNC_RETRY_MINUTES = [0, 3, 5, 10];
 
 const Predictor = {};
@@ -1118,7 +1119,7 @@ Predictor.shouldAttemptResultSync = function (match) {
 		return false;
 	}
 
-	const firstAttemptAt = kickoff + (120 * 60 * 1000);
+	const firstAttemptAt = kickoff + (RESULT_SYNC_BASE_DELAY_MINUTES * 60 * 1000);
 	return Date.now() >= firstAttemptAt;
 };
 
@@ -1128,7 +1129,7 @@ Predictor.getResultSyncMetaKey = function (matchId) {
 
 Predictor.getNextRetryTimestamp = function (kickoffTimestamp, attempts) {
 	const delayMinutes = RESULT_SYNC_RETRY_MINUTES[Math.min(attempts, RESULT_SYNC_RETRY_MINUTES.length - 1)];
-	return kickoffTimestamp + ((120 + delayMinutes) * 60 * 1000);
+	return kickoffTimestamp + ((RESULT_SYNC_BASE_DELAY_MINUTES + delayMinutes) * 60 * 1000);
 };
 
 Predictor.tryAutoSyncMatchResult = async function (match) {

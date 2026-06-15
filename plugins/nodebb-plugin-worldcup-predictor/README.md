@@ -198,7 +198,7 @@ node plugins/nodebb-plugin-worldcup-predictor/scripts/sync-match-results.js --ma
 - `--dry-run` 只预览，不写数据库
 - `--round 1` 可一次同步整轮比赛
 - 若 SerpApi 默认查询不准，可追加 `--query "墨西哥 vs 南非 世界杯 2026-06-11"`
-- 自动同步开启后，插件会在比赛开赛后约 120 分钟首次尝试同步；失败后再按 3 / 5 / 10 分钟补查
+- 自动同步开启后，插件会在比赛开赛后约 150 分钟首次尝试同步；失败后再按 3 / 5 / 10 分钟补查
 - 多次自动补查仍失败时，保留手动同步脚本兜底
 - 批量手动导入可参考 `docs/results.csv`
 
