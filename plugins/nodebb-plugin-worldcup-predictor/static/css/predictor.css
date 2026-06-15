@@ -232,19 +232,23 @@
 	flex-wrap: wrap;
 	gap: 8px;
 	align-items: center;
-	color: #999;
+	color: #4f5f71;
 	font-size: 12px;
 	margin-bottom: 10px;
 }
 
 .match-details .badge {
-	background-color: #f0f0f0;
-	padding: 4px 8px;
+	background-color: #eef4fb;
+	border: 1px solid #d3dfef;
+	color: #30465f;
+	font-weight: 600;
+	padding: 5px 10px;
 	border-radius: 4px;
 }
 
 .match-note {
-	color: #6b7b8d;
+	color: #526173;
+	font-weight: 500;
 	font-size: 13px;
 	margin-bottom: 12px;
 }
