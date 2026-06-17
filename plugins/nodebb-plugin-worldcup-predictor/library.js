@@ -284,8 +284,9 @@ async function getUserPredictions(req, res, next) {
 		}, {});
 		const summary = Predictor.summarizePredictionEntries(entries);
 		summary.accuracy = Predictor.getAccuracySummary(summary);
+		const rounds = Predictor.groupPredictionEntriesByRound(entries);
 
-		res.json({ predictions, entries, summary });
+		res.json({ predictions, entries, summary, rounds });
 	} catch (err) {
 		next(err);
 	}
@@ -295,7 +296,8 @@ async function getLeaderboard(req, res, next) {
 	try {
 		const matches = await Predictor.getMatches();
 		const leaderboard = await Predictor.getLeaderboardEntries(matches, 100);
-		res.json({ leaderboard });
+		const rounds = await Predictor.getLeaderboardRounds(matches, 100);
+		res.json({ leaderboard, rounds });
 	} catch (err) {
 		next(err);
 	}
@@ -785,6 +787,8 @@ Predictor.prepareMatchRecord = function (match) {
 		home: match.home || { name: '', flag: '' },
 		away: match.away || { name: '', flag: '' },
 	};
+	prepared.roundKey = Predictor.getMatchRoundKey(prepared);
+	prepared.roundLabel = Predictor.getMatchRoundLabel(prepared);
 	const kickoffTimestamp = Predictor.getMatchKickoffTimestamp(prepared);
 	if (kickoffTimestamp && Date.now() >= kickoffTimestamp) {
 		prepared.status = 'live';
@@ -799,6 +803,56 @@ Predictor.prepareMatchRecord = function (match) {
 		}
 	}
 	return prepared;
+};
+
+Predictor.getMatchRoundKey = function (match) {
+	const round = String(match && match.round || '').trim();
+	if (round && round !== '0') {
+		return round;
+	}
+
+	const format = String(match && match.format || '').trim();
+	const stage = String(match && match.stage || '').trim();
+	if (format === 'knockout' && stage) {
+		return stage;
+	}
+
+	return 'unassigned';
+};
+
+Predictor.getMatchRoundLabel = function (match) {
+	const key = Predictor.getMatchRoundKey(match);
+	if (key === 'unassigned') {
+		return '未分轮次';
+	}
+
+	if (String(match && match.format || '').trim() === 'group') {
+		const map = {
+			'1': '小组赛第一轮',
+			'2': '小组赛第二轮',
+			'3': '小组赛第三轮',
+		};
+		return map[key] || `小组赛第${key}轮`;
+	}
+
+	return String(match && match.stage || '').trim() || `第${key}轮`;
+};
+
+Predictor.compareRoundKeys = function (leftKey, rightKey) {
+	const leftNumber = parseInt(leftKey, 10);
+	const rightNumber = parseInt(rightKey, 10);
+	const leftIsNumber = Number.isInteger(leftNumber) && String(leftNumber) === String(leftKey);
+	const rightIsNumber = Number.isInteger(rightNumber) && String(rightNumber) === String(rightKey);
+	if (leftIsNumber && rightIsNumber) {
+		return leftNumber - rightNumber;
+	}
+	if (leftIsNumber !== rightIsNumber) {
+		return leftIsNumber ? -1 : 1;
+	}
+	if (leftKey === 'unassigned' || rightKey === 'unassigned') {
+		return leftKey === rightKey ? 0 : (leftKey === 'unassigned' ? 1 : -1);
+	}
+	return String(leftKey).localeCompare(String(rightKey), 'zh-Hans-CN');
 };
 
 Predictor.attachTopicUrls = async function (matches) {
@@ -889,6 +943,35 @@ Predictor.rebuildLeaderboard = async function () {
 	}
 };
 
+Predictor.groupPredictionEntriesByRound = function (entries) {
+	const groups = {};
+	(entries || []).forEach((entry) => {
+		const match = entry.match || {};
+		const roundKey = match.roundKey || Predictor.getMatchRoundKey(match);
+		if (!groups[roundKey]) {
+			groups[roundKey] = {
+				key: roundKey,
+				label: match.roundLabel || Predictor.getMatchRoundLabel(match),
+				entries: [],
+			};
+		}
+		groups[roundKey].entries.push(entry);
+	});
+
+	return Object.values(groups)
+		.sort((a, b) => Predictor.compareRoundKeys(a.key, b.key))
+		.map((group) => {
+			const summary = Predictor.summarizePredictionEntries(group.entries);
+			summary.accuracy = Predictor.getAccuracySummary(summary);
+			return {
+				key: group.key,
+				label: group.label,
+				summary,
+				entries: group.entries,
+			};
+		});
+};
+
 Predictor.getAccuracySummary = function (summary) {
 	const settled = Math.max((summary.correct || 0) + (summary.wrong || 0), 0);
 	const percent = settled ? Math.round(((summary.correct || 0) / settled) * 100) : 0;
@@ -896,6 +979,39 @@ Predictor.getAccuracySummary = function (summary) {
 		settled,
 		percent,
 	};
+};
+
+Predictor.getMatchRounds = function (matches) {
+	const groups = {};
+	Object.values(matches || {}).forEach((match) => {
+		const key = match.roundKey || Predictor.getMatchRoundKey(match);
+		if (!groups[key]) {
+			groups[key] = {
+				key,
+				label: match.roundLabel || Predictor.getMatchRoundLabel(match),
+				matches: {},
+			};
+		}
+		groups[key].matches[match.id || match.matchId] = match;
+	});
+
+	return Object.values(groups).sort((a, b) => Predictor.compareRoundKeys(a.key, b.key));
+};
+
+Predictor.getLeaderboardRounds = async function (matches, limit) {
+	const rounds = Predictor.getMatchRounds(matches);
+	const results = [];
+	for (const round of rounds) {
+		// eslint-disable-next-line no-await-in-loop
+		const leaderboard = await Predictor.getLeaderboardEntries(round.matches, limit);
+		results.push({
+			key: round.key,
+			label: round.label,
+			matchCount: Object.keys(round.matches).length,
+			leaderboard,
+		});
+	}
+	return results;
 };
 
 Predictor.getLeaderboardEntries = async function (matches, limit) {
