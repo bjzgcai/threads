@@ -246,6 +246,24 @@
 	border-radius: 4px;
 }
 
+.match-details .match-badge-stage {
+	background: #eef6ea;
+	border-color: #cfe1c5;
+	color: #2f5d2f;
+}
+
+.match-details .match-badge-group {
+	background: #fff4e5;
+	border-color: #f1d7aa;
+	color: #8a5a12;
+}
+
+.match-details .match-badge-kickoff {
+	background: #eef2ff;
+	border-color: #cfd8ff;
+	color: #3247a8;
+}
+
 .match-note {
 	color: #526173;
 	font-weight: 500;

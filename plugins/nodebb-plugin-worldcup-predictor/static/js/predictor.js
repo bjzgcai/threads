@@ -234,9 +234,9 @@ Predictor.renderMatchCard = function(match) {
 				</div>
 			</div>
 			<div class="match-details">
-				<span class="badge">${match.stage}</span>
+				<span class="badge match-badge-stage">${match.stage}</span>
 				${Predictor.renderGroupBadge(match)}
-				<span class="badge">${kickoffText}</span>
+				<span class="badge match-badge-kickoff">${kickoffText}</span>
 			</div>
 			<div class="match-note">${phaseText}</div>
 			${resultText ? `<div class="match-result-line">${resultText}</div>` : ''}
@@ -413,10 +413,10 @@ Predictor.renderGroupBadge = function(match) {
 	}
 
 	if (match.format === 'group') {
-		return `<span class="badge">${match.group}组</span>`;
+		return `<span class="badge match-badge-group">${match.group}组</span>`;
 	}
 
-	return `<span class="badge">${match.group}</span>`;
+	return `<span class="badge match-badge-group">${match.group}</span>`;
 };
 
 Predictor.isPredictionOpen = function(match) {
