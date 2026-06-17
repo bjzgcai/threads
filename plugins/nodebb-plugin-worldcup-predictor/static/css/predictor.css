@@ -1017,3 +1017,141 @@
 		grid-template-columns: 1fr;
 	}
 }
+
+/* 轮次分组 */
+.predictor-round-group {
+	background: linear-gradient(135deg, rgba(30, 136, 229, 0.06), rgba(39, 174, 96, 0.05));
+	border: 1px solid #dce6f2;
+	border-radius: 12px;
+	margin-bottom: 22px;
+	padding: 16px;
+}
+
+.predictor-round-header {
+	align-items: center;
+	display: flex;
+	gap: 12px;
+	justify-content: space-between;
+	margin-bottom: 14px;
+}
+
+.predictor-round-header h3 {
+	color: #102a43;
+	font-size: 24px;
+	font-weight: 900;
+	line-height: 1.2;
+	margin: 0;
+}
+
+.predictor-round-kicker {
+	color: #1e88e5;
+	font-size: 12px;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	margin-bottom: 4px;
+}
+
+.predictor-round-count {
+	background: #fff;
+	border: 1px solid #d3dfef;
+	border-radius: 999px;
+	color: #30465f;
+	font-size: 13px;
+	font-weight: 800;
+	padding: 6px 12px;
+	white-space: nowrap;
+}
+
+.leaderboard-round-group .leaderboard-table,
+.prediction-round-group .prediction-summary-grid {
+	margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+	.predictor-round-group {
+		padding: 12px;
+	}
+
+	.predictor-round-header {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.predictor-round-header h3 {
+		font-size: 20px;
+	}
+}
+
+.predictor-round-tabs-shell {
+	margin-top: 16px;
+}
+
+.predictor-round-tabs {
+	display: flex;
+	gap: 10px;
+	margin-bottom: 14px;
+	overflow-x: auto;
+	padding: 0 0 6px;
+	-webkit-overflow-scrolling: touch;
+}
+
+.predictor-round-tab {
+	background: #fff;
+	border: 1px solid #d3dfef;
+	border-radius: 999px;
+	color: #30465f;
+	display: inline-flex;
+	flex: 0 0 auto;
+	gap: 8px;
+	align-items: center;
+	padding: 9px 14px;
+	transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.predictor-round-tab span {
+	font-size: 14px;
+	font-weight: 800;
+}
+
+.predictor-round-tab small {
+	color: #738395;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.predictor-round-tab:hover,
+.predictor-round-tab.is-active {
+	background: #1e88e5;
+	border-color: #1e88e5;
+	color: #fff;
+}
+
+.predictor-round-tab:hover small,
+.predictor-round-tab.is-active small {
+	color: rgba(255, 255, 255, 0.82);
+}
+
+.predictor-round-panes {
+	background: linear-gradient(135deg, rgba(30, 136, 229, 0.06), rgba(39, 174, 96, 0.05));
+	border: 1px solid #dce6f2;
+	border-radius: 12px;
+	padding: 16px;
+}
+
+.predictor-round-pane {
+	display: none;
+}
+
+.predictor-round-pane.is-active {
+	display: block;
+}
+
+@media (max-width: 768px) {
+	.predictor-round-panes {
+		padding: 12px;
+	}
+
+	.predictor-round-tab {
+		padding: 8px 12px;
+	}
+}
