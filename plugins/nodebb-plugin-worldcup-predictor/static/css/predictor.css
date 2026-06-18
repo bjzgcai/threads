@@ -1053,14 +1053,6 @@
 	margin-bottom: 14px;
 }
 
-.predictor-round-header h3 {
-	color: #102a43;
-	font-size: 24px;
-	font-weight: 900;
-	line-height: 1.2;
-	margin: 0;
-}
-
 .predictor-round-kicker {
 	color: #1e88e5;
 	font-size: 12px;
@@ -1093,10 +1085,6 @@
 	.predictor-round-header {
 		align-items: flex-start;
 		flex-direction: column;
-	}
-
-	.predictor-round-header h3 {
-		font-size: 20px;
 	}
 }
 

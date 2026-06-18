@@ -227,10 +227,7 @@ Predictor.renderRoundTabs = function(rounds, kicker, renderBody, countText) {
 	const panes = safeRounds.map((round, index) => `
 		<div class="predictor-round-pane ${index === 0 ? 'is-active' : ''}" data-round-index="${index}">
 			<div class="predictor-round-header">
-				<div>
-					<div class="predictor-round-kicker">${Predictor.escapeHtml(kicker)}</div>
-					<h3>${Predictor.escapeHtml(round.label)}</h3>
-				</div>
+				<div class="predictor-round-kicker">${Predictor.escapeHtml(kicker)}</div>
 				<span class="predictor-round-count">${Predictor.escapeHtml(typeof countText === 'function' ? countText(round) : `${(round.matches || round.entries || []).length} 场`)}</span>
 			</div>
 			<div class="predictor-round-body">${renderBody(round)}</div>
