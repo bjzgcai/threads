@@ -36,7 +36,15 @@
 		if (match && typeof match.allowDraw === 'boolean') {
 			return match.allowDraw;
 		}
-		return String(match && match.format || '').trim() !== 'knockout';
+		const format = String(match && match.format || '').trim().toLowerCase();
+		if (format === 'knockout') {
+			return false;
+		}
+		const stage = String(match && match.stage || '').trim();
+		if (/决赛|淘汰赛|半决赛|八强|四强|十六强|1\/(?:16|8|4|2)/.test(stage)) {
+			return false;
+		}
+		return true;
 	}
 
 	function getResultOptions(match) {

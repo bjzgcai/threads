@@ -21,7 +21,17 @@ function normalizeBoolean(value) {
 }
 
 function isKnockoutMatch(match) {
-	return String(match && match.format || '').trim() === 'knockout';
+	const format = String(match && match.format || '').trim().toLowerCase();
+	if (format === 'knockout') {
+		return true;
+	}
+
+	const stage = String(match && match.stage || '').trim();
+	if (!stage) {
+		return false;
+	}
+
+	return /决赛|淘汰赛|半决赛|八强|四强|十六强|1\/(?:16|8|4|2)/.test(stage);
 }
 
 function matchAllowsDraw(match) {
