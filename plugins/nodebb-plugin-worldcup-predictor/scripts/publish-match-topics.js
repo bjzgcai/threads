@@ -33,6 +33,7 @@ function parseArgs(argv) {
 	const options = {
 		file: '',
 		round: '',
+		stage: '',
 		cid: 0,
 		uid: 1,
 		mode: 'result',
@@ -48,6 +49,8 @@ function parseArgs(argv) {
 			options.file = argv[++i];
 		} else if (arg === '--round' && argv[i + 1]) {
 			options.round = String(argv[++i]).trim();
+		} else if (arg === '--stage' && argv[i + 1]) {
+			options.stage = String(argv[++i]).trim();
 		} else if (arg === '--cid' && argv[i + 1]) {
 			options.cid = parseInt(argv[++i], 10) || 0;
 		} else if (arg === '--uid' && argv[i + 1]) {
@@ -68,8 +71,8 @@ function parseArgs(argv) {
 	if (!options.file) {
 		throw new Error('Missing --file');
 	}
-	if (!options.round) {
-		throw new Error('Missing --round');
+	if (!options.round && !options.stage) {
+		throw new Error('Missing --round or --stage');
 	}
 	if (!options.cid) {
 		throw new Error('Missing --cid');
@@ -127,6 +130,10 @@ function normalizeRound(value) {
 	return String(value || '').trim();
 }
 
+function normalizeStage(value) {
+	return String(value || '').trim();
+}
+
 function formatRoundLabel(match) {
 	if (match.format !== 'group') {
 		return match.stage;
@@ -172,7 +179,7 @@ function normalizeRow(row) {
 
 function buildDefaultContent(match) {
 	if (match.format === 'knockout') {
-		return `本帖用于${match.stage}竞猜与讨论，请直接使用上方竞猜卡提交你的预测，也欢迎在回复区讨论比赛。`;
+		return `本帖用于${match.stage}竞猜与讨论，请直接使用上方竞猜卡提交你的胜负预测，也欢迎在回复区讨论比赛。`;
 	}
 	return `本帖用于${match.group}组本场比赛竞猜与讨论，请直接使用上方竞猜卡提交你的预测，也欢迎在回复区讨论比赛。`;
 }
@@ -224,11 +231,18 @@ async function rememberTopic(matchId, tid) {
 	await db.setObjectField(TOPIC_MAP_KEY, matchId, tid);
 }
 
+function resolvePredictionMode(match, options) {
+	if (match && match.format === 'knockout') {
+		return 'result';
+	}
+	return normalizeMode(options.mode);
+}
+
 async function bindTopicToMatch(tid, match, options) {
 	await topics.setTopicFields(tid, {
 		title: buildTitle(match),
 		predictorMatchId: match.matchId,
-		predictorPredictionMode: normalizeMode(options.mode),
+		predictorPredictionMode: resolvePredictionMode(match, options),
 	});
 }
 
@@ -277,10 +291,18 @@ async function createTopicForMatch(match, options, contentTemplate) {
 async function main() {
 	const options = parseArgs(process.argv.slice(2));
 	const rows = parseCsvFile(path.resolve(process.cwd(), options.file)).map(normalizeRow);
-	const matches = rows.filter(row => row.round === normalizeRound(options.round));
+	const matches = rows.filter((row) => {
+		if (options.round && row.round !== normalizeRound(options.round)) {
+			return false;
+		}
+		if (options.stage && row.stage !== normalizeStage(options.stage)) {
+			return false;
+		}
+		return true;
+	});
 
 	if (!matches.length) {
-		throw new Error(`No matches found for round=${options.round}`);
+		throw new Error(`No matches found for round=${options.round || 'any'} stage=${options.stage || 'any'}`);
 	}
 
 	const contentTemplate = loadContentTemplate(options);
@@ -314,7 +336,7 @@ async function main() {
 		}
 	}
 
-	console.log(`Done. round=${options.round} created=${created} skipped=${skipped} total=${matches.length}`);
+	console.log(`Done. round=${options.round || 'any'} stage=${options.stage || 'any'} created=${created} skipped=${skipped} total=${matches.length}`);
 }
 
 main().then(() => {

@@ -5,7 +5,7 @@
 ## 功能特性
 
 ✅ **比赛列表** - 显示世界杯所有比赛的对阵信息  
-✅ **竞猜系统** - 支持"胜/平/负"和具体比分两种竞猜方式  
+✅ **竞猜系统** - 小组赛支持"胜/平/负"和具体比分，淘汰赛支持无平局胜负预测  
 ✅ **发布帖子** - 竞猜完成后可自动发布成论坛帖子  
 ✅ **用户预测追踪** - 查看自己的所有竞猜记录  
 ✅ **排行榜** - 实时排行榜展示竞猜高手  
@@ -50,7 +50,7 @@ http://your-forum-domain/predictor
 
 1. **查看比赛** - 浏览所有世界杯比赛时间表
 2. **选择竞猜** - 点击"竞猜"按钮
-3. **提交预测** - 选择结果（胜/平/负）或输入比分
+3. **提交预测** - 小组赛可选胜/平/负或比分；淘汰赛自动切换为无平局胜负预测
 4. **可选发布** - 将竞猜发布为论坛帖子
 
 ### 页面标签
@@ -144,10 +144,22 @@ http://your-forum-domain/predictor
 node plugins/nodebb-plugin-worldcup-predictor/scripts/import-matches.js docs/match.csv
 ```
 
+导入 1/16 决赛模板：
+
+```bash
+node plugins/nodebb-plugin-worldcup-predictor/scripts/import-matches.js docs/match-knockout-r32.csv
+```
+
 ### 自动发布某一轮竞猜帖
 
 ```bash
 node plugins/nodebb-plugin-worldcup-predictor/scripts/publish-match-topics.js --file docs/match.csv --round 1 --cid 12
+```
+
+按淘汰赛阶段发布：
+
+```bash
+node plugins/nodebb-plugin-worldcup-predictor/scripts/publish-match-topics.js --file docs/match-knockout-r32.csv --stage 1/16决赛 --cid 12
 ```
 
 ### 同步比赛结果
@@ -158,10 +170,22 @@ node plugins/nodebb-plugin-worldcup-predictor/scripts/publish-match-topics.js --
 node plugins/nodebb-plugin-worldcup-predictor/scripts/sync-match-results.js --match-id wc2026-g-a-r1-1 --home-score 2 --away-score 1 --source manual
 ```
 
+淘汰赛平比分时，必须额外指定胜者：
+
+```bash
+node plugins/nodebb-plugin-worldcup-predictor/scripts/sync-match-results.js --match-id wc2026-ko-r32-01 --home-score 1 --away-score 1 --winner away --decided-by penalties --source manual
+```
+
 批量导入结果 CSV：
 
 ```bash
 node plugins/nodebb-plugin-worldcup-predictor/scripts/import-match-results.js docs/results.csv
+```
+
+批量导入 1/16 决赛结果模板：
+
+```bash
+node plugins/nodebb-plugin-worldcup-predictor/scripts/import-match-results.js --file docs/results-knockout-r32.csv --stage 1/16决赛
 ```
 
 只导入某一轮：
@@ -197,10 +221,12 @@ node plugins/nodebb-plugin-worldcup-predictor/scripts/sync-match-results.js --ma
 
 - `--dry-run` 只预览，不写数据库
 - `--round 1` 可一次同步整轮比赛
+- `--stage 1/16决赛` 可按淘汰赛阶段筛选
+- 淘汰赛若比分打平，结果 CSV 或手动脚本必须补 `winner=home|away`，可选 `decidedBy=penalties|extra-time`
 - 若 SerpApi 默认查询不准，可追加 `--query "墨西哥 vs 南非 世界杯 2026-06-11"`
 - 自动同步开启后，插件会在比赛开赛后约 150 分钟首次尝试同步；失败后再按 3 / 5 / 10 分钟补查
 - 多次自动补查仍失败时，保留手动同步脚本兜底
-- 批量手动导入可参考 `docs/results.csv`
+- 批量手动导入可参考 `docs/results.csv` 和 `docs/results-knockout-r32.csv`
 
 ## 配置
 

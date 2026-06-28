@@ -32,6 +32,59 @@
 		return ComposerPredictor.topicContextPromise[tid];
 	}
 
+	function matchAllowsDraw(match) {
+		if (match && typeof match.allowDraw === 'boolean') {
+			return match.allowDraw;
+		}
+		return String(match && match.format || '').trim() !== 'knockout';
+	}
+
+	function getResultOptions(match) {
+		return matchAllowsDraw(match) ? ['home', 'draw', 'away'] : ['home', 'away'];
+	}
+
+	function getResultChoiceText(match, side) {
+		if (side === 'home') {
+			return `${match.home.name} ${matchAllowsDraw(match) ? '胜' : '晋级'}`;
+		}
+		if (side === 'away') {
+			return `${match.away.name} ${matchAllowsDraw(match) ? '胜' : '晋级'}`;
+		}
+		return '平局';
+	}
+
+	function formatDecisionSuffix(result) {
+		if (!result || !result.decidedBy) {
+			return '';
+		}
+		if (result.decidedBy === 'penalties') {
+			return '（点球）';
+		}
+		if (result.decidedBy === 'extra-time') {
+			return '（加时）';
+		}
+		return `（${result.decidedBy}）`;
+	}
+
+	function formatMatchResultLabel(match, result) {
+		const base = result.result === 'home' ?
+			getResultChoiceText(match, 'home') :
+			result.result === 'away' ?
+				getResultChoiceText(match, 'away') :
+				'平局';
+		return `${base}${formatDecisionSuffix(result)}`;
+	}
+
+	function buildResultButtons(match) {
+		return `
+			<div class="predictor-result-buttons d-flex flex-wrap gap-2">
+				${getResultOptions(match).map((side) => `
+					<button class="btn btn-outline-primary predictor-choice" type="button" data-type="result" data-result="${side}">${getResultChoiceText(match, side)}</button>
+				`).join('')}
+			</div>
+		`;
+	}
+
 	function buildPredictionText(match, prediction) {
 		if (!match || !prediction) {
 			return '';
@@ -39,10 +92,10 @@
 
 		if (prediction.type === 'result') {
 			if (prediction.result === 'home') {
-				return `我预测：${match.home.name} 胜。`;
+				return `我预测：${getResultChoiceText(match, 'home')}。`;
 			}
 			if (prediction.result === 'away') {
-				return `我预测：${match.away.name} 胜。`;
+				return `我预测：${getResultChoiceText(match, 'away')}。`;
 			}
 			return `我预测：${match.home.name} 与 ${match.away.name} 打平。`;
 		}
@@ -84,13 +137,7 @@
 			return '';
 		}
 
-		const resultButtons = `
-			<div class="predictor-result-buttons d-flex flex-wrap gap-2">
-				<button class="btn btn-outline-primary predictor-choice" type="button" data-type="result" data-result="home">${context.match.home.name} 胜</button>
-				<button class="btn btn-outline-primary predictor-choice" type="button" data-type="result" data-result="draw">平局</button>
-				<button class="btn btn-outline-primary predictor-choice" type="button" data-type="result" data-result="away">${context.match.away.name} 胜</button>
-			</div>
-		`;
+		const resultButtons = buildResultButtons(context.match);
 		const scoreInputs = `
 			<div class="predictor-score-inputs d-flex align-items-center gap-2">
 				<input type="number" class="form-control predictor-home-score" min="0" placeholder="${context.match.home.name}">
@@ -137,10 +184,10 @@
 		const prediction = context.myPrediction.prediction;
 		if (prediction.type === 'result') {
 			if (prediction.result === 'home') {
-				return `我的预测：${context.match.home.name} 胜`;
+				return `我的预测：${getResultChoiceText(context.match, 'home')}`;
 			}
 			if (prediction.result === 'away') {
-				return `我的预测：${context.match.away.name} 胜`;
+				return `我的预测：${getResultChoiceText(context.match, 'away')}`;
 			}
 			return '我的预测：平局';
 		}
@@ -194,11 +241,7 @@
 		}
 
 		const result = context.matchResult;
-		const resultLabel = result.result === 'home'
-			? `${context.match.home.name} 胜`
-			: result.result === 'away'
-				? `${context.match.away.name} 胜`
-				: '平局';
+		const resultLabel = formatMatchResultLabel(context.match, result);
 		const sourceLine = result.sourceUrl ? `<div class="predictor-result-source"><a href="${escapeHtml(result.sourceUrl)}" target="_blank" rel="noopener noreferrer">查看</a></div>` : '';
 
 		return `
@@ -236,7 +279,7 @@
 		}
 
 		const counts = summary.counts || {};
-		const rows = summary.mode === 'result' ? ['home', 'draw', 'away'].map((key) => {
+		const rows = summary.mode === 'result' ? getResultOptions(context.match).map((key) => {
 			const count = parseInt(counts[key], 10) || 0;
 			const percent = summary.total ? Math.round((count / summary.total) * 100) : 0;
 			return `
@@ -318,20 +361,14 @@
 
 	function predictionClosedText(context) {
 		if (context.kickoffTimestamp) {
-			return '比赛已开始，胜平负预测已截止。';
+			return `比赛已开始，${matchAllowsDraw(context.match) ? '胜平负' : '胜负'}预测已截止。`;
 		}
 		return '当前已停止预测，可继续普通回复讨论。';
 	}
 
 	function renderTopicCard(context) {
 		const matchTime = formatTitleTime(context.match);
-		const resultButtons = `
-			<div class="predictor-result-buttons d-flex flex-wrap gap-2">
-				<button class="btn btn-outline-primary predictor-choice" data-type="result" data-result="home">${context.match.home.name} 胜</button>
-				<button class="btn btn-outline-primary predictor-choice" data-type="result" data-result="draw">平局</button>
-				<button class="btn btn-outline-primary predictor-choice" data-type="result" data-result="away">${context.match.away.name} 胜</button>
-			</div>
-		`;
+		const resultButtons = buildResultButtons(context.match);
 		const scoreInputs = `
 			<div class="predictor-score-inputs d-flex align-items-center gap-2">
 				<input type="number" class="form-control predictor-home-score" min="0" placeholder="${context.match.home.name}">
@@ -356,12 +393,12 @@
 								<div class="fw-semibold">${context.match.away.name}</div>
 								<span class="predictor-flag">${context.match.away.flag}</span>
 							</div>
-							<div class="mt-2 d-flex flex-wrap gap-2">
-								<span class="badge text-bg-light">${context.match.stage}</span>
-								<span class="badge text-bg-light">第 ${context.match.group} 组</span>
-								<span class="badge text-bg-light">参与预测 ${context.participantCount || 0} 人</span>
-								<span class="badge ${context.predictionOpen ? 'text-bg-success' : 'text-bg-secondary'}">${context.predictionOpen ? '预测开放中' : '预测已截止'}</span>
-							</div>
+								<div class="mt-2 d-flex flex-wrap gap-2">
+									<span class="badge text-bg-light">${context.match.stage}</span>
+									${context.match.group ? `<span class="badge text-bg-light">${context.match.format === 'group' ? `第 ${context.match.group} 组` : context.match.group}</span>` : ''}
+									<span class="badge text-bg-light">参与预测 ${context.participantCount || 0} 人</span>
+									<span class="badge ${context.predictionOpen ? 'text-bg-success' : 'text-bg-secondary'}">${context.predictionOpen ? '预测开放中' : '预测已截止'}</span>
+								</div>
 					</div>
 						<div class="predictor-current">${context.myPrediction ? renderMyPredictionDetails(context) : `<div class="small text-muted">${predictionText(context)}</div>`}</div>
 					</div>
@@ -389,7 +426,7 @@
 						</div>
 					` : context.loggedIn ? `
 						<div class="predictor-locked-note">
-							<div class="small text-muted mb-1">胜平负预测</div>
+							<div class="small text-muted mb-1">${matchAllowsDraw(context.match) ? '胜平负预测' : '胜负预测'}</div>
 							<div class="fw-semibold">已截止</div>
 							<div class="small text-muted mt-2">${predictionClosedText(context)}</div>
 						</div>

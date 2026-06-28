@@ -13,6 +13,8 @@ const winston = require.main.require('winston');
 const jsesc = require.main.require('jsesc');
 const {
 	normalizeResultPayload,
+	matchAllowsDraw,
+	getPredictionOutcome,
 	fetchResultFromSerpApi,
 } = require('./lib/result-sync');
 const { Router } = express;
@@ -73,7 +75,7 @@ plugin.filterTopicCreate = async function (hookData) {
 		throw new Error('[[error:invalid-data]]');
 	}
 
-	const predictionMode = Predictor.normalizePredictionMode(hookData.data.predictorPredictionMode);
+	const predictionMode = Predictor.resolvePredictionMode(matches[matchId], hookData.data.predictorPredictionMode);
 	hookData.topic.predictorMatchId = matchId;
 	hookData.topic.predictorPredictionMode = predictionMode;
 	return hookData;
@@ -107,7 +109,8 @@ plugin.filterTopicGet = async function (hookData) {
 	const matches = await Predictor.getMatches();
 	const match = matches[hookData.topic.predictorMatchId];
 	hookData.topic.predictorMatch = match || null;
-	hookData.topic.predictorPredictionMode = Predictor.normalizePredictionMode(
+	hookData.topic.predictorPredictionMode = Predictor.resolvePredictionMode(
+		match,
 		hookData.topic.predictorPredictionMode
 	);
 	return hookData;
@@ -190,7 +193,7 @@ async function getTopicPredictorContext(req, res, next) {
 			enabled: true,
 			tid,
 			matchId: topicData.predictorMatchId,
-			predictionMode: Predictor.normalizePredictionMode(topicData.predictorPredictionMode),
+			predictionMode: Predictor.resolvePredictionMode(match, topicData.predictorPredictionMode),
 			match,
 			myPrediction: prediction,
 			participantCount,
@@ -215,7 +218,6 @@ async function createPrediction(req, res, next) {
 		}
 
 		const { matchId } = req.body;
-		const prediction = Predictor.normalizePredictionPayload(req.body.prediction, 'score');
 		const uid = req.user.uid;
 		const matches = await Predictor.getMatches();
 
@@ -225,6 +227,8 @@ async function createPrediction(req, res, next) {
 		if (!Predictor.isPredictionOpen(matches[matchId])) {
 			return res.status(409).json({ error: '比赛已开始，不能再提交预测' });
 		}
+		const requestedMode = req.body && req.body.prediction && req.body.prediction.type === 'result' ? 'result' : 'score';
+		const prediction = Predictor.normalizePredictionPayload(req.body.prediction, requestedMode, matches[matchId]);
 
 		await Predictor.savePrediction({
 			matchId,
@@ -235,6 +239,9 @@ async function createPrediction(req, res, next) {
 
 		res.json({ success: true, data: { matchId, prediction } });
 	} catch (err) {
+		if (err && err.status) {
+			return res.status(err.status).json({ error: err.message });
+		}
 		next(err);
 	}
 }
@@ -320,6 +327,8 @@ async function publishResultAsPost(req, res, next) {
 		if (!canCreate) {
 			return res.status(403).json({ error: 'Permission denied' });
 		}
+		const matches = matchId ? await Predictor.getMatches() : null;
+		const match = matchId && matches ? matches[matchId] : null;
 
 		const result = await topics.post({
 			uid,
@@ -328,7 +337,7 @@ async function publishResultAsPost(req, res, next) {
 			content,
 			tags: ['世界杯', '竞猜'],
 			predictorMatchId: matchId,
-			predictorPredictionMode: Predictor.normalizePredictionMode(predictionMode),
+			predictorPredictionMode: Predictor.resolvePredictionMode(match, predictionMode),
 			req,
 		});
 
@@ -352,8 +361,33 @@ Predictor.normalizePredictionMode = function (mode) {
 	return mode === 'result' ? 'result' : 'score';
 };
 
-Predictor.normalizeMatchResultPayload = function (result) {
-	return normalizeResultPayload(result);
+Predictor.resolvePredictionMode = function (match, mode) {
+	if (match && !Predictor.matchAllowsDraw(match)) {
+		return 'result';
+	}
+	return Predictor.normalizePredictionMode(mode);
+};
+
+Predictor.matchAllowsDraw = function (match) {
+	return matchAllowsDraw(match);
+};
+
+Predictor.getResultOptions = function (match) {
+	return Predictor.matchAllowsDraw(match) ? ['home', 'draw', 'away'] : ['home', 'away'];
+};
+
+Predictor.getResultChoiceLabel = function (match, side) {
+	if (side === 'home') {
+		return `${match.home.name} ${Predictor.matchAllowsDraw(match) ? '胜' : '晋级'}`;
+	}
+	if (side === 'away') {
+		return `${match.away.name} ${Predictor.matchAllowsDraw(match) ? '胜' : '晋级'}`;
+	}
+	return '平局';
+};
+
+Predictor.normalizeMatchResultPayload = function (result, match) {
+	return normalizeResultPayload(result, match);
 };
 
 Predictor.getMatchKickoffTimestamp = function (match) {
@@ -375,7 +409,7 @@ Predictor.isPredictionOpen = function (match) {
 };
 
 Predictor.getMatchResult = function (match) {
-	return Predictor.normalizeMatchResultPayload(match && match.result);
+	return Predictor.normalizeMatchResultPayload(match && match.result, match);
 };
 
 Predictor.isMatchFinished = function (match) {
@@ -402,22 +436,24 @@ Predictor.evaluatePrediction = function (match, prediction) {
 	}
 
 	if (prediction.type === 'result') {
-		const correct = prediction.result === result.result;
+		const predictedResult = Predictor.getPredictionOutcome(match, prediction);
+		const correct = predictedResult && predictedResult === result.result;
 		return {
 			status: correct ? 'correct' : 'wrong',
-			correct,
+			correct: !!correct,
 			points: correct ? 3 : 0.5,
 			label: correct ? '猜中' : '未猜中',
 			variant: correct ? 'success' : 'danger',
 		};
 	}
 
-	const sameScore = prediction.homeScore === result.homeScore && prediction.awayScore === result.awayScore;
-	const sameResult = (
-		(prediction.homeScore === prediction.awayScore && result.result === 'draw') ||
-		(prediction.homeScore > prediction.awayScore && result.result === 'home') ||
-		(prediction.homeScore < prediction.awayScore && result.result === 'away')
+	const predictedResult = Predictor.getPredictionOutcome(match, prediction);
+	const sameScore = (
+		prediction.homeScore === result.homeScore &&
+		prediction.awayScore === result.awayScore &&
+		predictedResult === result.result
 	);
+	const sameResult = predictedResult && predictedResult === result.result;
 	if (sameScore) {
 		return {
 			status: 'exact',
@@ -479,12 +515,12 @@ Predictor.getTopicPredictionSubmissionContext = async function (tid, uid) {
 		throw Predictor.buildHttpError(409, '你已经在本帖提交过预测');
 	}
 
-	return {
-		tid: parsedTid,
-		matchId,
-		topicData,
-		predictionMode: Predictor.normalizePredictionMode(topicData.predictorPredictionMode),
-	};
+		return {
+			tid: parsedTid,
+			matchId,
+			topicData,
+			predictionMode: Predictor.resolvePredictionMode(topicData.predictorMatch, topicData.predictorPredictionMode),
+		};
 };
 
 Predictor.submitTopicPrediction = async function ({ tid, uid, username, prediction }) {
@@ -493,7 +529,11 @@ Predictor.submitTopicPrediction = async function ({ tid, uid, username, predicti
 	}
 
 	const context = await Predictor.getTopicPredictionSubmissionContext(tid, uid);
-	const normalizedPrediction = Predictor.normalizePredictionPayload(prediction, context.predictionMode);
+	const normalizedPrediction = Predictor.normalizePredictionPayload(
+		prediction,
+		context.predictionMode,
+		context.topicData.predictorMatch
+	);
 
 	await Predictor.savePrediction({
 		matchId: context.matchId,
@@ -519,14 +559,18 @@ Predictor.submitTopicPrediction = async function ({ tid, uid, username, predicti
 	};
 };
 
-Predictor.normalizePredictionPayload = function (prediction, predictionMode) {
+Predictor.normalizePredictionPayload = function (prediction, predictionMode, match) {
 	if (!prediction || typeof prediction !== 'object') {
-		throw new Error('Invalid prediction');
+		throw Predictor.buildHttpError(400, 'Invalid prediction');
 	}
 
 	if (predictionMode === 'result') {
-		if (!['home', 'away', 'draw'].includes(prediction.result)) {
-			throw new Error('Invalid prediction result');
+		const allowed = Predictor.getResultOptions(match);
+		if (!allowed.includes(prediction.result)) {
+			const message = Predictor.matchAllowsDraw(match) ?
+				'Invalid prediction result' :
+				'淘汰赛只支持胜负预测，不支持平局';
+			throw Predictor.buildHttpError(400, message);
 		}
 		return {
 			type: 'result',
@@ -537,7 +581,10 @@ Predictor.normalizePredictionPayload = function (prediction, predictionMode) {
 	const homeScore = parseInt(prediction.homeScore, 10);
 	const awayScore = parseInt(prediction.awayScore, 10);
 	if (!Number.isInteger(homeScore) || homeScore < 0 || !Number.isInteger(awayScore) || awayScore < 0) {
-		throw new Error('Invalid prediction score');
+		throw Predictor.buildHttpError(400, 'Invalid prediction score');
+	}
+	if (!Predictor.matchAllowsDraw(match) && homeScore === awayScore) {
+		throw Predictor.buildHttpError(400, '淘汰赛比分预测不支持平局');
 	}
 
 	return {
@@ -603,12 +650,11 @@ Predictor.getTopicPrediction = async function (tid, uid) {
 Predictor.getTopicPredictionSummary = async function (tid, topicData, match) {
 	const participantUids = await db.getSetMembers(`predictor:topic:${tid}:participants`);
 	const usersByUid = await getPredictionUsersByUid(participantUids);
-	const predictionMode = Predictor.normalizePredictionMode(topicData.predictorPredictionMode);
-	const counts = predictionMode === 'result' ? {
-		home: 0,
-		draw: 0,
-		away: 0,
-	} : {};
+	const predictionMode = Predictor.resolvePredictionMode(match, topicData.predictorPredictionMode);
+	const counts = predictionMode === 'result' ? Predictor.getResultOptions(match).reduce((memo, key) => {
+		memo[key] = 0;
+		return memo;
+	}, {}) : {};
 	const details = [];
 
 	await Promise.all(participantUids.map(async (uid) => {
@@ -650,11 +696,10 @@ Predictor.getTopicPredictionSummary = async function (tid, topicData, match) {
 		total: details.length,
 		mode: predictionMode,
 		counts,
-		labels: {
-			home: `${match.home.name} 胜`,
-			draw: '平局',
-			away: `${match.away.name} 胜`,
-		},
+		labels: Predictor.getResultOptions(match).reduce((memo, key) => {
+			memo[key] = Predictor.getResultChoiceLabel(match, key);
+			return memo;
+		}, {}),
 		details,
 	};
 };
@@ -678,10 +723,10 @@ async function getPredictionUsersByUid(uids) {
 Predictor.formatPredictionLabel = function (match, prediction) {
 	if (prediction.type === 'result') {
 		if (prediction.result === 'home') {
-			return `${match.home.name} 胜`;
+			return Predictor.getResultChoiceLabel(match, 'home');
 		}
 		if (prediction.result === 'away') {
-			return `${match.away.name} 胜`;
+			return Predictor.getResultChoiceLabel(match, 'away');
 		}
 		return '平局';
 	}
@@ -697,10 +742,10 @@ Predictor.buildPredictionReplyText = function (topicData, prediction) {
 
 	if (prediction.type === 'result') {
 		if (prediction.result === 'home') {
-			return `我预测：${match.home.name} 胜。`;
+			return `我预测：${Predictor.getResultChoiceLabel(match, 'home')}。`;
 		}
 		if (prediction.result === 'away') {
-			return `我预测：${match.away.name} 胜。`;
+			return `我预测：${Predictor.getResultChoiceLabel(match, 'away')}。`;
 		}
 		return `我预测：${match.home.name} 与 ${match.away.name} 打平。`;
 	}
@@ -787,6 +832,7 @@ Predictor.prepareMatchRecord = function (match) {
 		home: match.home || { name: '', flag: '' },
 		away: match.away || { name: '', flag: '' },
 	};
+	prepared.allowDraw = Predictor.matchAllowsDraw(prepared);
 	prepared.roundKey = Predictor.getMatchRoundKey(prepared);
 	prepared.roundLabel = Predictor.getMatchRoundLabel(prepared);
 	const kickoffTimestamp = Predictor.getMatchKickoffTimestamp(prepared);
@@ -885,7 +931,7 @@ Predictor.setMatchResult = async function (matchId, result, extraFields) {
 		throw new Error(`Match not found: ${matchId}`);
 	}
 
-	const normalizedResult = Predictor.normalizeMatchResultPayload(result);
+	const normalizedResult = Predictor.normalizeMatchResultPayload(result, match);
 	if (!normalizedResult) {
 		throw new Error('Invalid result payload');
 	}
@@ -941,6 +987,10 @@ Predictor.rebuildLeaderboard = async function () {
 	if (usernames.length) {
 		await db.sortedSetAdd('predictor:leaderboard', scores, usernames);
 	}
+};
+
+Predictor.getPredictionOutcome = function (match, prediction) {
+	return getPredictionOutcome(match, prediction);
 };
 
 Predictor.groupPredictionEntriesByRound = function (entries) {

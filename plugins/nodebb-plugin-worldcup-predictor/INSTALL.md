@@ -56,8 +56,8 @@ http://your-domain/predictor
 
 1. **点击"竞猜"按钮** → 打开竞猜弹窗
 2. **选择预测方式**：
-   - 三按钮选项（本队胜 / 平局 / 客队胜）
-   - 或输入具体比分（如 2:1）
+   - 小组赛：本队胜 / 平局 / 客队胜，或输入具体比分
+   - 淘汰赛：仅保留无平局胜负预测
 3. **点击"提交竞猜"** → 保存到你的预测记录
 4. **可选：点击"发布为帖子"** → 在论坛创建帖子分享预测
 
@@ -78,7 +78,7 @@ Content-Type: application/json
   "matchId": "2026-06-12-1",
   "prediction": {
     "type": "result",
-    "result": "home"  // "home" | "away" | "draw"
+    "result": "home"  // 小组赛: "home" | "away" | "draw"; 淘汰赛: "home" | "away"
   }
 }
 ```
@@ -118,6 +118,12 @@ POST /api/v3/predictor/publish-result
 ```
 
 ## 自定义比赛数据
+
+## 淘汰赛模板
+
+- 1/16 决赛赛程模板：`docs/match-knockout-r32.csv`
+- 1/16 决赛结果模板：`docs/results-knockout-r32.csv`
+- 淘汰赛结果若常规比分相同，必须填写 `winner=home|away`，可选 `decidedBy=penalties|extra-time`
 
 ### 添加比赛
 

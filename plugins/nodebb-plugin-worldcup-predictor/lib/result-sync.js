@@ -2,7 +2,112 @@
 
 const https = require('https');
 
-function normalizeResultPayload(payload) {
+function normalizeBoolean(value) {
+	if (typeof value === 'boolean') {
+		return value;
+	}
+
+	const normalized = String(value || '').trim().toLowerCase();
+	if (!normalized) {
+		return null;
+	}
+	if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) {
+		return true;
+	}
+	if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) {
+		return false;
+	}
+	return null;
+}
+
+function isKnockoutMatch(match) {
+	return String(match && match.format || '').trim() === 'knockout';
+}
+
+function matchAllowsDraw(match) {
+	if (!match || typeof match !== 'object') {
+		return true;
+	}
+
+	const explicit = normalizeBoolean(match.allowDraw);
+	if (explicit !== null) {
+		return explicit;
+	}
+
+	return !isKnockoutMatch(match);
+}
+
+function normalizeWinnerSide(value, match) {
+	const normalized = String(value || '').trim();
+	if (!normalized) {
+		return '';
+	}
+
+	const compact = normalized.toLowerCase().replace(/[\s_\-]+/g, '');
+	if (['home', 'hometeam', 'host', 'left', '主队'].includes(compact) || normalized === '主队') {
+		return 'home';
+	}
+	if (['away', 'awayteam', 'guest', 'right', '客队'].includes(compact) || normalized === '客队') {
+		return 'away';
+	}
+
+	if (match && match.home && normalizeName(match.home.name) === normalizeName(normalized)) {
+		return 'home';
+	}
+	if (match && match.away && normalizeName(match.away.name) === normalizeName(normalized)) {
+		return 'away';
+	}
+
+	return '';
+}
+
+function normalizeDecidedBy(value) {
+	const normalized = String(value || '').trim();
+	if (!normalized) {
+		return '';
+	}
+
+	const compact = normalized.toLowerCase().replace(/[\s_\-]+/g, '');
+	if (['et', 'extratime', 'aet', '加时'].includes(compact) || normalized === '加时') {
+		return 'extra-time';
+	}
+	if (['pens', 'pen', 'penalty', 'penalties', '点球'].includes(compact) || normalized === '点球') {
+		return 'penalties';
+	}
+
+	return normalized;
+}
+
+function getPredictionOutcome(match, prediction) {
+	if (!prediction || typeof prediction !== 'object') {
+		return null;
+	}
+
+	if (prediction.type === 'result') {
+		if (!['home', 'away', 'draw'].includes(prediction.result)) {
+			return null;
+		}
+		if (prediction.result === 'draw' && !matchAllowsDraw(match)) {
+			return null;
+		}
+		return prediction.result;
+	}
+
+	const homeScore = parseInt(prediction.homeScore, 10);
+	const awayScore = parseInt(prediction.awayScore, 10);
+	if (!Number.isInteger(homeScore) || homeScore < 0 || !Number.isInteger(awayScore) || awayScore < 0) {
+		return null;
+	}
+	if (homeScore > awayScore) {
+		return 'home';
+	}
+	if (awayScore > homeScore) {
+		return 'away';
+	}
+	return matchAllowsDraw(match) ? 'draw' : null;
+}
+
+function normalizeResultPayload(payload, match) {
 	if (!payload || typeof payload !== 'object') {
 		return null;
 	}
@@ -13,11 +118,35 @@ function normalizeResultPayload(payload) {
 		return null;
 	}
 
+	const explicitWinner = normalizeWinnerSide(
+		payload.winner || payload.winnerSide || payload.winnerTeam || payload.result,
+		match
+	);
+	const decidedBy = normalizeDecidedBy(payload.decidedBy);
+	let result = homeScore > awayScore ? 'home' : (awayScore > homeScore ? 'away' : '');
+
+	if (!result) {
+		if (explicitWinner) {
+			result = explicitWinner;
+		} else if (matchAllowsDraw(match)) {
+			result = 'draw';
+		} else {
+			return null;
+		}
+	}
+
+	if (explicitWinner && result !== explicitWinner) {
+		return null;
+	}
+
 	return {
 		homeScore,
 		awayScore,
-		result: homeScore === awayScore ? 'draw' : (homeScore > awayScore ? 'home' : 'away'),
-		status: 'finished',
+		result,
+		winner: result === 'draw' ? '' : result,
+		decidedBy,
+		note: String(payload.note || payload.remark || payload.summary || '').trim(),
+		status: String(payload.status || 'finished').trim() || 'finished',
 		source: String(payload.source || 'manual').trim(),
 		sourceUrl: String(payload.sourceUrl || '').trim(),
 		updatedAt: Date.now(),
@@ -179,6 +308,10 @@ async function fetchResultFromSerpApi(match, options) {
 
 module.exports = {
 	normalizeResultPayload,
+	matchAllowsDraw,
+	isKnockoutMatch,
+	normalizeWinnerSide,
+	getPredictionOutcome,
 	buildDefaultQuery,
 	buildQueryCandidates,
 	fetchResultFromSerpApi,

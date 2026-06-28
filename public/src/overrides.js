@@ -123,11 +123,13 @@ if (typeof window !== 'undefined') {
 			const els = $(this);
 			// Convert "old" format to new format (#5108)
 			els.each(function () {
-				iso = this.getAttribute('title');
+				iso = this.getAttribute('data-iso8601') || this.getAttribute('datetime') || this.getAttribute('title') || this.getAttribute('data-title');
 				if (!iso) {
 					return;
 				}
+				this.setAttribute('data-iso8601', iso);
 				this.setAttribute('datetime', iso);
+				this.setAttribute('title', iso);
 				date = new Date(iso);
 				if (!isNaN(date)) {
 					this.textContent = formatFn(date);
@@ -135,6 +137,17 @@ if (typeof window !== 'undefined') {
 			});
 
 			timeagoFn.apply(this, arguments);
+
+			els.each(function () {
+				iso = this.getAttribute('data-iso8601');
+				if (!iso) {
+					return;
+				}
+				date = new Date(iso);
+				if (!isNaN(date)) {
+					this.setAttribute('title', formatFn(date));
+				}
+			});
 		};
 	};
 }

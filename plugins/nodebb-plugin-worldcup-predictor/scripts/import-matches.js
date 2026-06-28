@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const nconf = require('nconf');
 const { resolveTeamFlag, normalizeTeamName } = require('./team-flags');
+const { normalizeResultPayload } = require('../lib/result-sync');
 
 const appRoot = path.resolve(__dirname, '..', '..', '..');
 const defaultConfigFile = fs.existsSync('/opt/config/config.json') ?
@@ -117,6 +118,20 @@ function parseJson(input) {
 	return data.map((row, index) => ({ ...row, _line: index + 1 }));
 }
 
+function parseBoolean(value) {
+	const normalized = String(value || '').trim().toLowerCase();
+	if (!normalized) {
+		return null;
+	}
+	if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) {
+		return true;
+	}
+	if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) {
+		return false;
+	}
+	return null;
+}
+
 function normalizeMatch(row, fallbackId) {
 	const matchId = String(row.matchId || fallbackId || '').trim();
 	if (!matchId) {
@@ -147,19 +162,27 @@ function normalizeMatch(row, fallbackId) {
 			flag: resolveTeamFlag(awayTeam, row.awayFlag),
 		},
 	};
+	const allowDraw = parseBoolean(row.allowDraw);
+	if (allowDraw !== null) {
+		match.allowDraw = allowDraw;
+	}
 
 	const homeScore = parseInt(row.homeScore, 10);
 	const awayScore = parseInt(row.awayScore, 10);
 	if (Number.isInteger(homeScore) && homeScore >= 0 && Number.isInteger(awayScore) && awayScore >= 0) {
-		match.result = {
+		match.result = normalizeResultPayload({
 			homeScore,
 			awayScore,
-			result: homeScore === awayScore ? 'draw' : (homeScore > awayScore ? 'home' : 'away'),
+			winner: row.winner || row.winnerSide || '',
+			decidedBy: row.decidedBy || '',
+			note: row.note || '',
 			status: String(row.resultStatus || row.status || '').trim() || 'finished',
 			source: String(row.resultSource || '').trim(),
 			sourceUrl: String(row.resultSourceUrl || '').trim(),
-			updatedAt: Date.now(),
-		};
+		}, match);
+		if (!match.result) {
+			throw new Error(`line ${row._line}: invalid match result, knockout draw requires winner`);
+		}
 		match.status = match.result.status;
 	}
 

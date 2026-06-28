@@ -283,6 +283,49 @@ Predictor.renderMatchCard = function(match) {
 		</div>`;
 };
 
+Predictor.matchAllowsDraw = function(match) {
+	if (match && typeof match.allowDraw === 'boolean') {
+		return match.allowDraw;
+	}
+	return String(match && match.format || '').trim() !== 'knockout';
+};
+
+Predictor.getResultOptions = function(match) {
+	return Predictor.matchAllowsDraw(match) ? ['home', 'draw', 'away'] : ['home', 'away'];
+};
+
+Predictor.getResultChoiceText = function(match, side) {
+	if (side === 'home') {
+		return `${match.home.name} ${Predictor.matchAllowsDraw(match) ? '胜' : '晋级'}`;
+	}
+	if (side === 'away') {
+		return `${match.away.name} ${Predictor.matchAllowsDraw(match) ? '胜' : '晋级'}`;
+	}
+	return '平局';
+};
+
+Predictor.formatDecisionSuffix = function(result) {
+	if (!result || !result.decidedBy) {
+		return '';
+	}
+	if (result.decidedBy === 'penalties') {
+		return '（点球）';
+	}
+	if (result.decidedBy === 'extra-time') {
+		return '（加时）';
+	}
+	return `（${result.decidedBy}）`;
+};
+
+Predictor.formatMatchOutcomeLabel = function(match, result) {
+	const base = result.result === 'home' ?
+		Predictor.getResultChoiceText(match, 'home') :
+		result.result === 'away' ?
+			Predictor.getResultChoiceText(match, 'away') :
+			'平局';
+	return `${base}${Predictor.formatDecisionSuffix(result)}`;
+};
+
 Predictor.loadUserPredictions = function() {
 	const container = $('.predictor-user-predictions');
 	if (!Predictor.user) {
@@ -558,10 +601,10 @@ Predictor.formatPredictionText = function(match, prediction) {
 
 	if (prediction.type === 'result') {
 		if (prediction.result === 'home') {
-			return `${match.home.name} 胜`;
+			return Predictor.getResultChoiceText(match, 'home');
 		}
 		if (prediction.result === 'away') {
-			return `${match.away.name} 胜`;
+			return Predictor.getResultChoiceText(match, 'away');
 		}
 		return '平局';
 	}
@@ -575,11 +618,7 @@ Predictor.formatMatchResultText = function(match) {
 	}
 
 	const result = match.result;
-	const resultLabel = result.result === 'home'
-		? `${match.home.name} 胜`
-		: result.result === 'away'
-			? `${match.away.name} 胜`
-			: '平局';
+	const resultLabel = Predictor.formatMatchOutcomeLabel(match, result);
 	return `赛果：${match.home.name} ${result.homeScore} : ${result.awayScore} ${match.away.name} · ${resultLabel}`;
 };
 

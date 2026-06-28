@@ -81,12 +81,12 @@
 					<td><code>{./tokenPreview}</code></td>
 					<td class="text-nowrap">
 						{{{ if ./createdAtISO }}}
-						<span title="{./createdAtISO}">{./createdAtFormatted}</span>
+						<span title="{./createdAtFormatted}">{./createdAtFormatted}</span>
 						{{{ end }}}
 					</td>
 					<td class="text-nowrap">
 						{{{ if ./expiresAtISO }}}
-						<span title="{./expiresAtISO}">{./expiresAtFormatted}</span>
+						<span title="{./expiresAtFormatted}">{./expiresAtFormatted}</span>
 						{{{ else }}}
 						<em class="text-muted">[[skills:table.never-expires]]</em>
 						{{{ end }}}
@@ -100,7 +100,7 @@
 					</td>
 					<td class="text-nowrap">
 						{{{ if ./lastSeenISO }}}
-						<span title="{./lastSeenISO}">{./lastSeenFormatted}</span>
+						<span title="{./lastSeenFormatted}">{./lastSeenFormatted}</span>
 						{{{ else }}}
 						<em class="text-muted">[[skills:table.never]]</em>
 						{{{ end }}}

@@ -6,6 +6,7 @@ const path = require('path');
 const nconf = require('nconf');
 const {
 	normalizeResultPayload,
+	getPredictionOutcome,
 	fetchResultFromSerpApi,
 } = require('../lib/result-sync');
 
@@ -34,6 +35,7 @@ function parseArgs(argv) {
 	const options = {
 		matchId: '',
 		round: '',
+		stage: '',
 		dryRun: false,
 		serpapiKey: process.env.SERPAPI_KEY || '',
 		hl: process.env.SERPAPI_HL || 'zh-cn',
@@ -43,6 +45,9 @@ function parseArgs(argv) {
 		query: '',
 		homeScore: '',
 		awayScore: '',
+		winner: '',
+		decidedBy: '',
+		note: '',
 	};
 
 	for (let i = 0; i < argv.length; i += 1) {
@@ -51,6 +56,8 @@ function parseArgs(argv) {
 			options.matchId = String(argv[++i]).trim();
 		} else if (arg === '--round' && argv[i + 1]) {
 			options.round = String(argv[++i]).trim();
+		} else if (arg === '--stage' && argv[i + 1]) {
+			options.stage = String(argv[++i]).trim();
 		} else if (arg === '--serpapi-key' && argv[i + 1]) {
 			options.serpapiKey = String(argv[++i]).trim();
 		} else if (arg === '--hl' && argv[i + 1]) {
@@ -67,6 +74,12 @@ function parseArgs(argv) {
 			options.homeScore = String(argv[++i]).trim();
 		} else if (arg === '--away-score' && argv[i + 1]) {
 			options.awayScore = String(argv[++i]).trim();
+		} else if (arg === '--winner' && argv[i + 1]) {
+			options.winner = String(argv[++i]).trim();
+		} else if (arg === '--decided-by' && argv[i + 1]) {
+			options.decidedBy = String(argv[++i]).trim();
+		} else if (arg === '--note' && argv[i + 1]) {
+			options.note = String(argv[++i]).trim();
 		} else if (arg === '--dry-run') {
 			options.dryRun = true;
 		}
@@ -105,7 +118,7 @@ async function rebuildLeaderboard(matches) {
 				continue;
 			}
 
-			const points = calculatePoints(match.result, parsedPrediction);
+			const points = calculatePoints(match, match.result, parsedPrediction);
 			if (points <= 0) {
 				continue;
 			}
@@ -130,20 +143,24 @@ async function rebuildLeaderboard(matches) {
 	}
 }
 
-function calculatePoints(result, prediction) {
-	if (!result || !prediction) {
+function calculatePoints(match, result, prediction) {
+	if (!match || !result || !prediction) {
 		return 0;
 	}
 
 	if (prediction.type === 'result') {
-		return prediction.result === result.result ? 1 : 0;
+		return getPredictionOutcome(match, prediction) === result.result ? 1 : 0;
 	}
 
-	if (prediction.homeScore === result.homeScore && prediction.awayScore === result.awayScore) {
+	const predictedResult = getPredictionOutcome(match, prediction);
+	if (
+		prediction.homeScore === result.homeScore &&
+		prediction.awayScore === result.awayScore &&
+		predictedResult === result.result
+	) {
 		return 3;
 	}
 
-	const predictedResult = prediction.homeScore === prediction.awayScore ? 'draw' : (prediction.homeScore > prediction.awayScore ? 'home' : 'away');
 	return predictedResult === result.result ? 1 : 0;
 }
 
@@ -156,8 +173,11 @@ async function main() {
 		if (options.matchId) {
 			return matchId === options.matchId;
 		}
-		if (options.round) {
-			return String(matches[matchId].round || '') === options.round;
+		if (options.round && String(matches[matchId].round || '') !== options.round) {
+			return false;
+		}
+		if (options.stage && String(matches[matchId].stage || '').trim() !== options.stage) {
+			return false;
 		}
 		return true;
 	});
@@ -174,9 +194,12 @@ async function main() {
 			result = normalizeResultPayload({
 				homeScore: options.homeScore,
 				awayScore: options.awayScore,
+				winner: options.winner,
+				decidedBy: options.decidedBy,
+				note: options.note,
 				source: options.source || 'manual',
 				sourceUrl: options.sourceUrl,
-			});
+			}, match);
 		} else {
 			result = await fetchResultFromSerpApi(match, options);
 		}
