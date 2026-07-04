@@ -416,7 +416,7 @@ Predictor.renderLeaderboard = function(leaderboard, rounds) {
 	container.empty();
 
 	if (Array.isArray(rounds) && rounds.length) {
-		container.html(Predictor.renderRoundTabs(rounds, '本轮排行榜', (round) => {
+		container.html(Predictor.renderRoundTabs(rounds, '排行榜', (round) => {
 			return Predictor.renderLeaderboardBlock(round.leaderboard || [], '');
 		}, (round) => `${round.matchCount || 0} 场`));
 		Predictor.initializeTooltips(container);

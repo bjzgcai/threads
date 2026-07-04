@@ -1,4 +1,4 @@
-matchId,round,format,stage,group,date,time,homeTeam,awayTeam,homeFlag,awayFlag
+matchId,round,format,stage,group,date,time,homeTeam,awayTeam,homeFlag,awayFlag,allowDraw
 wc2026-g-a-r1-1,1,group,小组赛,A,2026-06-12,03:00,墨西哥,南非,🇲🇽,🇿🇦
 wc2026-g-a-r1-2,1,group,小组赛,A,2026-06-12,10:00,韩国,捷克,🇰🇷,🇨🇿
 wc2026-g-b-r1-1,1,group,小组赛,B,2026-06-13,03:00,加拿大,波黑,🇨🇦,🇧🇦

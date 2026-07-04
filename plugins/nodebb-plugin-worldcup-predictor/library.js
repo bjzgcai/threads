@@ -1034,11 +1034,11 @@ Predictor.getAccuracySummary = function (summary) {
 Predictor.getMatchRounds = function (matches) {
 	const groups = {};
 	Object.values(matches || {}).forEach((match) => {
-		const key = match.roundKey || Predictor.getMatchRoundKey(match);
+		const key = Predictor.getLeaderboardRoundKey(match);
 		if (!groups[key]) {
 			groups[key] = {
 				key,
-				label: match.roundLabel || Predictor.getMatchRoundLabel(match),
+				label: Predictor.getLeaderboardRoundLabel(match),
 				matches: {},
 			};
 		}
@@ -1046,6 +1046,22 @@ Predictor.getMatchRounds = function (matches) {
 	});
 
 	return Object.values(groups).sort((a, b) => Predictor.compareRoundKeys(a.key, b.key));
+};
+
+Predictor.getLeaderboardRoundKey = function (match) {
+	if (String(match && match.format || '').trim() === 'knockout') {
+		return 'knockout';
+	}
+
+	return match.roundKey || Predictor.getMatchRoundKey(match);
+};
+
+Predictor.getLeaderboardRoundLabel = function (match) {
+	if (String(match && match.format || '').trim() === 'knockout') {
+		return '淘汰赛';
+	}
+
+	return match.roundLabel || Predictor.getMatchRoundLabel(match);
 };
 
 Predictor.getLeaderboardRounds = async function (matches, limit) {
