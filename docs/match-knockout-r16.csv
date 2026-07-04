@@ -1,0 +1,9 @@
+matchId,round,format,stage,group,date,time,homeTeam,awayTeam,homeFlag,awayFlag,allowDraw
+wc2026-ko-r16-01,102,knockout,1/8决赛,,2026-07-05,01:00,加拿大,摩洛哥,🇨🇦,🇲🇦,false
+wc2026-ko-r16-02,102,knockout,1/8决赛,,2026-07-05,05:00,巴拉圭,法国,🇵🇾,🇫🇷,false
+wc2026-ko-r16-03,102,knockout,1/8决赛,,2026-07-06,04:00,巴西,挪威,🇧🇷,🇳🇴,false
+wc2026-ko-r16-04,102,knockout,1/8决赛,,2026-07-06,08:00,墨西哥,英格兰,🇲🇽,🏴,false
+wc2026-ko-r16-05,102,knockout,1/8决赛,,2026-07-07,03:00,葡萄牙,西班牙,🇵🇹,🇪🇸,false
+wc2026-ko-r16-06,102,knockout,1/8决赛,,2026-07-07,08:00,美国,比利时,🇺🇸,🇧🇪,false
+wc2026-ko-r16-07,102,knockout,1/8决赛,,2026-07-08,00:00,阿根廷,埃及,🇦🇷,🇪🇬,false
+wc2026-ko-r16-08,102,knockout,1/8决赛,,2026-07-08,04:00,瑞士,哥伦比亚,🇨🇭,🇨🇴,false
