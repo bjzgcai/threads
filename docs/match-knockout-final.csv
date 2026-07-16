@@ -1,0 +1,4 @@
+matchId,round,format,stage,group,date,time,homeTeam,awayTeam,homeFlag,awayFlag,allowDraw
+wc2026-ko-third-01,105,knockout,三四名决赛,,2026-07-19,05:00,法国,英格兰,🇫🇷,🏴,false
+wc2026-ko-final-01,105,knockout,决赛,,2026-07-20,03:00,西班牙,阿根廷,🇪🇸,🇦🇷,false
+
