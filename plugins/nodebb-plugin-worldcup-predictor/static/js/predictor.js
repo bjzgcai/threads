@@ -18,15 +18,12 @@ Predictor.initialize = function() {
 		Predictor.eventsBound = true;
 	}
 
-	Predictor.ensureGlobalEntry();
-
 	if (window.location.pathname.indexOf('/predictor') !== -1 || ajaxify.data?.template?.name === 'predictor') {
 		Predictor.init();
 	}
 };
 
 Predictor.onAjaxifyEnd = function() {
-	Predictor.ensureGlobalEntry();
 	if (ajaxify.data?.template?.name === 'predictor') {
 		Predictor.init();
 	}
@@ -79,28 +76,6 @@ Predictor.bindEvents = function() {
 		window.location.href = href;
 	});
 
-	$(document).on('click', '[component="predictor/global-entry"] a', function(ev) {
-		const entry = $(this).closest('[component="predictor/global-entry"]');
-		if (window.matchMedia && window.matchMedia('(max-width: 767px)').matches && !entry.hasClass('is-expanded')) {
-			ev.preventDefault();
-			ev.stopPropagation();
-			entry.addClass('is-expanded');
-			window.setTimeout(function() {
-				entry.removeClass('is-expanded');
-			}, 2400);
-			return;
-		}
-
-		const href = $(this).attr('href');
-		if (!href) {
-			return;
-		}
-
-		ev.preventDefault();
-		ev.stopPropagation();
-		window.location.href = href;
-	});
-
 	$(document).on('click', '.predictor-round-tab', function(ev) {
 		ev.preventDefault();
 		const button = $(this);
@@ -126,30 +101,6 @@ Predictor.bindEvents = function() {
 	$(document).on('click', function() {
 		$('.leaderboard-recent-item.is-open').removeClass('is-open');
 	});
-};
-
-Predictor.ensureGlobalEntry = function() {
-	const onPredictorPage = window.location.pathname.indexOf('/predictor') !== -1 || ajaxify.data?.template?.name === 'predictor';
-	const onAdminPage = window.location.pathname.indexOf('/admin') === 0 || ajaxify.data?.template?.name?.indexOf('admin/') === 0;
-	const body = $('body');
-
-	if (onPredictorPage || onAdminPage) {
-		body.find('[component="predictor/global-entry"]').remove();
-		return;
-	}
-
-	if (body.find('[component="predictor/global-entry"]').length) {
-		return;
-	}
-
-	body.append(`
-		<div component="predictor/global-entry" class="predictor-global-entry">
-			<a href="${config.relative_path || ''}/predictor" class="predictor-global-entry-link" data-ajaxify="false" aria-label="进入世界杯竞猜">
-				<span class="predictor-global-entry-icon" aria-hidden="true">🏆</span>
-				<span class="predictor-global-entry-text">世界杯竞猜</span>
-			</a>
-		</div>
-	`);
 };
 
 Predictor.loadMatches = function() {
